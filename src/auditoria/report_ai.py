@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 from .models import AuditResult
+from .utils import format_brl
 
 _logger = logging.getLogger(__name__)
 

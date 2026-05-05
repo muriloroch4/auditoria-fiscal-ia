@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import ssl
+import threading
 from http.client import HTTPSConnection
 from pathlib import Path
 from typing import Any
@@ -13,35 +14,37 @@ _DEFAULT_MAX_TOKENS = 2048
 _API_HOST = "openrouter.ai"
 _API_URL = "/api/v1/chat/completions"
 
+_env_lock = threading.Lock()
 _ENV_LOADED = False
 
 
 def _load_env_file() -> None:
     global _ENV_LOADED
-    if _ENV_LOADED:
-        return
+    with _env_lock:
+        if _ENV_LOADED:
+            return
 
-    env_path = Path(__file__).resolve().parents[2] / ".env"
-    if not env_path.exists():
+        env_path = Path(__file__).resolve().parents[2] / ".env"
+        if not env_path.exists():
+            _ENV_LOADED = True
+            return
+
+        try:
+            with open(env_path, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    if "=" in line:
+                        key, _, value = line.partition("=")
+                        key = key.strip()
+                        value = value.strip().strip('"').strip("'")
+                        if key and key not in os.environ:
+                            os.environ[key] = value
+        except Exception:
+            pass
+
         _ENV_LOADED = True
-        return
-
-    try:
-        with open(env_path, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                if "=" in line:
-                    key, _, value = line.partition("=")
-                    key = key.strip()
-                    value = value.strip().strip('"').strip("'")
-                    if key and key not in os.environ:
-                        os.environ[key] = value
-    except Exception:
-        pass
-
-    _ENV_LOADED = True
 
 
 def call_openrouter(

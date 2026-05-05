@@ -84,7 +84,9 @@ def read_trial_balance_xls_bytes(content: bytes, cliente: str, periodo: str) -> 
 
 
 def _read_trial_balance_rows(rows: Iterable[str], cliente: str, periodo: str) -> TrialBalance:
-    reader = csv.DictReader(rows, delimiter=";")
+    content = "".join(list(rows))
+    delimiter = _detect_csv_delimiter(content)
+    reader = csv.DictReader(StringIO(content), delimiter=delimiter)
     if not reader.fieldnames:
         raise ValueError("CSV vazio ou sem cabecalho.")
 
@@ -99,6 +101,14 @@ def _read_trial_balance_rows(rows: Iterable[str], cliente: str, periodo: str) ->
         for row in reader
     ]
     return _read_trial_balance_records(records, cliente=cliente, periodo=periodo, source_name="CSV")
+
+
+def _detect_csv_delimiter(content: str) -> str:
+    first_line = content.splitlines()[0] if content else ""
+    candidates = [";", ",", "\t", "|"]
+    counts = {d: first_line.count(d) for d in candidates}
+    best = max(counts, key=counts.get)
+    return best if counts[best] > 0 else ";"
 
 
 def _read_trial_balance_records(

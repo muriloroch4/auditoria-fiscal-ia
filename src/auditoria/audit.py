@@ -4,6 +4,7 @@ from .models import AuditResult, RiskLevel, RuleFinding, TrialBalance
 from .risk import classify_total_risk
 from .rules import analyze_simples_servicos
 from .rules.simples_servicos import calculate_profit_basis
+from .utils import format_brl
 
 
 def run_quarterly_audit(balance: TrialBalance) -> AuditResult:
@@ -20,21 +21,17 @@ def run_quarterly_audit(balance: TrialBalance) -> AuditResult:
         pontuacao_total=score,
         achados=findings,
         resumo_metricas={
-            "receita_servicos": _money(abs(balance.credito_por_grupo("receita"))),
-            "tributos": _money(abs(balance.total_por_grupo("tributos"))),
-            "folha_pro_labore": _money(abs(balance.debito_por_grupo("folha"))),
-            "despesas": _money(abs(balance.debito_por_grupo("despesas"))),
-            "lucros_distribuidos": _money(abs(balance.debito_por_grupo("lucros"))),
-            "lucro_apurado_base": _money(profit_basis.value),
+            "receita_servicos": format_brl(abs(balance.credito_por_grupo("receita"))),
+            "tributos": format_brl(abs(balance.total_por_grupo("tributos"))),
+            "folha_pro_labore": format_brl(abs(balance.debito_por_grupo("folha"))),
+            "despesas": format_brl(abs(balance.debito_por_grupo("despesas"))),
+            "lucros_distribuidos": format_brl(abs(balance.debito_por_grupo("lucros"))),
+            "lucro_apurado_base": format_brl(profit_basis.value),
             "origem_lucro_apurado": profit_basis.source,
-            "caixa_bancos": _money(balance.total_por_grupo("caixa") + balance.total_por_grupo("bancos")),
+            "caixa_bancos": format_brl(balance.total_por_grupo("caixa") + balance.total_por_grupo("bancos")),
         },
         explicacao_pontuacao=_explain_score(findings, overall_risk, score),
     )
-
-
-def _money(value) -> str:
-    return f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
 def _explain_score(findings: list[RuleFinding], overall_risk: RiskLevel, score: int) -> list[str]:

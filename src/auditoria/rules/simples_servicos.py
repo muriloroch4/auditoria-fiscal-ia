@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from ..models import RiskLevel, RuleFinding, TrialBalance
+from ..utils import format_brl, format_percent
 
 
 SIMPLES_ANNUAL_LIMIT = Decimal("4800000")
@@ -304,15 +305,12 @@ def _abs(value: Decimal) -> Decimal:
 
 
 def _active_movement(balance: TrialBalance) -> Decimal:
+    relevant_grupos = {"bancos", "caixa", "clientes"}
     return sum(
-        (account.debito + account.credito for account in balance.contas if account.grupo != "receita"),
+        (account.debito + account.credito for account in balance.contas if account.grupo in relevant_grupos),
         Decimal("0"),
     )
 
 
-def _money(value: Decimal) -> str:
-    return f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
-
-def _percent(value: Decimal) -> str:
-    return f"{value * Decimal('100'):.2f}%".replace(".", ",")
+_money = format_brl
+_percent = format_percent

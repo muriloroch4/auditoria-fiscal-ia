@@ -198,13 +198,14 @@ class _ReportPDF(FPDF):
 
 
 def _strip(text: str) -> str:
+    from .utils import sanitize_for_latin1
+
     text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
     text = re.sub(r"\*(.+?)\*", r"\1", text)
     text = re.sub(r"#+\s*", "", text)
     text = re.sub(r"^\s*[-*]\s*", "", text, flags=re.MULTILINE)
     text = text.replace("|", "").replace("---", "").replace("___", "").replace("`", "")
-    text = text.replace("\u2014", "-").replace("\u2013", "-")  # em/en dash
-    return text.encode("latin-1", errors="replace").decode("latin-1").strip()
+    return sanitize_for_latin1(text)
 
 
 def markdown_to_pdf(markdown_text: str, output: str | Path | io.BytesIO) -> None:

@@ -1,7 +1,9 @@
+import io
 import os
 import unittest
 import unittest.mock
 import zipfile
+from decimal import Decimal
 from io import BytesIO
 from pathlib import Path
 from textwrap import dedent
@@ -13,6 +15,9 @@ from src.auditoria.parser import read_trial_balance_csv, read_trial_balance_csv_
 from src.auditoria.report_ai import build_report_prompt, generate_markdown_report
 from src.auditoria.serializers import audit_result_to_dict
 from src.auditoria.ai_client import is_api_key_configured
+from src.auditoria.risk import classify_total_risk
+from src.auditoria.pdf_export import markdown_to_pdf
+from src.auditoria.utils import format_brl, format_percent, sanitize_for_latin1
 
 
 class AuditPrototypeTest(unittest.TestCase):
@@ -21,7 +26,6 @@ class AuditPrototypeTest(unittest.TestCase):
         balance = read_trial_balance_csv(sample, cliente="Cliente Exemplo", periodo="2026-T1")
 
         result = run_quarterly_audit(balance)
-        # Força modo local para testar a geração determinística
         report = generate_markdown_report(result, use_ai=False)
         prompt_payload = build_report_prompt(result)
         api_payload = audit_result_to_dict(result, report_markdown=report)
@@ -197,7 +201,6 @@ class AuditPrototypeTest(unittest.TestCase):
             self.assertIn("IA Desabilitada", report)
 
     def test_is_api_key_configured_logic(self):
-        # Testa a lógica da função em um ambiente limpo e sem leitura de arquivo
         with unittest.mock.patch("src.auditoria.ai_client._load_env_file"):
             with unittest.mock.patch.dict(os.environ, {}, clear=True):
                 self.assertFalse(is_api_key_configured())
@@ -206,9 +209,145 @@ class AuditPrototypeTest(unittest.TestCase):
                 self.assertTrue(is_api_key_configured("sk-test-key"))
 
     def test_is_api_key_configured_with_env(self):
-        # Testa se detecta chave no ambiente
         with unittest.mock.patch.dict(os.environ, {"OPENROUTER_API_KEY": "sk-test-env"}):
             self.assertTrue(is_api_key_configured())
+
+
+class RiskClassificationTest(unittest.TestCase):
+    def _make_finding(self, codigo="X", nivel=RiskLevel.BAIXO, pontuacao=5):
+        from src.auditoria.models import RuleFinding
+        return RuleFinding(
+            codigo=codigo,
+            titulo="Test",
+            nivel=nivel,
+            pontuacao=pontuacao,
+            descricao="Test",
+        )
+
+    def test_no_findings_means_low_risk(self):
+        level, score = classify_total_risk([])
+        self.assertEqual(level, RiskLevel.BAIXO)
+        self.assertEqual(score, 0)
+
+    def test_single_low_finding_stays_low(self):
+        findings = [self._make_finding(pontuacao=5)]
+        level, score = classify_total_risk(findings)
+        self.assertEqual(level, RiskLevel.BAIXO)
+        self.assertEqual(score, 5)
+
+    def test_score_above_30_means_medium(self):
+        findings = [self._make_finding(pontuacao=15), self._make_finding(pontuacao=18)]
+        level, score = classify_total_risk(findings)
+        self.assertEqual(level, RiskLevel.MEDIO)
+        self.assertEqual(score, 33)
+
+    def test_any_high_finding_means_high(self):
+        findings = [self._make_finding(nivel=RiskLevel.ALTO, pontuacao=20)]
+        level, score = classify_total_risk(findings)
+        self.assertEqual(level, RiskLevel.ALTO)
+        self.assertEqual(score, 20)
+
+    def test_score_above_70_means_high(self):
+        findings = [self._make_finding(pontuacao=25) for _ in range(3)]
+        level, score = classify_total_risk(findings)
+        self.assertEqual(level, RiskLevel.ALTO)
+        self.assertEqual(score, 75)
+
+    def test_any_medium_finding_means_medium(self):
+        findings = [self._make_finding(nivel=RiskLevel.MEDIO, pontuacao=10)]
+        level, score = classify_total_risk(findings)
+        self.assertEqual(level, RiskLevel.MEDIO)
+
+
+class UtilsTest(unittest.TestCase):
+    def test_format_brl(self):
+        self.assertEqual(format_brl(Decimal("1000.50")), "R$ 1.000,50")
+        self.assertEqual(format_brl(Decimal("0")), "R$ 0,00")
+        self.assertEqual(format_brl(Decimal("4800000")), "R$ 4.800.000,00")
+
+    def test_format_percent(self):
+        self.assertEqual(format_percent(Decimal("0.055")), "5,50%")
+        self.assertEqual(format_percent(Decimal("1")), "100,00%")
+
+    def test_sanitize_for_latin1_removes_unicode(self):
+        self.assertEqual(sanitize_for_latin1("Teste com — travessão"), "Teste com - travessao")
+        self.assertIn("caixa", sanitize_for_latin1("caixa"))
+        self.assertEqual(sanitize_for_latin1("joão"), "joao")
+
+
+class PDFExportTest(unittest.TestCase):
+    def test_generate_pdf_from_markdown(self):
+        markdown = "# Relatório Teste\n\n**Cliente:** Teste\n\n- Item 1\n- Item 2"
+        buffer = io.BytesIO()
+        markdown_to_pdf(markdown, buffer)
+        buffer.seek(0)
+        header = buffer.read(5)
+        self.assertEqual(header, b"%PDF-")
+
+    def test_generate_pdf_with_tables(self):
+        markdown = (
+            "# Relatório\n\n"
+            "| Campo | Valor |\n"
+            "| --- | --- |\n"
+            "| Risco | ALTO |\n"
+            "| Pontos | 50 |\n"
+        )
+        buffer = io.BytesIO()
+        markdown_to_pdf(markdown, buffer)
+        buffer.seek(0)
+        self.assertTrue(buffer.read().startswith(b"%PDF-"))
+
+    def test_generate_pdf_with_blockquote(self):
+        markdown = "# Relatório\n\n> Recomendação técnica para o cliente."
+        buffer = io.BytesIO()
+        markdown_to_pdf(markdown, buffer)
+        buffer.seek(0)
+        self.assertTrue(buffer.read().startswith(b"%PDF-"))
+
+
+class ParserEdgeCaseTest(unittest.TestCase):
+    def test_csv_with_comma_delimiter(self):
+        content = dedent(
+            """\
+            codigo,conta,grupo,saldo_anterior,debito,credito,saldo_atual
+            1.1.1,Banco,bancos,0,1000,500,-500
+            3.1.1,Receita,receita,0,0,50000,50000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Comma CSV", periodo="2026-T1")
+        self.assertEqual(balance.cliente, "Comma CSV")
+        self.assertEqual(len(balance.contas), 2)
+
+    def test_csv_with_tab_delimiter(self):
+        content = "codigo\tconta\tgrupo\tsaldo_anterior\tdebito\tcredito\tsaldo_atual\n1.1.1\tBanco\tbancos\t0\t1000\t500\t-500\n"
+        balance = read_trial_balance_csv_text(content, cliente="Tab CSV", periodo="2026-T1")
+        self.assertEqual(len(balance.contas), 1)
+
+    def test_empty_csv_raises_error(self):
+        with self.assertRaises(ValueError):
+            read_trial_balance_csv_text("", cliente="X", periodo="Y")
+
+    def test_csv_missing_columns_raises_error(self):
+        content = "codigo;conta;grupo\n1.1.1;Banco;bancos\n"
+        with self.assertRaises(ValueError):
+            read_trial_balance_csv_text(content, cliente="X", periodo="Y")
+
+    def test_zero_revenue_no_active_movement_no_finding(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;100;80;-20
+            3.1.1;Receita;receita;0;0;0;0
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Low Movement", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        finding_codes = {f.codigo for f in result.achados}
+        self.assertNotIn("SN-008A", finding_codes)
+
+
+if __name__ == "__main__":
+    unittest.main()
 
 
 def _build_xlsx(rows: list[list[str]]) -> bytes:
@@ -286,7 +425,3 @@ def _workbook_rels_xml() -> str:
         '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
         '</Relationships>'
     )
-
-
-if __name__ == "__main__":
-    unittest.main()
