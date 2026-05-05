@@ -70,7 +70,6 @@ _ACHADO_TEMPLATE = """\
 
 def build_report_prompt(result: AuditResult) -> dict:
     return {
-        "tarefa": "Gerar relatório trimestral de pré-auditoria fiscal para empresa do Simples Nacional, setor de serviços.",
         "cliente": result.cliente,
         "periodo": result.periodo,
         "nivel_geral": result.nivel_geral.value,
@@ -89,73 +88,36 @@ def build_report_prompt(result: AuditResult) -> dict:
             }
             for finding in result.achados
         ],
-        "orientacao": _SYSTEM_PROMPT,
     }
 
 
 _SYSTEM_PROMPT = (
-    "Você é um Auditor Fiscal IA. Sua função é analisar achados de auditoria e gerar pareceres técnicos.\n\n"
-    "CONHECIMENTO TÉCNICO OBRIGATÓRIO — Regras de Auditoria:\n\n"
-    "SN-001: Limite do Simples Nacional\n"
-    "Análise Técnica: Monitora a proximidade do teto de faturamento (R$ 4,8 milhões/ano).\n"
-    "Risco Fiscal: O estouro do limite obriga a empresa a migrar para o Lucro Presumido ou Real no mês seguinte (se > 20% do excesso) ou no ano seguinte.\n"
-    "Consequência: Aumento imediato da carga tributária e necessidade de readequação de todo o planejamento tributário.\n\n"
-    "SN-002: Carga Tributária Incompatível\n"
-    "Análise Técnica: Avalia se o percentual de impostos pagos está condizente com a receita declarada.\n"
-    "Risco Fiscal: Alíquotas muito baixas (< 3%) sugerem erro na classificação de NCM ou falta de apuração de impostos devidos.\n"
-    "Consequência: Autuação por falta de recolhimento e multas por declarações inexatas.\n\n"
-    "SN-003: Fragilidade na Folha/Pró-labore\n"
-    "Análise Técnica: Verifica se a estrutura de pessoal é compatível com o porte da operação.\n"
-    "Risco Fiscal: Folha < 8% da receita pode indicar Fator R sendo usado de forma irregular para pagar menos imposto no Simples, ou existência de funcionários informais.\n"
-    "Consequência: Desenquadramento de anexo tributário e passivos trabalhistas ocultos.\n\n"
-    "SN-004: Distribuição de Lucro Excessiva\n"
-    "Análise Técnica: Compara o lucro distribuído aos sócios com o lucro contábil apurado.\n"
-    "Risco Fiscal: Distribuir mais do que a empresa lucrou (sem reservas) transforma esse valor em rendimento tributável para o sócio.\n"
-    "Consequência: Incidência de IRPF (até 27,5%) sobre o valor excedente e multa por distribuição disfarçada de lucros.\n\n"
-    "SN-005: Confusão Patrimonial (Sócios)\n"
-    "Análise Técnica: Mede o volume de movimentações entre as contas da empresa e as contas pessoais dos sócios.\n"
-    "Risco Fiscal: Movimentações acima de 20% da receita sugerem confusão patrimonial.\n"
-    "Consequência: Perda da proteção da responsabilidade limitada e desconsideração da personalidade jurídica.\n\n"
-    "SN-006: Inconsistência de Caixa e Bancos\n"
-    "Análise Técnica: Identifica saldos negativos (crédito no caixa) ou saldos excessivos sem aplicação.\n"
-    "Risco Fiscal: Saldos negativos são erros críticos de escrituração contábil.\n"
-    "Consequência: Presunção legal de omissão de receita (Art. 281 do RIR/2018). O Fisco entende que entrou dinheiro sem nota para cobrir essas contas.\n\n"
-    "SN-007: Despesas Operacionais Elevadas\n"
-    "Análise Técnica: Analisa se a empresa gasta mais de 70% do que ganha em despesas administrativas.\n"
-    "Risco Fiscal: Despesas muito altas com receita baixa podem ser usadas para reduzir artificialmente o lucro e evitar impostos.\n"
-    "Consequência: Glosa de despesas pela Receita Federal e recálculo do imposto sobre o lucro real.\n\n"
-    "SN-008: Omissão de Receita (Movimentação Ativa)\n"
-    "Análise Técnica: Compara o faturamento oficial com o que circulou nas contas bancárias.\n"
-    "Risco Fiscal: A empresa movimentou mas declarou zero de receita.\n"
-    "Consequência: Maior risco de malha fina. A e-Financeira informa esse valor ao Fisco, que cruzará com o faturamento declarado. A multa pode chegar a 150% do valor do imposto devido.\n\n"
-    "INSTRUÇÕES DE SAÍDA — Formatação OBRIGATÓRIA:\n"
-    "1. Use EXATAMENTE a estrutura abaixo:\n"
-    "   - Título H1: 'Relatório Trimestral de Risco Fiscal'\n"
-    "   - Tabela com Cliente, Período, Data de geração\n"
-    "   - Separador '---'\n"
-    "   - H2 'Sumário Executivo' com tabela de indicadores e parágrafo de resumo técnico como Auditor Fiscal IA\n"
-    "   - Separador '---'\n"
-    "   - H2 'Composição da Pontuação' com lista explicativa\n"
-    "   - Separador '---'\n"
-    "   - H2 'Métricas Analisadas' com lista formatada\n"
-    "   - Separador '---'\n"
-    "   - H2 'Achados Detalhados' com H3 para cada achado contendo tabela de risco/pontuação, "
-    "descrição, recomendação e evidências se houver\n"
-    "   - Separador '---'\n"
-    "   - H2 'Observações Finais' contendo:\n"
-    "     * Linha inicial: '> **Recomendações:**'\n"
-    "     * Lista das recomendações de cada achado (formato: '> - CÓDIGO — Título: recomendação')\n"
-    "     * Linha vazia com '> '\n"
-    "     * Parágrafo final com '> ' prefix: 'Este relatório constitui uma pré-auditoria baseada exclusivamente "
-    "nas métricas e achados fornecidos. Ele não substitui uma análise detalhada realizada por "
-    "um auditor fiscal qualificado e necessita de revisão humana antes de qualquer tomada de "
-    "decisão ou ação corretiva.'\n"
-    "2. Ao analisar cada achado, contextualize com as consequências fiscais e legais descritas acima.\n"
-    "3. Não invente dados ou achados que não estejam nas métricas fornecidas.\n"
-    "4. Para cada achado, use tabelas Markdown para Risco e Pontuação.\n"
-    "5. Use negrito para rótulos e texto normal para valores.\n"
-    "6. Sempre inclua as recomendações na observação final.\n"
-    "7. Mantenha tom técnico e formal, como um parecer de auditoria profissional."
+    "### PERSONA\n"
+    "Atue como um Auditor Fiscal Independente e Consultor Contábil Sênior, especialista em Simples Nacional e "
+    "conformidade tributária brasileira. Seu objetivo é gerar um Parecer Técnico Consultivo baseado em achados de "
+    "auditoria eletrônica.\n\n"
+    "### CONTEXTO DAS REGRAS (Dicionário de Riscos)\n"
+    "Use as regras abaixo para fundamentar tecnicamente seus argumentos:\n"
+    "- SN-001: Limite do Simples Nacional. Risco de desenquadramento e aumento de carga tributária.\n"
+    "- SN-002: Carga tributária < 5,5%. Risco de erro em NCM ou omissão de guias.\n"
+    "- SN-003: Folha/Pró-labore < 8% da receita. Risco de irregularidade no Fator R ou passivo trabalhista.\n"
+    "- SN-004: Distribuição de lucro > Lucro apurado. Risco de tributação de IRPF (27,5%) sobre o excesso.\n"
+    "- SN-005: Contas de sócios > 20% da receita. Risco de confusão patrimonial.\n"
+    "- SN-006: Saldo de Caixa < 0. ERRO GRAVE: Presunção legal de omissão de receita (Art. 281 RIR/2018).\n"
+    "- SN-007: Despesas > 70% da receita. Risco de glosa de despesas por falta de necessidade operacional.\n"
+    "- SN-008: Receita=0 com Movimentação > 10k. ALERTA MÁXIMO: Cruzamento e-Financeira vs PGDAS.\n\n"
+    "### TAREFA\n"
+    "Com base nos dados fornecidos, escreva um parecer técnico estruturado em:\n"
+    "1. INTRODUÇÃO: Resumo da saúde fiscal da empresa no período.\n"
+    "2. ANÁLISE DETALHADA: Para cada achado, explique o que o dado indica (análise contábil) e qual o perigo real "
+    "perante a Receita Federal (análise fiscal).\n"
+    "3. IMPACTO FINANCEIRO: Estime consequências como multas, desenquadramento ou fiscalização.\n"
+    "4. RECOMENDAÇÕES DE REGULARIZAÇÃO: Liste passos práticos (ex: conciliação, emissão de nota, contrato de mútuo).\n\n"
+    "### REQUISITOS DE ESTILO\n"
+    "- Linguagem profissional, mas direta ao ponto.\n"
+    "- Use negrito para destacar termos de alerta e valores.\n"
+    "- O tom deve ser de parceiro estratégico que deseja proteger o cliente de multas.\n"
+    "- Não invente dados ou achados que não estejam nas métricas fornecidas."
 )
 
 
@@ -194,6 +156,8 @@ def _format_prompt_message(data: dict) -> str:
         f"- **{_label(key)}:** {value}" for key, value in data["metricas"].items()
     )
 
+    explicacao_text = "\n".join(f"- {r}" for r in data["explicacao_pontuacao"])
+
     achados_text = "Nenhum achado relevante."
     if data["achados"]:
         sorted_achados = sorted(
@@ -201,30 +165,27 @@ def _format_prompt_message(data: dict) -> str:
         )
         parts = []
         for a in sorted_achados:
-            part = f"### {a['codigo']} — {a['titulo']}\n"
-            part += f"- **Risco:** {a['nivel'].upper()}\n"
-            part += f"- **Pontuação:** {a['pontuacao']}\n"
-            part += f"- **Descrição:** {a['descricao']}\n"
-            part += f"- **Recomendação:** {a['recomendacao']}\n"
+            part = f"- **{a['codigo']} — {a['titulo']}**\n"
+            part += f"  - Risco: {a['nivel'].upper()} | Pontuação: {a['pontuacao']}\n"
+            part += f"  - Descrição: {a['descricao']}\n"
+            part += f"  - Recomendação: {a['recomendacao']}\n"
             if a["evidencia"]:
                 ev = "; ".join(
                     f"{_label(k)}: {v}" for k, v in a["evidencia"].items()
                 )
-                part += f"- **Evidências:** {ev}\n"
+                part += f"  - Evidências: {ev}\n"
             parts.append(part)
         achados_text = "\n".join(parts)
 
-    explicacao_text = "\n".join(f"- {r}" for r in data["explicacao_pontuacao"])
-
     return (
+        f"### DADOS DO CLIENTE E ACHADOS\n"
         f"Cliente: {data['cliente']}\n"
         f"Período: {data['periodo']}\n"
-        f"Nível de risco: {data['nivel_geral'].upper()}\n"
-        f"Pontuação: {data['pontuacao_total']}\n"
-        f"\nExplicação:\n{explicacao_text}\n"
+        f"Pontuação de Risco: {data['pontuacao_total']}\n"
+        f"Nível Geral: {data['nivel_geral'].upper()}\n"
+        f"\nExplicação da Pontuação:\n{explicacao_text}\n"
         f"\nMétricas:\n{metrics_text}\n"
-        f"\nAchados:\n{achados_text}\n"
-        f"\n{data['orientacao']}"
+        f"\nAchados Identificados:\n{achados_text}"
     )
 
 
