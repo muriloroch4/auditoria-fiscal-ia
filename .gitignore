@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# Virtual environments
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets & Logs
+.env
+*.log
+*.err
+
+# Reports generated (optional, but good to keep repo clean)
+relatorio*.pdf
+relatorio*.md
+server.*.log
+
+# Windows specific
+scripts/fix_accents.py

@@ -1,0 +1,22 @@
+codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+1.1.1;Caixa;caixa;5000;60000;70000;-5000
+1.1.2;Banco Conta Movimento;bancos;20000;300000;220000;100000
+1.1.3;Aplicacoes Financeiras;bancos;0;40000;0;40000
+1.2.1;Clientes a Receber;clientes;30000;200000;120000;110000
+1.2.2;Adiantamento a Socios;socios;0;70000;5000;65000
+2.1.1;Simples Nacional a Recolher;tributos;0;0;12000;12000
+2.1.2;INSS a Recolher;tributos;0;0;2000;2000
+2.1.3;ISS Retido ou a Recolher;tributos;0;0;1000;1000
+2.2.1;Emprestimos de Socios;socios;0;0;50000;50000
+3.1.1;Receita de Servicos;receita;0;0;1000000;1000000
+3.1.2;Receita de Servicos com Retencao;receita;0;0;150000;150000
+4.1.1;Pro Labore;folha;0;30000;0;-30000
+4.1.2;Salarios;folha;0;35000;0;-35000
+4.1.3;Encargos sobre Folha;folha;0;10000;0;-10000
+4.2.1;Aluguel;despesas;0;60000;0;-60000
+4.2.2;Servicos de Terceiros;despesas;0;420000;0;-420000
+4.2.3;Telefonia e Internet;despesas;0;20000;0;-20000
+4.2.4;Viagens e Representacao;despesas;0;220000;0;-220000
+4.2.5;Material de Escritorio;despesas;0;25000;0;-25000
+5.1.1;Distribuicao de Lucros;lucros;0;500000;0;-500000
+6.1.1;Resultado do Periodo;resultado;0;0;350000;350000
