@@ -1,0 +1,85 @@
+{
+    "version": "1.0.0",
+    "descricao": "Configuracoes de regras de auditoria fiscal - Simples Nacional Servicos",
+
+    "limites_gerais": {
+        "simples_anual": 4800000,
+        "limite_movimentacao_ativa": 10000,
+        "receita_baixa_ratio": 0.05
+    },
+
+    "SN-001": {
+        "descricao": "Limite do Simples Nacional",
+        "limite_alto": 0.90,
+        "nivel_alto": "ALTO",
+        "pontuacao_alto": 35,
+        "limite_medio": 0.70,
+        "nivel_medio": "MEDIO",
+        "pontuacao_medio": 18
+    },
+
+    "SN-002": {
+        "descricao": "Carga Tributaria Incompativel",
+        "limite_alto": 0.03,
+        "nivel_alto": "ALTO",
+        "pontuacao_alto": 20,
+        "limite_medio": 0.055,
+        "nivel_medio": "MEDIO",
+        "pontuacao_medio": 15
+    },
+
+    "SN-003": {
+        "descricao": "Fragilidade na Folha/Pro-labore",
+        "limite_medio": 0.08,
+        "nivel_medio": "MEDIO",
+        "pontuacao_medio": 14
+    },
+
+    "SN-004": {
+        "descricao": "Distribuicao de Lucro Excessiva",
+        "limite_alto_excesso": true,
+        "nivel_alto": "ALTO",
+        "pontuacao_alto": 32,
+        "limite_medio_ratio": 0.30,
+        "nivel_medio": "MEDIO",
+        "pontuacao_medio": 16
+    },
+
+    "SN-005": {
+        "descricao": "Confusao Patrimonial (Socios)",
+        "limite_medio": 0.20,
+        "nivel_medio": "MEDIO",
+        "pontuacao_medio": 18
+    },
+
+    "SN-006": {
+        "descricao": "Inconsistencia de Caixa e Bancos",
+        "nivel_alto_negativo": "ALTO",
+        "pontuacao_alto": 28,
+        "limite_medio_ratio": 0.60,
+        "nivel_medio": "MEDIO",
+        "pontuacao_medio": 12
+    },
+
+    "SN-007": {
+        "descricao": "Despesas Operacionais Elevadas",
+        "limite_medio": 0.70,
+        "nivel_medio": "MEDIO",
+        "pontuacao_medio": 16
+    },
+
+    "SN-008": {
+        "descricao": "Omissao de Receita (Movimentacao Ativa)",
+        "nivel_alto": "ALTO",
+        "pontuacao_alto": 20
+    },
+
+    "SN-009": {
+        "descricao": "Prejuizo Contabil",
+        "nivel_alto": "ALTO",
+        "pontuacao_alto": 25,
+        "nivel_medio": "MEDIO",
+        "pontuacao_medio": 12,
+        "limite_medio_ratio": 0.10
+    }
+}

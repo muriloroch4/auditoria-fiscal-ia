@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from pathlib import Path
 
 from .audit import run_quarterly_audit
 from .parser import read_trial_balance
-from .pdf_export import markdown_to_pdf
 from .report_ai import generate_markdown_report
 
 
@@ -18,12 +16,6 @@ def main() -> None:
     balance = read_trial_balance(args.balancete, cliente=args.cliente, periodo=args.periodo)
     result = run_quarterly_audit(balance)
     report = generate_markdown_report(result, use_ai=args.use_ai, api_key=args.api_key)
-
-    if args.pdf:
-        pdf_path = Path(args.pdf)
-        markdown_to_pdf(report, pdf_path)
-        print(f"PDF gerado em: {pdf_path}")
-        return
 
     if args.saida:
         output_path = Path(args.saida)
@@ -40,7 +32,6 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--cliente", required=True, help="Nome do cliente analisado.")
     parser.add_argument("--periodo", required=True, help='Periodo analisado. Exemplo: "2026-T1".')
     parser.add_argument("--saida", help="Arquivo Markdown de saida.")
-    parser.add_argument("--pdf", help="Arquivo PDF de saida.")
     parser.add_argument("--no-ai", action="store_false", dest="use_ai", default=True, help="Desabilitar IA e usar relatorio padrao.")
     parser.add_argument("--api-key", help="Chave da API OpenRouter (ou use OPENROUTER_API_KEY).")
     return parser.parse_args()

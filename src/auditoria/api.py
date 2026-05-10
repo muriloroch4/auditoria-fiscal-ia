@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import argparse
-import html
 import json
-import sys
+import logging
+import os
 import traceback
 from dataclasses import dataclass
 from email import policy
@@ -15,9 +15,10 @@ from pathlib import Path
 
 from .audit import run_quarterly_audit
 from .parser import read_trial_balance_upload
-from .pdf_export import markdown_to_pdf
 from .report_ai import generate_markdown_report
 from .serializers import audit_result_to_dict
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,7 @@ class UploadedFile:
 class AuditApiHandler(BaseHTTPRequestHandler):
     use_ai: bool = True
     api_key: str | None = None
+    ai_api_key: str | None = None
     max_upload_bytes: int = 10 * 1024 * 1024
 
     def do_GET(self) -> None:
@@ -42,6 +44,7 @@ class AuditApiHandler(BaseHTTPRequestHandler):
             self._send_json({"status": "ok"})
             return
 
+        logger.warning("Rota não encontrada: GET %s", path)
         self._send_json({"erro": "Rota não encontrada."}, status=HTTPStatus.NOT_FOUND)
 
     def do_OPTIONS(self) -> None:
@@ -52,23 +55,30 @@ class AuditApiHandler(BaseHTTPRequestHandler):
     def _send_cors_headers(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-API-Key")
 
     def do_POST(self) -> None:
         path = urlparse(self.path).path
 
         if path == "/api/auditorias":
+            if self.api_key and not self._check_auth():
+                return
             self._handle_audit_upload()
             return
 
-        if path == "/api/auditorias/pdf":
-            self._handle_pdf_export()
-            return
-
+        logger.warning("Rota não encontrada: POST %s", path)
         self._send_json({"erro": "Rota não encontrada."}, status=HTTPStatus.NOT_FOUND)
 
+    def _check_auth(self) -> bool:
+        provided = self.headers.get("X-API-Key", "")
+        if not provided or provided != self.api_key:
+            logger.warning("Falha de autenticação: %s", self.address_string())
+            self._send_json({"erro": "Autenticacao necessaria. Envie o header X-API-Key."}, status=HTTPStatus.UNAUTHORIZED)
+            return False
+        return True
+
     def log_message(self, format: str, *args) -> None:
-        _safe_log(f"{self.address_string()} - {format % args}")
+        logger.info("%s - %s", self.address_string(), format % args)
 
     def _handle_audit_upload(self) -> None:
         try:
@@ -88,6 +98,7 @@ class AuditApiHandler(BaseHTTPRequestHandler):
                 self._send_json({"erro": "Envie um arquivo no campo 'balancete'."}, status=HTTPStatus.BAD_REQUEST)
                 return
 
+            logger.info("Processando auditoria: cliente=%s periodo=%s arquivo=%s", cliente, periodo, uploaded_file.filename)
             balance = read_trial_balance_upload(
                 uploaded_file.filename,
                 uploaded_file.content,
@@ -95,43 +106,15 @@ class AuditApiHandler(BaseHTTPRequestHandler):
                 periodo=periodo,
             )
             result = run_quarterly_audit(balance)
-            report = generate_markdown_report(result, use_ai=self.use_ai, api_key=self.api_key)
+            report = generate_markdown_report(result, use_ai=self.use_ai, api_key=self.ai_api_key)
             self._send_json(audit_result_to_dict(result, report_markdown=report))
+            logger.info("Auditoria concluida: nivel=%s score=%d achados=%d", result.nivel_geral.value, result.pontuacao_total, len(result.achados))
         except ValueError as exc:
+            logger.warning("Erro de validacao: %s", exc)
             self._send_json({"erro": str(exc)}, status=HTTPStatus.BAD_REQUEST)
         except Exception as exc:
+            logger.error("Erro inesperado: %s", exc, exc_info=True)
             self._send_json({"erro": f"Erro inesperado: {exc}"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
-
-    def _handle_pdf_export(self) -> None:
-        try:
-            content_length = int(self.headers.get("Content-Length", "0"))
-            if content_length > self.max_upload_bytes:
-                self._send_json(
-                    {"erro": f"Requisição muito grande. Limite: {self.max_upload_bytes // (1024 * 1024)} MB."},
-                    status=HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
-                )
-                return
-            import io
-            form = self._read_multipart_form()
-            report_text = _form_text(form, "relatorio_markdown", "")
-            if not report_text:
-                self._send_json({"erro": "Envie o relatorio no campo 'relatorio_markdown'."}, status=HTTPStatus.BAD_REQUEST)
-                return
-
-            pdf_buffer = io.BytesIO()
-            markdown_to_pdf(report_text, pdf_buffer)
-            pdf_bytes = pdf_buffer.getvalue()
-
-            self.send_response(HTTPStatus.OK)
-            self.send_header("Content-Type", "application/pdf")
-            self.send_header("Content-Disposition", 'attachment; filename="relatorio_auditoria.pdf"')
-            self.send_header("Content-Length", str(len(pdf_bytes)))
-            self.end_headers()
-            self.wfile.write(pdf_bytes)
-        except ValueError as exc:
-            self._send_json({"erro": str(exc)}, status=HTTPStatus.BAD_REQUEST)
-        except Exception as exc:
-            self._send_json({"erro": f"Erro ao gerar PDF: {exc}"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def _read_multipart_form(self) -> dict[str, str | UploadedFile]:
         content_type = self.headers.get("Content-Type", "")
@@ -184,21 +167,37 @@ class AuditApiHandler(BaseHTTPRequestHandler):
         self.wfile.write(encoded)
 
 
-def run_server(host: str = "127.0.0.1", port: int = 8000, use_ai: bool = True, api_key: str | None = None) -> None:
+def run_server(
+    host: str = "127.0.0.1",
+    port: int = 8000,
+    use_ai: bool = True,
+    api_key: str | None = None,
+    ai_api_key: str | None = None,
+) -> None:
     AuditApiHandler.use_ai = use_ai
     AuditApiHandler.api_key = api_key
+    AuditApiHandler.ai_api_key = ai_api_key
     server = ThreadingHTTPServer((host, port), AuditApiHandler)
-    _safe_log(f"Servidor iniciado em http://{host}:{port}")
+    logger.info("Servidor iniciado em http://%s:%d", host, port)
     if use_ai:
-        _safe_log("Geracao de relatorio via IA: habilitada.")
+        logger.info("Geracao de relatorio via IA: habilitada.")
     else:
-        _safe_log("Geracao de relatorio via IA: desabilitada (modo padrao).")
+        logger.info("Geracao de relatorio via IA: desabilitada (modo padrao).")
+    if api_key:
+        logger.info("Autenticacao por API key: habilitada.")
     server.serve_forever()
 
 
 def main() -> None:
     args = _parse_args()
-    run_server(host=args.host, port=args.port, use_ai=args.use_ai, api_key=args.api_key)
+    _setup_logging(args.verbose)
+    run_server(
+        host=args.host,
+        port=args.port,
+        use_ai=args.use_ai,
+        api_key=args.api_key or os.environ.get("AUDIT_API_KEY"),
+        ai_api_key=args.openrouter_api_key,
+    )
 
 
 def _parse_args() -> argparse.Namespace:
@@ -206,14 +205,19 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--no-ai", action="store_false", dest="use_ai", default=True, help="Desabilitar IA e usar relatorio padrao.")
-    parser.add_argument("--api-key", help="Chave da API OpenRouter (ou use OPENROUTER_API_KEY).")
+    parser.add_argument("--api-key", help="Chave da API para autenticacao (ou use AUDIT_API_KEY).")
+    parser.add_argument("--openrouter-api-key", help="Chave OpenRouter para relatorio por IA (ou use OPENROUTER_API_KEY).")
+    parser.add_argument("--verbose", action="store_true", help="Ativar logging detalhado.")
     return parser.parse_args()
 
 
-def _safe_log(message: str) -> None:
-    if not sys.stdout:
-        return
-    print(message, flush=True)
+def _setup_logging(verbose: bool = False) -> None:
+    level = logging.DEBUG if verbose else logging.INFO
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
 
 
 def _form_text(form: dict[str, str | UploadedFile], field: str, default: str) -> str:
@@ -222,7 +226,6 @@ def _form_text(form: dict[str, str | UploadedFile], field: str, default: str) ->
 
 
 def _index_html() -> str:
-    sample_hint = html.escape("codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual")
     return f"""<!doctype html>
 <html lang="pt-BR">
 <head>
@@ -292,7 +295,6 @@ def _index_html() -> str:
       border-radius: 8px;
       padding: 10px 12px;
       font-size: 14px;
-      transition: border-color .15s;
     }}
     input[type="text"]:focus {{ outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(31,122,109,.12); }}
     input[type="file"] {{
@@ -314,12 +316,9 @@ def _index_html() -> str:
       font-weight: 700;
       font-size: 14px;
       cursor: pointer;
-      transition: background .15s;
     }}
     .btn:hover {{ background: var(--accent-strong); }}
     .btn:disabled {{ opacity: .6; cursor: wait; }}
-    .btn-secondary {{ background: var(--accent-strong); margin-top: 12px; }}
-    .btn-secondary:hover {{ background: #0f4640; }}
 
     .main {{
       background: var(--panel);
@@ -363,7 +362,6 @@ def _index_html() -> str:
       font-size: 15px;
     }}
 
-    /* Markdown renderizado */
     .md h1 {{ font-size: 22px; color: var(--accent-strong); margin: 0 0 8px; padding-bottom: 8px; border-bottom: 2px solid var(--accent); }}
     .md h2 {{ font-size: 16px; color: var(--accent); margin: 24px 0 10px; padding: 6px 12px; background: rgba(31,122,109,.08); border-radius: 6px; }}
     .md h3 {{ font-size: 14px; color: var(--text); margin: 18px 0 8px; }}
@@ -378,7 +376,6 @@ def _index_html() -> str:
     .md hr {{ border: none; border-top: 1px solid var(--line); margin: 16px 0; }}
     .md strong {{ color: var(--text); }}
     .md code {{ background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 12px; }}
-    .md a {{ color: var(--accent); }}
 
     @media (max-width: 860px) {{
       .app {{ grid-template-columns: 1fr; }}
@@ -406,7 +403,6 @@ def _index_html() -> str:
         <h2>Relatorio</h2>
         <div id="score" class="score"></div>
       </div>
-      <button id="pdf-button" style="display:none; margin:12px 24px 0; width:calc(100% - 48px);" class="btn btn-secondary" onclick="downloadPdf()">Baixar PDF</button>
       <div id="output" class="report">
         <div class="report-empty">Aguardando upload do balancete.</div>
       </div>
@@ -418,7 +414,6 @@ def _index_html() -> str:
     const output = document.querySelector("#output");
     const score = document.querySelector("#score");
     const button = document.querySelector("#submit-button");
-    const pdfBtn = document.getElementById("pdf-button");
 
     function renderMarkdown(text) {{
       const lines = text.split("\\n");
@@ -505,7 +500,6 @@ def _index_html() -> str:
       button.disabled = true;
       output.innerHTML = "<div class='report-empty'>Processando...</div>";
       score.innerHTML = "";
-      pdfBtn.style.display = "none";
       try {{
         const response = await fetch("/api/auditorias", {{ method: "POST", body: new FormData(form) }});
         const data = await response.json();
@@ -515,32 +509,12 @@ def _index_html() -> str:
           `<span class="pill info">Pontuacao: ${{data.pontuacao_total}}</span>` +
           `<span class="pill info">Achados: ${{data.achados.length}}</span>`;
         renderReport(data.relatorio_markdown);
-        pdfBtn.style.display = "block";
-        window.__lastMarkdown = data.relatorio_markdown;
       }} catch (error) {{
         output.innerHTML = `<div class='report'><p style="color:var(--danger)">${{error.message}}</p></div>`;
       }} finally {{
         button.disabled = false;
       }}
     }});
-
-    async function downloadPdf() {{
-      pdfBtn.disabled = true;
-      pdfBtn.textContent = "Gerando PDF...";
-      try {{
-        const formData = new FormData();
-        formData.append("relatorio_markdown", window.__lastMarkdown || "");
-        const response = await fetch("/api/auditorias/pdf", {{ method: "POST", body: formData }});
-        if (!response.ok) {{ const err = await response.json(); throw new Error(err.erro); }}
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url; a.download = "relatorio_auditoria.pdf";
-        document.body.appendChild(a); a.click();
-        URL.revokeObjectURL(url); document.body.removeChild(a);
-      }} catch (error) {{ alert(error.message); }}
-      finally {{ pdfBtn.disabled = false; pdfBtn.textContent = "Baixar PDF"; }}
-    }}
   </script>
 </body>
 </html>"""

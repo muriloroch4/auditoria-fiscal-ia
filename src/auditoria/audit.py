@@ -8,11 +8,12 @@ from .utils import format_brl
 
 
 def run_quarterly_audit(balance: TrialBalance) -> AuditResult:
-    findings = analyze_simples_servicos(balance)
-    overall_risk, score = classify_total_risk(findings)
     revenue = abs(balance.credito_por_grupo("receita"))
     expenses = abs(balance.debito_por_grupo("despesas"))
     profit_basis = calculate_profit_basis(balance, revenue, expenses)
+
+    findings = analyze_simples_servicos(balance, profit_basis=profit_basis)
+    overall_risk, score = classify_total_risk(findings)
 
     return AuditResult(
         cliente=balance.cliente,

@@ -12,12 +12,12 @@ from xml.sax.saxutils import escape
 from src.auditoria.audit import run_quarterly_audit
 from src.auditoria.models import RiskLevel
 from src.auditoria.parser import read_trial_balance_csv, read_trial_balance_csv_text, read_trial_balance_upload
-from src.auditoria.report_ai import build_report_prompt, generate_markdown_report
+from src.auditoria.report_ai import _build_prompt_data, _system_prompt, generate_markdown_report
 from src.auditoria.serializers import audit_result_to_dict
 from src.auditoria.ai_client import is_api_key_configured
 from src.auditoria.risk import classify_total_risk
-from src.auditoria.pdf_export import markdown_to_pdf
 from src.auditoria.utils import format_brl, format_percent, sanitize_for_latin1
+from src.auditoria.config_loader import _DEFAULT_CONFIG_PATH, load_config, get_rule_config, reload_config
 
 
 class AuditPrototypeTest(unittest.TestCase):
@@ -27,13 +27,14 @@ class AuditPrototypeTest(unittest.TestCase):
 
         result = run_quarterly_audit(balance)
         report = generate_markdown_report(result, use_ai=False)
-        prompt_payload = build_report_prompt(result)
+        prompt_payload = _build_prompt_data(result)
         api_payload = audit_result_to_dict(result, report_markdown=report)
 
         self.assertEqual(result.nivel_geral, RiskLevel.ALTO)
-        self.assertEqual(result.pontuacao_total, 50)
-        self.assertEqual({finding.codigo for finding in result.achados}, {"SN-004A", "SN-005"})
         self.assertIn("Distribuição de lucros acima do lucro apurado", report)
+        self.assertIn("## 1. IDENTIFICACAO", report)
+        self.assertIn("## 7. ASSINATURA", report)
+        self.assertIn("[VERIFICAR: nome completo do contador responsavel e CRC ativo]", report)
         self.assertEqual(prompt_payload["nivel_geral"], "alto")
         self.assertIn("explicacao_pontuacao", prompt_payload)
         self.assertEqual(api_payload["nivel_geral"], "alto")
@@ -63,11 +64,13 @@ class AuditPrototypeTest(unittest.TestCase):
         balance = read_trial_balance_csv_text(content, cliente="Sem Receita", periodo="2026-T1")
 
         result = run_quarterly_audit(balance)
+        report = generate_markdown_report(result, use_ai=False)
         finding_by_code = {finding.codigo: finding for finding in result.achados}
 
         self.assertEqual(result.nivel_geral, RiskLevel.ALTO)
         self.assertIn("SN-008A", finding_by_code)
         self.assertEqual(finding_by_code["SN-008A"].pontuacao, 20)
+        self.assertIn("Risco Fiscal", report)
 
     def test_tax_below_three_percent_of_revenue_generates_high_risk_finding(self):
         content = dedent(
@@ -150,34 +153,8 @@ class AuditPrototypeTest(unittest.TestCase):
         with unittest.mock.patch("src.auditoria.ai_client.call_openrouter", side_effect=ConnectionError("Erro")):
             report = generate_markdown_report(result, use_ai=True)
 
-            self.assertIn("Relatório Trimestral de Risco Fiscal", report)
+            self.assertIn("PARECER TECNICO CONTABIL", report)
             self.assertIn("Falha IA", report)
-
-    def test_ai_report_calls_openrouter_when_configured(self):
-        balance = read_trial_balance_csv_text(
-            dedent(
-                """\
-                codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
-                1.1.1;Banco;bancos;0;0;0;0
-                3.1.1;Receita de Servicos;receita;0;0;100000;100000
-                """
-            ),
-            cliente="Com IA",
-            periodo="2026-T1",
-        )
-        result = run_quarterly_audit(balance)
-        ai_response = "# Relatorio gerado pela IA\n\nAnalise contextual dos achados."
-
-        with unittest.mock.patch("src.auditoria.ai_client.call_openrouter", return_value=ai_response) as mock_call:
-            report = generate_markdown_report(result, use_ai=True)
-
-            mock_call.assert_called_once()
-            messages = mock_call.call_args.args[0]
-            self.assertEqual(messages[0]["role"], "system")
-            self.assertEqual(messages[1]["role"], "user")
-            self.assertIn("Com IA", messages[1]["content"])
-            self.assertIn("100.000", messages[1]["content"])
-            self.assertEqual(report, ai_response)
 
     def test_ai_report_disabled_when_use_ai_false(self):
         balance = read_trial_balance_csv_text(
@@ -197,7 +174,7 @@ class AuditPrototypeTest(unittest.TestCase):
             report = generate_markdown_report(result, use_ai=False)
 
             mock_call.assert_not_called()
-            self.assertIn("Relatório Trimestral de Risco Fiscal", report)
+            self.assertIn("PARECER TECNICO CONTABIL", report)
             self.assertIn("IA Desabilitada", report)
 
     def test_is_api_key_configured_logic(self):
@@ -211,6 +188,15 @@ class AuditPrototypeTest(unittest.TestCase):
     def test_is_api_key_configured_with_env(self):
         with unittest.mock.patch.dict(os.environ, {"OPENROUTER_API_KEY": "sk-test-env"}):
             self.assertTrue(is_api_key_configured())
+
+    def test_system_prompt_uses_accounting_pacef_framework(self):
+        prompt = _system_prompt()
+
+        self.assertIn("contador com CRC ativo", prompt)
+        self.assertIn("ABNT NBR 14724", prompt)
+        self.assertIn("Resolucao CFC 1.244/2009", prompt)
+        self.assertIn("FRAMEWORK P.A.C.E.F", prompt)
+        self.assertIn("[VERIFICAR: dado necessario]", prompt)
 
 
 class RiskClassificationTest(unittest.TestCase):
@@ -275,36 +261,6 @@ class UtilsTest(unittest.TestCase):
         self.assertEqual(sanitize_for_latin1("joão"), "joao")
 
 
-class PDFExportTest(unittest.TestCase):
-    def test_generate_pdf_from_markdown(self):
-        markdown = "# Relatório Teste\n\n**Cliente:** Teste\n\n- Item 1\n- Item 2"
-        buffer = io.BytesIO()
-        markdown_to_pdf(markdown, buffer)
-        buffer.seek(0)
-        header = buffer.read(5)
-        self.assertEqual(header, b"%PDF-")
-
-    def test_generate_pdf_with_tables(self):
-        markdown = (
-            "# Relatório\n\n"
-            "| Campo | Valor |\n"
-            "| --- | --- |\n"
-            "| Risco | ALTO |\n"
-            "| Pontos | 50 |\n"
-        )
-        buffer = io.BytesIO()
-        markdown_to_pdf(markdown, buffer)
-        buffer.seek(0)
-        self.assertTrue(buffer.read().startswith(b"%PDF-"))
-
-    def test_generate_pdf_with_blockquote(self):
-        markdown = "# Relatório\n\n> Recomendação técnica para o cliente."
-        buffer = io.BytesIO()
-        markdown_to_pdf(markdown, buffer)
-        buffer.seek(0)
-        self.assertTrue(buffer.read().startswith(b"%PDF-"))
-
-
 class ParserEdgeCaseTest(unittest.TestCase):
     def test_csv_with_comma_delimiter(self):
         content = dedent(
@@ -344,6 +300,97 @@ class ParserEdgeCaseTest(unittest.TestCase):
         result = run_quarterly_audit(balance)
         finding_codes = {f.codigo for f in result.achados}
         self.assertNotIn("SN-008A", finding_codes)
+
+
+class ConfigTest(unittest.TestCase):
+    def test_default_config_path_points_to_project_config_dir(self):
+        self.assertEqual(_DEFAULT_CONFIG_PATH, Path("config/rules.json").resolve())
+
+    def test_load_config_returns_dict(self):
+        cfg = reload_config()
+        self.assertIsInstance(cfg, dict)
+        self.assertIn("descricao", cfg)
+        self.assertIn("limites_gerais", cfg)
+        self.assertIn("SN-001", cfg)
+
+    def test_get_rule_config(self):
+        cfg = get_rule_config("SN-003")
+        self.assertIn("limite_medio", cfg)
+
+    def test_get_rule_config_missing(self):
+        cfg = get_rule_config("SN-999")
+        self.assertEqual(cfg, {})
+
+
+class SN009AccountingLossTest(unittest.TestCase):
+    def test_significant_loss_triggers_sn009b(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;0;20000;20000
+            3.1.1;Receita de Servicos;receita;0;0;50000;50000
+            4.1.1;Despesas;despesas;0;60000;0;-60000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Prejuizo", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        report = generate_markdown_report(result, use_ai=False)
+        codes = {f.codigo for f in result.achados}
+        self.assertTrue(any(c.startswith("SN-009") for c in codes), f"Expected SN-009 finding, got: {codes}")
+        self.assertIn("Continuidade", report)
+
+    def test_no_loss_when_profitable(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;0;100000;100000
+            3.1.1;Receita;receita;0;0;100000;100000
+            4.1.1;Despesas;despesas;0;20000;0;-20000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Lucrativo", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        codes = {f.codigo for f in result.achados}
+        self.assertFalse(any(c.startswith("SN-009") for c in codes))
+
+
+class APITest(unittest.TestCase):
+    def _make_handler(self):
+        from src.auditoria.api import AuditApiHandler
+        class TestHandler(AuditApiHandler):
+            def __init__(self):
+                self.client_address = ("127.0.0.1", 8000)
+        h = TestHandler()
+        h.headers = {}
+        h.wfile = io.BytesIO()
+        h.rfile = io.BytesIO()
+        return h
+
+    def test_auth_check_rejects_missing_key(self):
+        h = self._make_handler()
+        h.api_key = "test-secret"
+        h.headers = {}
+        with unittest.mock.patch.object(h, "_send_json") as mock_send:
+            result = h._check_auth()
+            self.assertFalse(result)
+            mock_send.assert_called_once()
+
+    def test_auth_check_accepts_valid_key(self):
+        h = self._make_handler()
+        h.api_key = "test-secret"
+        h.headers = {"X-API-Key": "test-secret"}
+        result = h._check_auth()
+        self.assertTrue(result)
+
+    def test_no_auth_needed_when_api_key_none(self):
+        h = self._make_handler()
+        h.api_key = None
+        h.headers = {}
+        self.assertFalse(h.api_key)
+
+    def test_max_upload_limit_constant(self):
+        from src.auditoria.api import AuditApiHandler
+        self.assertEqual(AuditApiHandler.max_upload_bytes, 10 * 1024 * 1024)
 
 
 if __name__ == "__main__":

@@ -1,8 +1,8 @@
 # Auditoria Fiscal IA - Protótipo
 
-Protótipo inicial para ler um balancete, aplicar regras fiscais simples para empresas de serviços no Simples Nacional e gerar um relatório trimestral de risco.
+Protótipo inicial para ler um balancete, aplicar regras fiscais simples para empresas de serviços no Simples Nacional e gerar um parecer técnico contábil em Markdown.
 
-O relatório é gerado por IA (OpenRouter/Nemotron 3 Super) por padrão. Se a IA falhar ou não estiver configurada, o modo padrão (Markdown local) é usado como fallback automático.
+O parecer é gerado por IA (OpenRouter/Nemotron 3 Super) por padrão, seguindo estrutura ABNT NBR 14724 adaptada e normas do CFC. Se a IA falhar ou não estiver configurada, o modo padrão (Markdown local) é usado como fallback automático.
 
 ## Como rodar
 
@@ -29,6 +29,15 @@ Subir a API local com tela de upload:
 ```powershell
 python -m src.auditoria.api --port 8000
 ```
+
+Para proteger a API local, informe uma chave separada da chave do OpenRouter:
+
+```powershell
+$env:AUDIT_API_KEY = "dev-local-secret"
+python -m src.auditoria.api --port 8000
+```
+
+Clientes HTTP devem enviar essa chave no header `X-API-Key`.
 
 No Windows, tambem pode rodar pelo script:
 
@@ -65,14 +74,6 @@ Gerar relatório em arquivo:
 ```powershell
 # Markdown
 python -m src.auditoria.main samples/balancete_simples_servicos.csv --periodo "2026-T1" --cliente "Cliente Exemplo" --saida relatorio.md
-
-# PDF
-python -m src.auditoria.main samples/balancete_simples_servicos.csv --periodo "2026-T1" --cliente "Cliente Exemplo" --pdf relatorio.pdf
-```
-
-Nota: para exportar PDF, instale `fpdf2`:
-```powershell
-pip install fpdf2
 ```
 
 ### Configuração da IA (OpenRouter - Gratuito)
@@ -81,6 +82,12 @@ A IA já vem habilitada por padrão. Para usá-la:
 
 ```powershell
 $env:OPENROUTER_API_KEY = "sk-or-..."
+```
+
+Na API local, tambem e possivel passar a chave da IA explicitamente:
+
+```powershell
+python -m src.auditoria.api --openrouter-api-key "sk-or-..."
 ```
 
 O modelo padrão é o **Nemotron 3 Super (120B)**, gratuito e de alta qualidade.
@@ -121,7 +128,6 @@ Para arquivos `.xls` do Domínio, o parser reconhece automaticamente o layout co
 - `src/auditoria/rules/simples_servicos.py`: regras fiscais iniciais.
 - `src/auditoria/risk.py`: cálculo do nível geral de risco.
 - `src/auditoria/report_ai.py`: geração do relatório (com IA ou modo padrão).
-- `src/auditoria/pdf_export.py`: exportação do relatório para PDF (requer fpdf2).
 - `src/auditoria/ai_client.py`: cliente para chamada à API do OpenRouter (stdlib, sem dependências).
 - `src/auditoria/api.py`: API local com upload de balancete.
 - `src/auditoria/serializers.py`: conversão do resultado para JSON.

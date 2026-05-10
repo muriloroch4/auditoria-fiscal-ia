@@ -29,6 +29,29 @@ _UNICODE_TO_LATIN1 = {
     "\u2212": "-",
     "\u00d7": "x",
     "\u00f7": "/",
+    "\u2192": "->",
+    "\u2190": "<-",
+    "\u2191": "^",
+    "\u2193": "v",
+    "\u2713": "[ok]",
+    "\u2717": "[x]",
+    "\u2020": "+",
+    "\u2021": "++",
+    "\u00a9": "(c)",
+    "\u00ae": "(R)",
+    "\u2122": "(TM)",
+    "\u201a": ",",
+    "\u201e": ",,",
+    "\u2030": "%",
+    "\u2031": "%",
+    "\u203b": "*",
+    "\u2605": "*",
+    "\u2606": "*",
+    "\u2764": "<3",
+    "\u200d": "",
+    "\u200c": "",
+    "\u200e": "",
+    "\u200f": "",
 }
 
 _PT_BR_CHAR_MAP = {
@@ -79,7 +102,16 @@ def sanitize_for_latin1(text: str) -> str:
         result = result.replace(pt_br_char, ascii_char)
     import unicodedata
     normalized = unicodedata.normalize("NFKD", result)
-    return "".join(
+    cleaned = "".join(
         char for char in normalized
         if ord(char) < 128 or unicodedata.category(char) != "Mn"
     ).strip()
+    # Final fallback: replace any remaining non-ASCII char with "?"
+    out = []
+    for ch in cleaned:
+        try:
+            ch.encode("latin-1")
+            out.append(ch)
+        except (UnicodeEncodeError, ValueError):
+            out.append("?")
+    return "".join(out)
