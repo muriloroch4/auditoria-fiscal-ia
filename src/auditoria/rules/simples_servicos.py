@@ -24,6 +24,9 @@ def analyze_simples_servicos(balance: TrialBalance, profit_basis: ProfitBasis | 
     payroll = _abs(balance.debito_por_grupo("folha"))
     expenses = _abs(balance.debito_por_grupo("despesas"))
     partners = _abs(balance.total_por_grupo("socios"))
+    clients = _abs(balance.total_por_grupo("clientes"))
+    client_movement = _group_movement(balance, "clientes")
+    advances = _abs(balance.total_por_grupo("adiantamentos"))
     profit_distribution = _abs(balance.debito_por_grupo("lucros"))
     cash = balance.total_por_grupo("caixa") + balance.total_por_grupo("bancos")
 
@@ -37,6 +40,8 @@ def analyze_simples_servicos(balance: TrialBalance, profit_basis: ProfitBasis | 
     findings.extend(_check_payroll_factor(revenue, payroll))
     findings.extend(_check_profit_distribution(revenue, profit_distribution, profit_basis))
     findings.extend(_check_partner_accounts(revenue, partners))
+    findings.extend(_check_receivables(revenue, clients, client_movement))
+    findings.extend(_check_advances(revenue, advances))
     findings.extend(_check_cash_position(revenue, cash))
     findings.extend(_check_expense_ratio(revenue, expenses))
     findings.extend(_check_accounting_loss(revenue, profit_basis))
@@ -164,7 +169,7 @@ def _check_tax_ratio(revenue: Decimal, tax_balance: Decimal) -> list[RuleFinding
                 titulo="Carga tributária abaixo de 3% da receita",
                 nivel=RiskLevel.ALTO,
                 pontuacao=cfg.get("pontuacao_alto", 20),
-                descricao="Os impostos registrados representam menos de 3% da receita do período, indicando possível subapuração ou sonegação.",
+                descricao="Os impostos registrados representam menos de 3% da receita do período, indicando possível subapuração ou divergência fiscal a validar.",
                 evidencia={"receita": _money(revenue), "tributos": _money(tax_balance), "percentual": _percent(ratio)},
                 recomendacao="Conferir apuração do DAS, anexo aplicado, retenções, competência e possíveis lançamentos ausentes.",
             )
@@ -275,6 +280,65 @@ def _check_partner_accounts(revenue: Decimal, partners: Decimal) -> list[RuleFin
     return []
 
 
+def _check_receivables(revenue: Decimal, clients: Decimal, client_movement: Decimal) -> list[RuleFinding]:
+    if clients <= 0:
+        return []
+
+    cfg = get_rule_config("SN-010")
+    pts = cfg.get("pontuacao_medio", 12)
+
+    if client_movement == 0:
+        return [
+            RuleFinding(
+                codigo="SN-010A",
+                titulo="Clientes e recebíveis sem movimentação",
+                nivel=RiskLevel.MEDIO,
+                pontuacao=pts,
+                descricao="O saldo de clientes e recebíveis permanece sem movimentação no período analisado, exigindo validação da composição e realização do crédito.",
+                evidencia={"clientes_recebiveis": _money(clients), "movimentacao_clientes": _money(client_movement)},
+                recomendacao="Conciliar o saldo com relatório de contas a receber, notas fiscais, recebimentos posteriores e eventuais perdas esperadas.",
+            )
+        ]
+
+    if revenue > 0 and clients / revenue > Decimal("0.50"):
+        return [
+            RuleFinding(
+                codigo="SN-010B",
+                titulo="Clientes e recebíveis elevados em relação à receita",
+                nivel=RiskLevel.MEDIO,
+                pontuacao=pts,
+                descricao="O saldo de clientes e recebíveis é relevante em relação à receita do período, podendo indicar concentração de créditos ou divergência de realização.",
+                evidencia={"receita": _money(revenue), "clientes_recebiveis": _money(clients), "percentual": _percent(clients / revenue)},
+                recomendacao="Validar aging list, liquidação posterior dos títulos, baixa de recebíveis e critérios de reconhecimento de receita.",
+            )
+        ]
+
+    return []
+
+
+def _check_advances(revenue: Decimal, advances: Decimal) -> list[RuleFinding]:
+    if advances <= 0:
+        return []
+
+    cfg = get_rule_config("SN-011")
+    pts = cfg.get("pontuacao_medio", 12)
+    reference = max(Decimal("10000"), revenue * Decimal("0.10"))
+    if advances > reference:
+        return [
+            RuleFinding(
+                codigo="SN-011A",
+                titulo="Adiantamentos relevantes sem validação documental",
+                nivel=RiskLevel.MEDIO,
+                pontuacao=pts,
+                descricao="Foram identificados saldos relevantes em adiantamentos, cuja permanência deve ser confrontada com contratos, notas fiscais e baixas posteriores.",
+                evidencia={"adiantamentos": _money(advances), "referencia": _money(reference)},
+                recomendacao="Revisar adiantamentos a fornecedores, clientes, empregados e terceiros, documentando a origem, a contraprestação e a baixa esperada.",
+            )
+        ]
+
+    return []
+
+
 def _check_cash_position(revenue: Decimal, cash: Decimal) -> list[RuleFinding]:
     cfg = get_rule_config("SN-006")
 
@@ -369,7 +433,7 @@ def _check_accounting_loss(revenue: Decimal, profit_basis: ProfitBasis) -> list[
                     "receita": _money(revenue),
                     "percentual_prejuizo": _percent(loss_ratio),
                 },
-                recomendacao="Revisar estrutura de custos, margem de contribuição e viabilidade do modelo de negócio. Consultar planejamento tributário.",
+                recomendacao="Revisar estrutura de custos, margem de contribuição, viabilidade do modelo de negócio e efeitos tributários aplicáveis.",
             )
         ]
 
@@ -397,5 +461,12 @@ def _active_movement(balance: TrialBalance) -> Decimal:
     relevant_grupos = {"bancos", "caixa", "clientes"}
     return sum(
         (account.debito + account.credito for account in balance.contas if account.grupo in relevant_grupos),
+        Decimal("0"),
+    )
+
+
+def _group_movement(balance: TrialBalance, group: str) -> Decimal:
+    return sum(
+        (account.debito + account.credito for account in balance.contas if account.grupo == group),
         Decimal("0"),
     )

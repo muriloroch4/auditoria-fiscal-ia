@@ -32,9 +32,16 @@ class AuditPrototypeTest(unittest.TestCase):
 
         self.assertEqual(result.nivel_geral, RiskLevel.ALTO)
         self.assertIn("Distribuição de lucros acima do lucro apurado", report)
-        self.assertIn("## 1. IDENTIFICACAO", report)
-        self.assertIn("## 7. ASSINATURA", report)
-        self.assertIn("[VERIFICAR: nome completo do contador responsavel e CRC ativo]", report)
+        self.assertIn("## 1. Resumo Executivo", report)
+        self.assertIn("### Dados extraidos do motor de regras", report)
+        self.assertIn("**Metricas calculadas:**", report)
+        self.assertIn("**Explicacao da pontuacao:**", report)
+        self.assertIn("**Regras acionadas:**", report)
+        self.assertIn("**Pontuacao total calculada:** 50", report)
+        self.assertIn("## 2. Parecer Tecnico", report)
+        self.assertIn("## 3. Conclusao", report)
+        self.assertIn("| Area | Situacao | Criticidade |", report)
+        self.assertIn("Este parecer foi elaborado exclusivamente com base no balancete disponibilizado", report)
         self.assertEqual(prompt_payload["nivel_geral"], "alto")
         self.assertIn("explicacao_pontuacao", prompt_payload)
         self.assertEqual(api_payload["nivel_geral"], "alto")
@@ -70,7 +77,8 @@ class AuditPrototypeTest(unittest.TestCase):
         self.assertEqual(result.nivel_geral, RiskLevel.ALTO)
         self.assertIn("SN-008A", finding_by_code)
         self.assertEqual(finding_by_code["SN-008A"].pontuacao, 20)
-        self.assertIn("Risco Fiscal", report)
+        self.assertIn("Risco identificado", report)
+        self.assertIn("Impacto potencial", report)
 
     def test_tax_below_three_percent_of_revenue_generates_high_risk_finding(self):
         content = dedent(
@@ -177,6 +185,49 @@ class AuditPrototypeTest(unittest.TestCase):
             self.assertIn("PARECER TECNICO CONTABIL", report)
             self.assertIn("IA Desabilitada", report)
 
+    def test_report_uses_verify_placeholder_when_cnpj_is_empty(self):
+        balance = read_trial_balance_csv_text(
+            dedent(
+                """\
+                codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+                1.1.1;Banco;bancos;0;0;0;0
+                3.1.1;Receita de Servicos;receita;0;0;100000;100000
+                """
+            ),
+            cliente="CNPJ Vazio",
+            periodo="2026-T1",
+        )
+        result = run_quarterly_audit(balance)
+
+        report = generate_markdown_report(result, use_ai=False, cnpj=" ")
+
+        self.assertIn("**CNPJ:** [VERIFICAR: CNPJ da empresa]", report)
+
+    def test_receivables_and_advances_generate_template_areas(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;0;0;0
+            1.1.2;Clientes;clientes;80000;0;0;80000
+            1.1.3;Adiantamento a Fornecedores;adiantamentos;0;25000;0;25000
+            2.1.1;Simples Nacional a Recolher;tributos;0;0;6000;6000
+            3.1.1;Receita de Servicos;receita;0;0;100000;100000
+            4.1.1;Pro Labore;folha;0;10000;0;-10000
+            4.2.1;Despesas Administrativas;despesas;0;20000;0;-20000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Recebiveis", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        report = generate_markdown_report(result, use_ai=False)
+        codes = {finding.codigo for finding in result.achados}
+
+        self.assertIn("SN-010A", codes)
+        self.assertIn("SN-011A", codes)
+        self.assertIn("Clientes e recebiveis", report)
+        self.assertIn("Adiantamentos", report)
+        self.assertNotIn("| Clientes e recebiveis | Sem achado automatico relevante", report)
+        self.assertNotIn("CRITICO", report)
+
     def test_is_api_key_configured_logic(self):
         with unittest.mock.patch("src.auditoria.ai_client._load_env_file"):
             with unittest.mock.patch.dict(os.environ, {}, clear=True):
@@ -189,13 +240,15 @@ class AuditPrototypeTest(unittest.TestCase):
         with unittest.mock.patch.dict(os.environ, {"OPENROUTER_API_KEY": "sk-test-env"}):
             self.assertTrue(is_api_key_configured())
 
-    def test_system_prompt_uses_accounting_pacef_framework(self):
+    def test_system_prompt_uses_operational_template(self):
         prompt = _system_prompt()
 
-        self.assertIn("contador com CRC ativo", prompt)
-        self.assertIn("ABNT NBR 14724", prompt)
-        self.assertIn("Resolucao CFC 1.244/2009", prompt)
-        self.assertIn("FRAMEWORK P.A.C.E.F", prompt)
+        self.assertIn("ETAPA 1 - EXTRACAO AUTOMATICA DOS DADOS", prompt)
+        self.assertIn("FONTE PRIMARIA", prompt)
+        self.assertIn("DADOS EXTRAIDOS DO MOTOR DE REGRAS", prompt)
+        self.assertIn("A. DISPONIBILIDADES", prompt)
+        self.assertIn("Area, Situacao, Criticidade", prompt)
+        self.assertIn("REGRA FINAL", prompt)
         self.assertIn("[VERIFICAR: dado necessario]", prompt)
 
 
@@ -337,7 +390,7 @@ class SN009AccountingLossTest(unittest.TestCase):
         report = generate_markdown_report(result, use_ai=False)
         codes = {f.codigo for f in result.achados}
         self.assertTrue(any(c.startswith("SN-009") for c in codes), f"Expected SN-009 finding, got: {codes}")
-        self.assertIn("Continuidade", report)
+        self.assertIn("continuidade operacional", report)
 
     def test_no_loss_when_profitable(self):
         content = dedent(

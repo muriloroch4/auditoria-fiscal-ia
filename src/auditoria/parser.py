@@ -296,6 +296,8 @@ def _dominio_group(classification: str, description: str) -> str:
         return "lucros"
     if "socio" in text or "socios" in text or "administradores" in text:
         return "socios"
+    if "adiantamento" in text or "adiantamentos" in text:
+        return "adiantamentos"
     if classification.startswith("1.1.1.01") or "caixa" in text:
         return "caixa"
     if classification.startswith("1.1.1.02") or text.startswith("banco "):

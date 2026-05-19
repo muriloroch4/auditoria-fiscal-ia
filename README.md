@@ -1,8 +1,8 @@
 # Auditoria Fiscal IA - Protótipo
 
-Protótipo inicial para ler um balancete, aplicar regras fiscais simples para empresas de serviços no Simples Nacional e gerar um parecer técnico contábil em Markdown.
+Protótipo inicial para ler um balancete, aplicar testes automáticos de risco fiscal/contábil e gerar um parecer técnico contábil em Markdown.
 
-O parecer é gerado por IA (OpenRouter/Nemotron 3 Super) por padrão, seguindo estrutura ABNT NBR 14724 adaptada e normas do CFC. Se a IA falhar ou não estiver configurada, o modo padrão (Markdown local) é usado como fallback automático.
+O parecer é gerado por IA (OpenRouter/Nemotron 3 Super) por padrão, seguindo o template operacional de extração, testes de risco, priorização de achados, resumo executivo, parecer técnico e conclusão. O template usa como fonte primária os dados estruturados do motor de regras: métricas calculadas, pontuação, explicação do score, achados, evidências e recomendações. Se a IA falhar ou não estiver configurada, o modo padrão em Markdown local é usado como fallback automático.
 
 ## Como rodar
 
@@ -13,7 +13,7 @@ Requisitos:
 Execute com o balancete CSV de exemplo:
 
 ```powershell
-python -m src.auditoria.main samples/balancete_simples_servicos.csv --periodo "2026-T1" --cliente "Cliente Exemplo"
+python -m src.auditoria.main samples/balancete_simples_servicos.csv --periodo "2026-T1" --cliente "Cliente Exemplo" --cnpj "00.000.000/0001-00"
 ```
 
 Tambem funciona com Excel `.xlsx`, desde que a primeira aba tenha o mesmo cabecalho:
@@ -65,6 +65,7 @@ Content-Type: multipart/form-data
 
 campos:
 - cliente
+- cnpj
 - periodo
 - balancete
 ```
@@ -73,10 +74,10 @@ Gerar relatório em arquivo:
 
 ```powershell
 # Markdown
-python -m src.auditoria.main samples/balancete_simples_servicos.csv --periodo "2026-T1" --cliente "Cliente Exemplo" --saida relatorio.md
+python -m src.auditoria.main samples/balancete_simples_servicos.csv --periodo "2026-T1" --cliente "Cliente Exemplo" --cnpj "00.000.000/0001-00" --saida relatorio.md
 ```
 
-### Configuração da IA (OpenRouter - Gratuito)
+### Configuração da IA (OpenRouter)
 
 A IA já vem habilitada por padrão. Para usá-la:
 
@@ -90,7 +91,7 @@ Na API local, tambem e possivel passar a chave da IA explicitamente:
 python -m src.auditoria.api --openrouter-api-key "sk-or-..."
 ```
 
-O modelo padrão é o **Nemotron 3 Super (120B)**, gratuito e de alta qualidade.
+O modelo padrão é o **Nemotron 3 Super (120B)**. Você pode alterar o modelo com `OPENROUTER_MODEL`.
 
 Para desabilitar a IA e usar o relatório local:
 ```powershell
@@ -143,7 +144,8 @@ Use estes valores na coluna `grupo` do CSV ou XLSX:
 - `tributos`: DAS, Simples Nacional, ISS, INSS e outros impostos.
 - `folha`: pro-labore, salarios e encargos.
 - `despesas`: despesas operacionais.
-- `socios`: adiantamentos, emprestimos e contas correntes de socios.
+- `socios`: emprestimos, mutuos e contas correntes de socios.
+- `adiantamentos`: adiantamentos a fornecedores, clientes, empregados ou terceiros.
 - `caixa`: caixa.
 - `bancos`: bancos e aplicacoes financeiras.
 - `lucros`: distribuicao de lucros.
@@ -162,7 +164,7 @@ O sistema não usa sinais (+/-) para distinguir receita de despesa; ele usa as c
 
 ### 3. Exemplo: Empresa sem Receita
 Se a coluna `credito` das contas de `receita` estiver zerada, mas houver valores em `despesas` ou movimentação em `bancos`, o sistema aciona um alerta de **Risco Alto**.
-- **Interpretação:** A empresa tem custos operacionais, mas não declarou faturamento. Isso sugere possível sonegação ou erro de classificação contábil.
+- **Interpretação:** A empresa tem custos operacionais, mas não declarou faturamento. Isso sugere possível divergência fiscal, omissão de receita a validar ou erro de classificação contábil.
 - **Atenção:** Se a receita foi lançada direto na conta de "Resultado do Período" (em vez de "Receita de Serviços"), a análise atual não captará esse valor como faturamento, resultando em um relatório mais conservador (pior).
 
 ## Próximos passos naturais

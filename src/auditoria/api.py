@@ -92,6 +92,7 @@ class AuditApiHandler(BaseHTTPRequestHandler):
             form = self._read_multipart_form()
             cliente = _form_text(form, "cliente", "Cliente sem nome")
             periodo = _form_text(form, "periodo", "Periodo nao informado")
+            cnpj = _form_text(form, "cnpj", "")
             uploaded_file = form.get("balancete")
 
             if not isinstance(uploaded_file, UploadedFile) or not uploaded_file.content:
@@ -106,7 +107,7 @@ class AuditApiHandler(BaseHTTPRequestHandler):
                 periodo=periodo,
             )
             result = run_quarterly_audit(balance)
-            report = generate_markdown_report(result, use_ai=self.use_ai, api_key=self.ai_api_key)
+            report = generate_markdown_report(result, use_ai=self.use_ai, api_key=self.ai_api_key, cnpj=cnpj)
             self._send_json(audit_result_to_dict(result, report_markdown=report))
             logger.info("Auditoria concluida: nivel=%s score=%d achados=%d", result.nivel_geral.value, result.pontuacao_total, len(result.achados))
         except ValueError as exc:
@@ -256,22 +257,26 @@ def _index_html() -> str:
       background: var(--bg);
       color: var(--text);
       line-height: 1.5;
+      overflow: hidden;
     }}
     .app {{
-      width: min(1200px, calc(100vw - 24px));
-      margin: 24px auto;
-      display: grid;
-      grid-template-columns: 340px 1fr;
+      display: flex;
       gap: 20px;
-      align-items: start;
+      height: 100vh;
+      padding: 24px;
+      max-width: 1200px;
+      margin: 0 auto;
     }}
     .sidebar {{
+      width: 340px;
+      min-width: 260px;
+      flex-shrink: 0;
+      position: sticky;
+      top: 24px;
       background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 12px;
       padding: 24px;
-      position: sticky;
-      top: 24px;
     }}
     .sidebar h1 {{
       font-size: 22px;
@@ -321,10 +326,12 @@ def _index_html() -> str:
     .btn:disabled {{ opacity: .6; cursor: wait; }}
 
     .main {{
+      flex: 1;
+      min-width: 0;
+      min-height: 0;
       background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 12px;
-      min-height: 500px;
       display: flex;
       flex-direction: column;
     }}
@@ -334,6 +341,7 @@ def _index_html() -> str:
       display: flex;
       align-items: center;
       gap: 12px;
+      flex-shrink: 0;
     }}
     .main-header h2 {{ font-size: 16px; }}
     .score {{ display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }}
@@ -351,13 +359,16 @@ def _index_html() -> str:
     .report {{
       padding: 24px;
       flex: 1;
+      min-height: 0;
       overflow-y: auto;
+      overflow-x: auto;
     }}
+    .md {{ overflow-wrap: break-word; word-break: break-word; }}
     .report-empty {{
       display: flex;
       align-items: center;
       justify-content: center;
-      height: 400px;
+      min-height: 300px;
       color: var(--muted);
       font-size: 15px;
     }}
@@ -368,7 +379,7 @@ def _index_html() -> str:
     .md p {{ margin: 8px 0; font-size: 13.5px; }}
     .md ul {{ margin: 6px 0 10px 20px; font-size: 13.5px; }}
     .md li {{ margin: 3px 0; }}
-    .md table {{ border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 13px; }}
+    .md table {{ border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 13px; display: block; overflow-x: auto; }}
     .md th {{ background: var(--accent); color: #fff; text-align: left; padding: 7px 12px; font-size: 12px; }}
     .md td {{ padding: 7px 12px; border-bottom: 1px solid var(--line); }}
     .md tr:nth-child(even) td {{ background: #f8fafc; }}
@@ -378,8 +389,8 @@ def _index_html() -> str:
     .md code {{ background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 12px; }}
 
     @media (max-width: 860px) {{
-      .app {{ grid-template-columns: 1fr; }}
-      .sidebar {{ position: static; }}
+      .app {{ flex-direction: column; margin: 12px auto; }}
+      .sidebar {{ width: auto; position: static; }}
     }}
   </style>
 </head>
@@ -391,6 +402,8 @@ def _index_html() -> str:
       <form id="audit-form">
         <label for="cliente">Cliente</label>
         <input type="text" id="cliente" name="cliente" value="Cliente Exemplo" required>
+        <label for="cnpj">CNPJ</label>
+        <input type="text" id="cnpj" name="cnpj" value="00.000.000/0001-00" placeholder="00.000.000/0001-00">
         <label for="periodo">Periodo</label>
         <input type="text" id="periodo" name="periodo" value="2026-T1" required>
         <label for="balancete">Balancete (CSV, XLSX, XLS)</label>
@@ -420,9 +433,18 @@ def _index_html() -> str:
       let html = "";
       let i = 0;
 
+      function escapeHtml(t) {{
+        return String(t)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }}
+
       function processInline(t) {{
-        return t
-          .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        return escapeHtml(t)
+          .replace(/\\*\\*(.+?)\\*\\*/g, "<strong>$1</strong>")
           .replace(/`([^`]+)`/g, "<code>$1</code>");
       }}
 
@@ -449,7 +471,7 @@ def _index_html() -> str:
           }}
           html += "<blockquote>" + quote + "</blockquote>";
         }} else if (line.startsWith("- **") && line.includes(":**")) {{
-          const m = line.match(/^- \*\*(.+?)\*\*:?\s*(.*)$/);
+          const m = line.match(/^- \\*\\*(.+?)\\*\\*:?\\s*(.*)$/);
           if (m) {{
             html += "<p><strong>" + m[1] + ":</strong> " + processInline(m[2]) + "</p>";
           }} else {{
@@ -475,10 +497,10 @@ def _index_html() -> str:
           }}
           if (rows.length > 0) {{
             html += "<table>";
-            html += "<thead><tr>" + rows[0].map(c => "<th>" + c + "</th>").join("") + "</tr></thead>";
+            html += "<thead><tr>" + rows[0].map(c => "<th>" + processInline(c) + "</th>").join("") + "</tr></thead>";
             if (rows.length > 1) {{
               html += "<tbody>" + rows.slice(1).map((cells, idx) =>
-                "<tr>" + cells.map(c => "<td>" + c + "</td>").join("") + "</tr>"
+                "<tr>" + cells.map(c => "<td>" + processInline(c) + "</td>").join("") + "</tr>"
               ).join("") + "</tbody>";
             }}
             html += "</table>";
@@ -492,7 +514,8 @@ def _index_html() -> str:
     }}
 
     function renderReport(raw) {{
-      output.innerHTML = "<div class='md'>" + renderMarkdown(raw) + "</div>";
+      const formatted = renderMarkdown(raw);
+      output.innerHTML = "<div class='md'>" + formatted + "</div>";
     }}
 
     form.addEventListener("submit", async (event) => {{
@@ -510,7 +533,7 @@ def _index_html() -> str:
           `<span class="pill info">Achados: ${{data.achados.length}}</span>`;
         renderReport(data.relatorio_markdown);
       }} catch (error) {{
-        output.innerHTML = `<div class='report'><p style="color:var(--danger)">${{error.message}}</p></div>`;
+        output.innerHTML = `<div class='report'><p style="color:var(--danger)">${{escapeHtml(error.message)}}</p></div>`;
       }} finally {{
         button.disabled = false;
       }}

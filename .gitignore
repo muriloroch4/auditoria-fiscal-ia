@@ -30,6 +30,8 @@ Thumbs.db
 # Reports generated (optional, but good to keep repo clean)
 relatorio*.pdf
 relatorio*.md
+teste_*.md
+test_output.pdf
 server.*.log
 
 # Windows specific

@@ -81,5 +81,17 @@
         "nivel_medio": "MEDIO",
         "pontuacao_medio": 12,
         "limite_medio_ratio": 0.10
+    },
+
+    "SN-010": {
+        "descricao": "Clientes e Recebiveis",
+        "nivel_medio": "MEDIO",
+        "pontuacao_medio": 12
+    },
+
+    "SN-011": {
+        "descricao": "Adiantamentos",
+        "nivel_medio": "MEDIO",
+        "pontuacao_medio": 12
     }
 }
