@@ -257,13 +257,12 @@ def _index_html() -> str:
       background: var(--bg);
       color: var(--text);
       line-height: 1.5;
-      overflow: hidden;
     }}
     .app {{
+      position: fixed;
+      inset: 24px;
       display: flex;
       gap: 20px;
-      height: 100vh;
-      padding: 24px;
       max-width: 1200px;
       margin: 0 auto;
     }}
@@ -271,12 +270,11 @@ def _index_html() -> str:
       width: 340px;
       min-width: 260px;
       flex-shrink: 0;
-      position: sticky;
-      top: 24px;
       background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 12px;
       padding: 24px;
+      overflow-y: auto;
     }}
     .sidebar h1 {{
       font-size: 22px;
@@ -389,8 +387,8 @@ def _index_html() -> str:
     .md code {{ background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 12px; }}
 
     @media (max-width: 860px) {{
-      .app {{ flex-direction: column; margin: 12px auto; }}
-      .sidebar {{ width: auto; position: static; }}
+      .app {{ flex-direction: column; }}
+      .sidebar {{ width: auto; }}
     }}
   </style>
 </head>
