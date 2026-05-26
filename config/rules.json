@@ -1,5 +1,5 @@
 {
-    "version": "1.0.0",
+    "version": "1.3.0",
     "descricao": "Configuracoes de regras de auditoria fiscal - Simples Nacional Servicos",
 
     "limites_gerais": {
@@ -85,13 +85,57 @@
 
     "SN-010": {
         "descricao": "Clientes e Recebiveis",
+        "limite_medio_ratio": 1.0,
         "nivel_medio": "MEDIO",
-        "pontuacao_medio": 12
+        "pontuacao_medio": 12,
+        "limite_alto_ratio": 2.0,
+        "nivel_alto": "ALTO",
+        "pontuacao_alto": 20
     },
 
     "SN-011": {
         "descricao": "Adiantamentos",
         "nivel_medio": "MEDIO",
         "pontuacao_medio": 12
+    },
+
+    "SN-012": {
+        "descricao": "Passivo Tributario Crescente",
+        "limite_medio": 0.50,
+        "nivel_medio": "MEDIO",
+        "pontuacao_medio": 14
+    },
+
+    "SN-013": {
+        "descricao": "Despesas Especificas Elevadas",
+        "limite_representacao": 0.15,
+        "pontuacao_representacao": 10,
+        "limite_veiculos": 0.10,
+        "pontuacao_veiculos": 10
+    },
+
+    "SN-014": {
+        "descricao": "Ausencia de Provisoes com Folha Significativa",
+        "limite_folha_receita": 0.10,
+        "nivel_medio": "MEDIO",
+        "pontuacao_medio": 12
+    },
+
+    "SN-COMP-01": {
+        "descricao": "Omissao de Receita + Despesas Elevadas",
+        "nivel_alto": "ALTO",
+        "pontuacao": 15
+    },
+
+    "SN-COMP-02": {
+        "descricao": "Prejuizo Significativo + Caixa Negativo",
+        "nivel_alto": "ALTO",
+        "pontuacao": 15
+    },
+
+    "SN-COMP-03": {
+        "descricao": "Recebiveis Elevados + Adiantamentos",
+        "nivel_medio": "MEDIO",
+        "pontuacao": 10
     }
 }

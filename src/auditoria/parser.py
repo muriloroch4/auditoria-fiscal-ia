@@ -25,6 +25,13 @@ REQUIRED_COLUMNS = {
     "saldo_atual",
 }
 
+VALID_GRUPOS = frozenset({
+    "receita", "despesas", "tributos", "folha", "clientes", "fornecedores",
+    "bancos", "caixa", "socios", "adiantamentos", "lucros", "resultado",
+    "provisoes", "imobilizado", "despesas_representacao", "despesas_veiculos",
+    "custos", "investimentos", "patrimonio_liquido", "estoque", "outros",
+})
+
 
 def read_trial_balance(path: str | Path, cliente: str, periodo: str) -> TrialBalance:
     source = Path(path)
@@ -136,10 +143,19 @@ def _read_trial_balance_records(
 
 
 def _row_to_account(row: dict[str, str], line_number: int) -> LedgerAccount:
+    codigo = _required_text(row, "codigo", line_number)
+    conta = _required_text(row, "conta", line_number)
+    grupo = _required_text(row, "grupo", line_number).lower()
+
+    if grupo not in VALID_GRUPOS:
+        inferred = _infer_grupo_from_conta(codigo, conta)
+        if inferred is not None:
+            grupo = inferred
+
     return LedgerAccount(
-        codigo=_required_text(row, "codigo", line_number),
-        conta=_required_text(row, "conta", line_number),
-        grupo=_required_text(row, "grupo", line_number).lower(),
+        codigo=codigo,
+        conta=conta,
+        grupo=grupo,
         saldo_anterior=_decimal(row["saldo_anterior"], "saldo_anterior", line_number),
         debito=_decimal(row["debito"], "debito", line_number),
         credito=_decimal(row["credito"], "credito", line_number),
@@ -304,6 +320,12 @@ def _dominio_group(classification: str, description: str) -> str:
         return "bancos"
     if classification.startswith("1.1.2") or "duplicatas a receber" in text or "cliente" in text:
         return "clientes"
+    if classification.startswith("1.1.3") or "estoque" in text:
+        return "estoque"
+    if classification.startswith("1.2") or "imobilizado" in text or "imovel" in text or "veiculo" in text:
+        return "imobilizado"
+    if classification.startswith("2.1.2") or "fornecedor" in text:
+        return "fornecedores"
     if classification.startswith("3.1.1") or "receita de prestacao" in text:
         return "receita"
     if classification.startswith("3.1.2.03"):
@@ -312,10 +334,43 @@ def _dominio_group(classification: str, description: str) -> str:
         classification.startswith("4") and ("pro-labore" in text or "salarios" in text or "fgts" in text)
     ):
         return "folha"
+    if classification.startswith("4") and ("provisao" in text or "provisoes" in text):
+        return "provisoes"
+    if classification.startswith("4") and ("representacao" in text or "viagem" in text or "hospedagem" in text):
+        return "despesas_representacao"
+    if classification.startswith("4") and ("veiculo" in text or "combustivel" in text or "manutencao" in text):
+        return "despesas_veiculos"
     if classification.startswith("4"):
         return "despesas"
 
     return "outros"
+
+
+def _infer_grupo_from_conta(codigo: str, conta: str) -> str | None:
+    text = _normalize_key(conta)
+
+    if "provisao" in text or "provisoes" in text or "ferias" in text or "13" in text:
+        return "provisoes"
+    if "imovel" in text or "imoveis" in text or "imobilizado" in text:
+        return "imobilizado"
+    if "veiculo" in text:
+        return "imobilizado"
+    if "fornecedor" in text:
+        return "fornecedores"
+    if "representacao" in text or "viagem" in text or "hospedagem" in text or "alimentacao" in text:
+        return "despesas_representacao"
+    if "combustivel" in text or "manutencao veicular" in text or "estacionamento" in text:
+        return "despesas_veiculos"
+    if "custo" in text:
+        return "custos"
+    if "investimento" in text or "aplicacao" in text:
+        return "investimentos"
+    if "capital social" in text or "reserva" in text or "prejuizo" in text or "lucro acumulado" in text:
+        return "patrimonio_liquido"
+    if "despesa" in text:
+        return "despesas"
+
+    return None
 
 
 def _convert_xls_to_xlsx(source: Path, converted: Path) -> None:

@@ -11,3 +11,12 @@ def classify_total_risk(findings: list[RuleFinding]) -> tuple[RiskLevel, int]:
     if score >= 30 or any(f.nivel == RiskLevel.MEDIO for f in findings):
         return RiskLevel.MEDIO, score
     return RiskLevel.BAIXO, score
+
+
+def suggest_opinion_type(nivel: RiskLevel, findings: list[RuleFinding]) -> str:
+    has_compound = any(f.codigo.startswith("SN-COMP") for f in findings)
+    if nivel == RiskLevel.ALTO or has_compound:
+        return "adversa"
+    if nivel == RiskLevel.MEDIO:
+        return "com_ressalva"
+    return "sem_ressalva"

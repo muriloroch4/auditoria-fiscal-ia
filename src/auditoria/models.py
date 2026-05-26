@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import Enum
+from typing import Any
 
 
 class RiskLevel(str, Enum):
@@ -50,14 +51,20 @@ class RuleFinding:
     descricao: str
     evidencia: dict[str, str] = field(default_factory=dict)
     recomendacao: str = ""
+    normas_aplicaveis: tuple[str, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)
 class AuditResult:
     cliente: str
     periodo: str
+    regime_tributario: str
     nivel_geral: RiskLevel
     pontuacao_total: int
     achados: list[RuleFinding]
     resumo_metricas: dict[str, str]
+    metricas_valores: dict[str, Any]
     explicacao_pontuacao: list[str]
+    contexto_regime: dict[str, Any]
+    total_contas_analisadas: int
+    total_regras_verificadas: int

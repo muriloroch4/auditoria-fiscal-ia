@@ -10,12 +10,10 @@ from textwrap import dedent
 from xml.sax.saxutils import escape
 
 from src.auditoria.audit import run_quarterly_audit
-from src.auditoria.models import RiskLevel
+from src.auditoria.models import RiskLevel, RuleFinding
 from src.auditoria.parser import read_trial_balance_csv, read_trial_balance_csv_text, read_trial_balance_upload
-from src.auditoria.report_ai import _build_prompt_data, _system_prompt, generate_markdown_report
 from src.auditoria.serializers import audit_result_to_dict
-from src.auditoria.ai_client import is_api_key_configured
-from src.auditoria.risk import classify_total_risk
+from src.auditoria.risk import classify_total_risk, suggest_opinion_type
 from src.auditoria.utils import format_brl, format_percent, sanitize_for_latin1
 from src.auditoria.config_loader import _DEFAULT_CONFIG_PATH, load_config, get_rule_config, reload_config
 
@@ -26,27 +24,19 @@ class AuditPrototypeTest(unittest.TestCase):
         balance = read_trial_balance_csv(sample, cliente="Cliente Exemplo", periodo="2026-T1")
 
         result = run_quarterly_audit(balance)
-        report = generate_markdown_report(result, use_ai=False)
-        prompt_payload = _build_prompt_data(result)
-        api_payload = audit_result_to_dict(result, report_markdown=report)
+        payload = audit_result_to_dict(result)
 
         self.assertEqual(result.nivel_geral, RiskLevel.ALTO)
-        self.assertIn("Distribuição de lucros acima do lucro apurado", report)
-        self.assertIn("## 1. Resumo Executivo", report)
-        self.assertIn("### Dados extraidos do motor de regras", report)
-        self.assertIn("**Metricas calculadas:**", report)
-        self.assertIn("**Explicacao da pontuacao:**", report)
-        self.assertIn("**Regras acionadas:**", report)
-        self.assertIn("**Pontuacao total calculada:** 50", report)
-        self.assertIn("## 2. Parecer Tecnico", report)
-        self.assertIn("## 3. Conclusao", report)
-        self.assertIn("| Area | Situacao | Criticidade |", report)
-        self.assertIn("Este parecer foi elaborado exclusivamente com base no balancete disponibilizado", report)
-        self.assertEqual(prompt_payload["nivel_geral"], "alto")
-        self.assertIn("explicacao_pontuacao", prompt_payload)
-        self.assertEqual(api_payload["nivel_geral"], "alto")
-        self.assertIn("explicacao_pontuacao", api_payload)
-        self.assertIn("relatorio_markdown", api_payload)
+        self.assertEqual(payload["_schema_version"], "2.0.0")
+        self.assertIn("meta", payload)
+        self.assertIn("identificacao", payload)
+        self.assertIn("risco", payload)
+        self.assertIn("metricas", payload)
+        self.assertIn("achados", payload)
+        self.assertIn("contexto_regime", payload)
+        self.assertEqual(payload["risco"]["nivel_geral"], "alto")
+        self.assertIn("explicacao_pontuacao", payload["risco"])
+        self.assertIn("modalidade_opiniao_sugerida", payload["risco"])
 
     def test_csv_text_parser_supports_upload_flow(self):
         content = Path("samples/balancete_simples_servicos.csv").read_text(encoding="utf-8")
@@ -71,14 +61,12 @@ class AuditPrototypeTest(unittest.TestCase):
         balance = read_trial_balance_csv_text(content, cliente="Sem Receita", periodo="2026-T1")
 
         result = run_quarterly_audit(balance)
-        report = generate_markdown_report(result, use_ai=False)
         finding_by_code = {finding.codigo: finding for finding in result.achados}
 
         self.assertEqual(result.nivel_geral, RiskLevel.ALTO)
         self.assertIn("SN-008A", finding_by_code)
         self.assertEqual(finding_by_code["SN-008A"].pontuacao, 20)
-        self.assertIn("Risco identificado", report)
-        self.assertIn("Impacto potencial", report)
+        self.assertTrue(len(finding_by_code["SN-008A"].normas_aplicaveis) > 0)
 
     def test_tax_below_three_percent_of_revenue_generates_high_risk_finding(self):
         content = dedent(
@@ -144,65 +132,6 @@ class AuditPrototypeTest(unittest.TestCase):
         self.assertEqual(balance.cliente, "Excel Upload")
         self.assertIn("SN-002B", {finding.codigo for finding in result.achados})
 
-    def test_ai_report_uses_mock_when_api_call_fails(self):
-        balance = read_trial_balance_csv_text(
-            dedent(
-                """\
-                codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
-                1.1.1;Banco;bancos;0;0;0;0
-                3.1.1;Receita de Servicos;receita;0;0;100000;100000
-                """
-            ),
-            cliente="Falha IA",
-            periodo="2026-T1",
-        )
-        result = run_quarterly_audit(balance)
-
-        with unittest.mock.patch("src.auditoria.ai_client.call_openrouter", side_effect=ConnectionError("Erro")):
-            report = generate_markdown_report(result, use_ai=True)
-
-            self.assertIn("PARECER TECNICO CONTABIL", report)
-            self.assertIn("Falha IA", report)
-
-    def test_ai_report_disabled_when_use_ai_false(self):
-        balance = read_trial_balance_csv_text(
-            dedent(
-                """\
-                codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
-                1.1.1;Banco;bancos;0;0;0;0
-                3.1.1;Receita de Servicos;receita;0;0;100000;100000
-                """
-            ),
-            cliente="IA Desabilitada",
-            periodo="2026-T1",
-        )
-        result = run_quarterly_audit(balance)
-
-        with unittest.mock.patch("src.auditoria.ai_client.call_openrouter") as mock_call:
-            report = generate_markdown_report(result, use_ai=False)
-
-            mock_call.assert_not_called()
-            self.assertIn("PARECER TECNICO CONTABIL", report)
-            self.assertIn("IA Desabilitada", report)
-
-    def test_report_uses_verify_placeholder_when_cnpj_is_empty(self):
-        balance = read_trial_balance_csv_text(
-            dedent(
-                """\
-                codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
-                1.1.1;Banco;bancos;0;0;0;0
-                3.1.1;Receita de Servicos;receita;0;0;100000;100000
-                """
-            ),
-            cliente="CNPJ Vazio",
-            periodo="2026-T1",
-        )
-        result = run_quarterly_audit(balance)
-
-        report = generate_markdown_report(result, use_ai=False, cnpj=" ")
-
-        self.assertIn("**CNPJ:** [VERIFICAR: CNPJ da empresa]", report)
-
     def test_receivables_and_advances_generate_template_areas(self):
         content = dedent(
             """\
@@ -218,43 +147,72 @@ class AuditPrototypeTest(unittest.TestCase):
         )
         balance = read_trial_balance_csv_text(content, cliente="Recebiveis", periodo="2026-T1")
         result = run_quarterly_audit(balance)
-        report = generate_markdown_report(result, use_ai=False)
         codes = {finding.codigo for finding in result.achados}
 
         self.assertIn("SN-010A", codes)
         self.assertIn("SN-011A", codes)
-        self.assertIn("Clientes e recebiveis", report)
-        self.assertIn("Adiantamentos", report)
-        self.assertNotIn("| Clientes e recebiveis | Sem achado automatico relevante", report)
-        self.assertNotIn("CRITICO", report)
 
-    def test_is_api_key_configured_logic(self):
-        with unittest.mock.patch("src.auditoria.ai_client._load_env_file"):
-            with unittest.mock.patch.dict(os.environ, {}, clear=True):
-                self.assertFalse(is_api_key_configured())
-                self.assertFalse(is_api_key_configured(""))
-                self.assertFalse(is_api_key_configured("   "))
-                self.assertTrue(is_api_key_configured("sk-test-key"))
+    def test_serialized_payload_contains_normas_aplicaveis(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;0;0;0
+            3.1.1;Receita;receita;0;0;100000;100000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Normas", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        payload = audit_result_to_dict(result)
 
-    def test_is_api_key_configured_with_env(self):
-        with unittest.mock.patch.dict(os.environ, {"OPENROUTER_API_KEY": "sk-test-env"}):
-            self.assertTrue(is_api_key_configured())
+        for achado in payload["achados"]:
+            self.assertIn("normas_aplicaveis", achado)
+            self.assertIsInstance(achado["normas_aplicaveis"], list)
 
-    def test_system_prompt_uses_operational_template(self):
-        prompt = _system_prompt()
+    def test_suggest_opinion_type_logic(self):
+        alto = RuleFinding(codigo="SN-008A", titulo="Test", nivel=RiskLevel.ALTO, pontuacao=20, descricao="Test")
+        medio = RuleFinding(codigo="SN-007", titulo="Test", nivel=RiskLevel.MEDIO, pontuacao=16, descricao="Test")
+        baixo = RuleFinding(codigo="SN-999", titulo="Test", nivel=RiskLevel.BAIXO, pontuacao=5, descricao="Test")
+        composto = RuleFinding(codigo="SN-COMP-01", titulo="Test", nivel=RiskLevel.ALTO, pontuacao=15, descricao="Test")
 
-        self.assertIn("ETAPA 1 - EXTRACAO AUTOMATICA DOS DADOS", prompt)
-        self.assertIn("FONTE PRIMARIA", prompt)
-        self.assertIn("DADOS EXTRAIDOS DO MOTOR DE REGRAS", prompt)
-        self.assertIn("A. DISPONIBILIDADES", prompt)
-        self.assertIn("Area, Situacao, Criticidade", prompt)
-        self.assertIn("REGRA FINAL", prompt)
-        self.assertIn("[VERIFICAR: dado necessario]", prompt)
+        self.assertEqual(suggest_opinion_type(RiskLevel.ALTO, [alto]), "adversa")
+        self.assertEqual(suggest_opinion_type(RiskLevel.MEDIO, [medio]), "com_ressalva")
+        self.assertEqual(suggest_opinion_type(RiskLevel.BAIXO, [baixo]), "sem_ressalva")
+        self.assertEqual(suggest_opinion_type(RiskLevel.BAIXO, [composto]), "adversa")
+
+    def test_contexto_regime_is_present(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;0;0;0
+            3.1.1;Receita;receita;0;0;100000;100000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Contexto", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+
+        self.assertEqual(result.regime_tributario, "Simples Nacional")
+        self.assertIn("regime", result.contexto_regime)
+        self.assertIn("faixa_receita_estimada", result.contexto_regime)
+        self.assertIn("aliquota_efetiva_esperada", result.contexto_regime)
+
+    def test_metricas_valores_in_result(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;0;0;0
+            3.1.1;Receita;receita;0;0;100000;100000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Metricas", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+
+        self.assertIn("receita_servicos", result.metricas_valores)
+        self.assertIn("indicadores_derivados", result.metricas_valores)
+        self.assertIn("carga_tributaria_efetiva_percentual", result.metricas_valores["indicadores_derivados"])
 
 
 class RiskClassificationTest(unittest.TestCase):
     def _make_finding(self, codigo="X", nivel=RiskLevel.BAIXO, pontuacao=5):
-        from src.auditoria.models import RuleFinding
         return RuleFinding(
             codigo=codigo,
             titulo="Test",
@@ -387,10 +345,8 @@ class SN009AccountingLossTest(unittest.TestCase):
         )
         balance = read_trial_balance_csv_text(content, cliente="Prejuizo", periodo="2026-T1")
         result = run_quarterly_audit(balance)
-        report = generate_markdown_report(result, use_ai=False)
         codes = {f.codigo for f in result.achados}
         self.assertTrue(any(c.startswith("SN-009") for c in codes), f"Expected SN-009 finding, got: {codes}")
-        self.assertIn("continuidade operacional", report)
 
     def test_no_loss_when_profitable(self):
         content = dedent(
@@ -405,6 +361,154 @@ class SN009AccountingLossTest(unittest.TestCase):
         result = run_quarterly_audit(balance)
         codes = {f.codigo for f in result.achados}
         self.assertFalse(any(c.startswith("SN-009") for c in codes))
+
+
+class MelhoriasMotorFiscalTest(unittest.TestCase):
+    def test_overlap_sn008_and_sn010_zero_revenue_with_receivables(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco Conta Movimento;bancos;0;50000;40000;10000
+            1.1.2;Clientes;clientes;80000;0;0;80000
+            3.1.1;Receita de Servicos;receita;0;0;0;0
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="SN008xSN010", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        codes = {f.codigo for f in result.achados}
+        self.assertIn("SN-008A", codes)
+        self.assertIn("SN-010A", codes)
+
+    def test_sn011_advances_with_zero_revenue_does_not_trigger(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;50000;40000;10000
+            1.1.3;Adiantamento a Fornecedores;adiantamentos;0;25000;0;25000
+            3.1.1;Receita;receita;0;0;0;0
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="SN011 Zero", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        codes = {f.codigo for f in result.achados}
+        self.assertNotIn("SN-011A", codes)
+
+    def test_sn_comp01_compound_rule_triggers(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;100000;80000;20000
+            3.1.1;Receita de Servicos;receita;0;0;5000;5000
+            4.2.1;Despesas Gerais;despesas;0;8000;0;-8000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="SN-COMP-01", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        codes = {f.codigo for f in result.achados}
+        self.assertIn("SN-008B", codes)
+        self.assertIn("SN-007", codes)
+        self.assertIn("SN-COMP-01", codes)
+
+    def test_sn012_tax_liability_growth_triggers(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;0;0;0
+            2.1.1;Simples a Recolher;tributos;10000;0;20000;30000
+            3.1.1;Receita;receita;0;0;100000;100000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="SN-012", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        codes = {f.codigo for f in result.achados}
+        self.assertIn("SN-012", codes)
+
+    def test_sn014_missing_provisions_with_significant_payroll(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;0;0;0
+            3.1.1;Receita;receita;0;0;100000;100000
+            4.1.1;Salarios;folha;0;25000;0;-25000
+            4.2.1;Despesas;despesas;0;10000;0;-10000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="SN-014", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        codes = {f.codigo for f in result.achados}
+        self.assertIn("SN-014", codes)
+
+    def test_inferencia_grupo_from_conta_fallback(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;0;0;0
+            4.1.1;Provisao de Ferias;custom;0;5000;0;-5000
+            4.2.1;Despesas Representacao;custom;0;3000;0;-3000
+            3.1.1;Receita;receita;0;0;100000;100000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Inferencia", periodo="2026-T1")
+        contas_por_grupo = {c.grupo for c in balance.contas}
+        self.assertIn("provisoes", contas_por_grupo)
+        self.assertIn("despesas_representacao", contas_por_grupo)
+
+
+class SchemaV2Test(unittest.TestCase):
+    def test_audit_result_dict_has_schema_version(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;0;0;0
+            3.1.1;Receita;receita;0;0;100000;100000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Schema", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        payload = audit_result_to_dict(result)
+
+        self.assertEqual(payload["_schema_version"], "2.0.0")
+        self.assertEqual(payload["meta"]["versao_schema"], "2.0.0")
+        self.assertEqual(payload["identificacao"]["regime_tributario"], "Simples Nacional")
+        self.assertIn("total_contas_analisadas", payload["meta"])
+        self.assertIn("total_regras_verificadas", payload["meta"])
+
+    def test_risco_block_has_classificacao_and_opiniao(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;0;0;0
+            3.1.1;Receita;receita;0;0;100000;100000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Risco", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        payload = audit_result_to_dict(result)
+        risco = payload["risco"]
+
+        self.assertIn("classificacao", risco)
+        self.assertIn("modalidade_opiniao_sugerida", risco)
+        self.assertIn("achados_alto", risco["classificacao"])
+        self.assertIn("achados_medio", risco["classificacao"])
+        self.assertIn("achados_baixo", risco["classificacao"])
+        self.assertIn("achados_compostos", risco["classificacao"])
+
+    def test_metricas_block_has_valor_and_formatado(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;0;0;0
+            3.1.1;Receita;receita;0;0;100000;100000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="MetricasV2", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        payload = audit_result_to_dict(result)
+        metricas = payload["metricas"]
+
+        self.assertIn("valor", metricas["receita_servicos"])
+        self.assertIn("formatado", metricas["receita_servicos"])
+        self.assertIn("indicadores_derivados", metricas)
 
 
 class APITest(unittest.TestCase):

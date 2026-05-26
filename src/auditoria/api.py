@@ -15,7 +15,6 @@ from pathlib import Path
 
 from .audit import run_quarterly_audit
 from .parser import read_trial_balance_upload
-from .report_ai import generate_markdown_report
 from .serializers import audit_result_to_dict
 
 logger = logging.getLogger(__name__)
@@ -31,6 +30,7 @@ class AuditApiHandler(BaseHTTPRequestHandler):
     use_ai: bool = True
     api_key: str | None = None
     ai_api_key: str | None = None
+    regime_tributario: str | None = None
     max_upload_bytes: int = 10 * 1024 * 1024
 
     def do_GET(self) -> None:
@@ -42,6 +42,10 @@ class AuditApiHandler(BaseHTTPRequestHandler):
 
         if path == "/health":
             self._send_json({"status": "ok"})
+            return
+
+        if path == "/api/auditorias/schema":
+            self._send_json(_schema_v2_definition())
             return
 
         logger.warning("Rota não encontrada: GET %s", path)
@@ -106,9 +110,8 @@ class AuditApiHandler(BaseHTTPRequestHandler):
                 cliente=cliente,
                 periodo=periodo,
             )
-            result = run_quarterly_audit(balance)
-            report = generate_markdown_report(result, use_ai=self.use_ai, api_key=self.ai_api_key, cnpj=cnpj)
-            self._send_json(audit_result_to_dict(result, report_markdown=report))
+            result = run_quarterly_audit(balance, regime_tributario=self.regime_tributario or "Simples Nacional")
+            self._send_json(audit_result_to_dict(result))
             logger.info("Auditoria concluida: nivel=%s score=%d achados=%d", result.nivel_geral.value, result.pontuacao_total, len(result.achados))
         except ValueError as exc:
             logger.warning("Erro de validacao: %s", exc)
@@ -171,19 +174,14 @@ class AuditApiHandler(BaseHTTPRequestHandler):
 def run_server(
     host: str = "127.0.0.1",
     port: int = 8000,
-    use_ai: bool = True,
     api_key: str | None = None,
-    ai_api_key: str | None = None,
+    regime_tributario: str | None = None,
 ) -> None:
-    AuditApiHandler.use_ai = use_ai
     AuditApiHandler.api_key = api_key
-    AuditApiHandler.ai_api_key = ai_api_key
+    AuditApiHandler.regime_tributario = regime_tributario
     server = ThreadingHTTPServer((host, port), AuditApiHandler)
     logger.info("Servidor iniciado em http://%s:%d", host, port)
-    if use_ai:
-        logger.info("Geracao de relatorio via IA: habilitada.")
-    else:
-        logger.info("Geracao de relatorio via IA: desabilitada (modo padrao).")
+    logger.info("Regime tributario: %s", regime_tributario or "Simples Nacional (padrao)")
     if api_key:
         logger.info("Autenticacao por API key: habilitada.")
     server.serve_forever()
@@ -195,9 +193,8 @@ def main() -> None:
     run_server(
         host=args.host,
         port=args.port,
-        use_ai=args.use_ai,
         api_key=args.api_key or os.environ.get("AUDIT_API_KEY"),
-        ai_api_key=args.openrouter_api_key,
+        regime_tributario=args.regime_tributario,
     )
 
 
@@ -205,9 +202,8 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="API local para pre-auditoria fiscal.")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
-    parser.add_argument("--no-ai", action="store_false", dest="use_ai", default=True, help="Desabilitar IA e usar relatorio padrao.")
     parser.add_argument("--api-key", help="Chave da API para autenticacao (ou use AUDIT_API_KEY).")
-    parser.add_argument("--openrouter-api-key", help="Chave OpenRouter para relatorio por IA (ou use OPENROUTER_API_KEY).")
+    parser.add_argument("--regime-tributario", default=None, help="Regime tributario (padrao: Simples Nacional).")
     parser.add_argument("--verbose", action="store_true", help="Ativar logging detalhado.")
     return parser.parse_args()
 
@@ -224,6 +220,78 @@ def _setup_logging(verbose: bool = False) -> None:
 def _form_text(form: dict[str, str | UploadedFile], field: str, default: str) -> str:
     value = form.get(field)
     return value.strip() if isinstance(value, str) and value.strip() else default
+
+
+def _schema_v2_definition() -> dict:
+    return {
+        "_schema_version": "2.0.0",
+        "descricao": "Schema de saída da pré-auditoria fiscal — Simples Nacional (serviços)",
+        "meta": {
+            "versao_schema": "2.0.0",
+            "versao_regras": "str",
+            "conjunto_regras": "str",
+            "data_analise": "str (ISO 8601)",
+            "total_contas_analisadas": "int",
+            "total_regras_verificadas": "int",
+            "total_regras_acionadas": "int",
+        },
+        "identificacao": {
+            "cliente": "str",
+            "cnpj": "str",
+            "regime_tributario": "str",
+            "periodo": "str",
+        },
+        "risco": {
+            "nivel_geral": "str (alto | medio | baixo)",
+            "pontuacao_total": "int",
+            "modalidade_opiniao_sugerida": "str (adversa | com_ressalva | sem_ressalva)",
+            "classificacao": {
+                "achados_alto": "int",
+                "achados_medio": "int",
+                "achados_baixo": "int",
+                "achados_compostos": "int",
+            },
+            "explicacao_pontuacao": ["str"],
+        },
+        "metricas": {
+            "receita_servicos": {"valor": "float", "formatado": "str"},
+            "tributos_a_recolher": {"valor": "float", "formatado": "str"},
+            "folha_pro_labore": {"valor": "float", "formatado": "str"},
+            "despesas_operacionais": {"valor": "float", "formatado": "str"},
+            "lucros_distribuidos": {"valor": "float", "formatado": "str"},
+            "lucro_apurado_base": {"valor": "float", "formatado": "str"},
+            "caixa_e_bancos": {"valor": "float", "formatado": "str"},
+            "clientes_recebiveis": {"valor": "float", "formatado": "str"},
+            "origem_lucro_apurado": "str",
+            "indicadores_derivados": {
+                "carga_tributaria_efetiva_percentual": "str",
+                "percentual_folha_sobre_receita": "str",
+                "percentual_despesas_sobre_receita": "str",
+                "resultado_positivo": "bool",
+            },
+        },
+        "achados": [
+            {
+                "codigo": "str",
+                "titulo": "str",
+                "nivel": "str (alto | medio | baixo)",
+                "pontuacao": "int",
+                "descricao": "str",
+                "evidencia": "dict",
+                "recomendacao": "str",
+                "normas_aplicaveis": ["str"],
+            }
+        ],
+        "contexto_regime": {
+            "regime": "str",
+            "faixa_receita_estimada": "str",
+            "aliquota_efetiva_esperada": "str",
+            "fator_r_calculado": "str | None",
+            "fator_r_threshold": "str",
+            "sublimite_risco": "bool",
+            "observacoes": ["str"],
+        },
+    }
 
 
 def _index_html() -> str:
@@ -325,6 +393,7 @@ def _index_html() -> str:
 
     .main {{
       flex: 1;
+      height: 100%;
       min-width: 0;
       min-height: 0;
       background: var(--panel);
@@ -396,13 +465,13 @@ def _index_html() -> str:
   <div class="app">
     <aside class="sidebar">
       <h1>Auditoria Fiscal IA</h1>
-      <p class="tagline">Pre-auditoria para Simples Nacional - Servicos</p>
+      <p class="tagline">Pré-auditoria para Simples Nacional — Serviços</p>
       <form id="audit-form">
         <label for="cliente">Cliente</label>
         <input type="text" id="cliente" name="cliente" value="Cliente Exemplo" required>
         <label for="cnpj">CNPJ</label>
         <input type="text" id="cnpj" name="cnpj" value="00.000.000/0001-00" placeholder="00.000.000/0001-00">
-        <label for="periodo">Periodo</label>
+        <label for="periodo">Período</label>
         <input type="text" id="periodo" name="periodo" value="2026-T1" required>
         <label for="balancete">Balancete (CSV, XLSX, XLS)</label>
         <input type="file" id="balancete" name="balancete" accept=".csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
@@ -411,7 +480,7 @@ def _index_html() -> str:
     </aside>
     <div class="main">
       <div class="main-header">
-        <h2>Relatorio</h2>
+        <h2>Relatório</h2>
         <div id="score" class="score"></div>
       </div>
       <div id="output" class="report">
@@ -516,20 +585,36 @@ def _index_html() -> str:
       output.innerHTML = "<div class='md'>" + formatted + "</div>";
     }}
 
+    let lastData = null;
+
     form.addEventListener("submit", async (event) => {{
       event.preventDefault();
       button.disabled = true;
       output.innerHTML = "<div class='report-empty'>Processando...</div>";
       score.innerHTML = "";
+      lastData = null;
       try {{
         const response = await fetch("/api/auditorias", {{ method: "POST", body: new FormData(form) }});
         const data = await response.json();
         if (!response.ok) throw new Error(data.erro || "Falha ao gerar auditoria.");
+        lastData = data;
+        const risco = data.risco || {{}};
+        const nivel = risco.nivel_geral || "desconhecido";
         score.innerHTML =
-          `<span class="pill ${{data.nivel_geral}}">Risco: ${{data.nivel_geral.toUpperCase()}}</span>` +
-          `<span class="pill info">Pontuacao: ${{data.pontuacao_total}}</span>` +
-          `<span class="pill info">Achados: ${{data.achados.length}}</span>`;
-        renderReport(data.relatorio_markdown);
+          `<span class="pill ${{nivel}}">Risco: ${{nivel.toUpperCase()}}</span>` +
+          `<span class="pill info">Pontuação: ${{risco.pontuacao_total || 0}}</span>` +
+          `<span class="pill info">Achados: ${{(data.achados || []).length}}</span>` +
+          `<button id="download-btn" class="pill" style="border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer;margin-left:8px;">⬇ JSON</button>`;
+        document.getElementById("download-btn").addEventListener("click", () => {{
+          const blob = new Blob([JSON.stringify(lastData, null, 2)], {{ type: "application/json" }});
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `auditoria_${{(data.identificacao?.cliente || "cliente").replace(/\\s+/g, "_")}}_${{(data.identificacao?.periodo || "periodo")}}.json`;
+          a.click();
+          URL.revokeObjectURL(url);
+        }});
+        renderReport(JSON.stringify(data, null, 2));
       }} catch (error) {{
         output.innerHTML = `<div class='report'><p style="color:var(--danger)">${{escapeHtml(error.message)}}</p></div>`;
       }} finally {{

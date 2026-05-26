@@ -44,7 +44,7 @@ def get_rule_config(codigo: str) -> dict[str, Any]:
 
 def _build_defaults() -> dict[str, Any]:
     return {
-        "version": "1.0.0",
+        "version": "1.3.0",
         "limites_gerais": {
             "simples_anual": 4800000,
             "limite_movimentacao_ativa": 10000,
@@ -91,5 +91,37 @@ def _build_defaults() -> dict[str, Any]:
             "pontuacao_alto": 25,
             "pontuacao_medio": 12,
             "limite_medio_ratio": 0.10,
+        },
+        "SN-010": {
+            "limite_medio_ratio": 1.0,
+            "pontuacao_medio": 12,
+            "limite_alto_ratio": 2.0,
+            "pontuacao_alto": 20,
+        },
+        "SN-011": {
+            "pontuacao_medio": 12,
+        },
+        "SN-012": {
+            "limite_medio": 0.50,
+            "pontuacao_medio": 14,
+        },
+        "SN-013": {
+            "limite_representacao": 0.15,
+            "pontuacao_representacao": 10,
+            "limite_veiculos": 0.10,
+            "pontuacao_veiculos": 10,
+        },
+        "SN-014": {
+            "limite_folha_receita": 0.10,
+            "pontuacao_medio": 12,
+        },
+        "SN-COMP-01": {
+            "pontuacao": 15,
+        },
+        "SN-COMP-02": {
+            "pontuacao": 15,
+        },
+        "SN-COMP-03": {
+            "pontuacao": 10,
         },
     }
