@@ -1,176 +1,150 @@
-# Auditoria Fiscal IA - Protótipo
+# Auditoria Fiscal IA — Pré-auditoria para Simples Nacional
 
-Protótipo inicial para ler um balancete, aplicar testes automáticos de risco fiscal/contábil e gerar um parecer técnico contábil em Markdown.
+Motor de regras fiscais para análise de balancetes trimestrais de empresas optantes pelo Simples Nacional (serviços). O motor extrai métricas do balancete, aplica regras de risco configuráveis e produz um JSON estruturado (schema v2.0.0) que pode ser consumido por uma IA para geração de parecer técnico consultivo ou enviado diretamente ao cliente.
 
-O parecer é gerado por IA (OpenRouter/Nemotron 3 Super) por padrão, seguindo o template operacional de extração, testes de risco, priorização de achados, resumo executivo, parecer técnico e conclusão. O template usa como fonte primária os dados estruturados do motor de regras: métricas calculadas, pontuação, explicação do score, achados, evidências e recomendações. Se a IA falhar ou não estiver configurada, o modo padrão em Markdown local é usado como fallback automático.
+## Esquema de saída (v2.0.0)
+
+```json
+{
+  "_schema_version": "2.0.0",
+  "meta": {
+    "versao_schema": "2.0.0",
+    "versao_regras": "1.x.x",
+    "conjunto_regras": "simples_servicos",
+    "data_analise": "2026-05-26T10:30:00",
+    "total_contas_analisadas": 15,
+    "total_regras_verificadas": 11,
+    "total_regras_acionadas": 7
+  },
+  "identificacao": {
+    "cliente": "Cliente Exemplo",
+    "cnpj": "",
+    "regime_tributario": "Simples Nacional",
+    "periodo": "2026-T1"
+  },
+  "risco": {
+    "nivel_geral": "alto",
+    "pontuacao_total": 62,
+    "modalidade_opiniao_sugerida": "adversa",
+    "classificacao": { "achados_alto": 3, "achados_medio": 3, "achados_baixo": 0, "achados_compostos": 1 },
+    "explicacao_pontuacao": ["..."]
+  },
+  "metricas": {
+    "receita_servicos": { "valor": 180000.0, "formatado": "R$ 180.000,00" },
+    "tributos_a_recolher": { "valor": 1000.0, "formatado": "R$ 1.000,00" },
+    "indicadores_derivados": {
+      "carga_tributaria_efetiva_percentual": "0,56%",
+      "percentual_folha_sobre_receita": "11,11%"
+    }
+  },
+  "achados": [{ "codigo": "SN-004A", "nivel": "alto", "normas_aplicaveis": ["art. 14° LC 123/2006", "NBC TG 1000"], ... }],
+  "contexto_regime": {
+    "regime": "Simples Nacional",
+    "faixa_receita_estimada": "3ª faixa (R$ 360.000,01 a R$ 720.000,00/ano)",
+    "aliquota_efetiva_esperada": "13,5%",
+    "fator_r_calculado": "44,44%",
+    "sublimite_risco": false,
+    "observacoes": ["Fator R estimado de 44,44% está acima de 28%..."]
+  }
+}
+```
 
 ## Como rodar
 
-Requisitos:
+Requisitos: Python 3.11+
 
-- Python 3.11+
-
-Execute com o balancete CSV de exemplo:
-
-```powershell
-python -m src.auditoria.main samples/balancete_simples_servicos.csv --periodo "2026-T1" --cliente "Cliente Exemplo" --cnpj "00.000.000/0001-00"
-```
-
-Tambem funciona com Excel `.xlsx`, desde que a primeira aba tenha o mesmo cabecalho:
-
-```powershell
-python -m src.auditoria.main caminho\do\balancete.xlsx --periodo "2026-T1" --cliente "Cliente Exemplo"
-```
-
-Arquivos `.xls` exportados pelo Domínio também são aceitos no Windows quando o Excel está instalado. O sistema abre o `.xls` em modo somente leitura, cria uma conversão temporária para `.xlsx` e analisa a cópia.
-
-Subir a API local com tela de upload:
+### Servidor web (recomendado)
 
 ```powershell
 python -m src.auditoria.api --port 8000
 ```
 
-Para proteger a API local, informe uma chave separada da chave do OpenRouter:
+Acesse `http://127.0.0.1:8000` — faça upload do balancete e veja o JSON de saída. Botão **⬇ JSON** para download do resultado.
 
+Endpoint JSON:
+```text
+POST /api/auditorias
+Content-Type: multipart/form-data
+campos: cliente, cnpj, periodo, balancete
+```
+
+Schema de saída:
+```text
+GET /api/auditorias/schema
+```
+
+Autenticação opcional:
 ```powershell
 $env:AUDIT_API_KEY = "dev-local-secret"
 python -m src.auditoria.api --port 8000
 ```
 
-Clientes HTTP devem enviar essa chave no header `X-API-Key`.
+Regime tributário personalizado:
+```powershell
+python -m src.auditoria.api --regime-tributario "Simples Nacional"
+```
 
-No Windows, tambem pode rodar pelo script:
-
+No Windows, também pode usar:
 ```powershell
 .\iniciar_api.ps1
 ```
 
-Ou dar duplo clique em:
-
-```text
-iniciar_api.bat
-```
-
-Depois acesse:
-
-```text
-http://127.0.0.1:8000
-```
-
-Endpoint JSON:
-
-```text
-POST /api/auditorias
-Content-Type: multipart/form-data
-
-campos:
-- cliente
-- cnpj
-- periodo
-- balancete
-```
-
-Gerar relatório em arquivo:
+### CLI (gerar JSON em arquivo)
 
 ```powershell
-# Markdown
-python -m src.auditoria.main samples/balancete_simples_servicos.csv --periodo "2026-T1" --cliente "Cliente Exemplo" --cnpj "00.000.000/0001-00" --saida relatorio.md
+python -m src.auditoria.main samples/balancete_simples_servicos.csv --periodo "2026-T1" --cliente "Cliente Exemplo" --saida resultado.json
 ```
 
-### Configuração da IA (OpenRouter)
-
-A IA já vem habilitada por padrão. Para usá-la:
+### Testes
 
 ```powershell
-$env:OPENROUTER_API_KEY = "sk-or-..."
+python -m unittest tests.test_auditoria -v
 ```
 
-Na API local, tambem e possivel passar a chave da IA explicitamente:
+## Formato esperado do balancete
 
-```powershell
-python -m src.auditoria.api --openrouter-api-key "sk-or-..."
-```
-
-O modelo padrão é o **Nemotron 3 Super (120B)**. Você pode alterar o modelo com `OPENROUTER_MODEL`.
-
-Para desabilitar a IA e usar o relatório local:
-```powershell
-python -m src.auditoria.main ... --no-ai
-```
-
-## Formato esperado do CSV, XLSX ou XLS
-
-O CSV deve usar ponto e virgula. No Excel `.xlsx`, use a primeira aba com as mesmas colunas na primeira linha:
+CSV (ponto e vírgula), XLSX ou XLS do Domínio:
 
 ```csv
 codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
-```
-
-Exemplo:
-
-```csv
 3.1.1;Receita de Servicos;receita;0;0;180000;180000
 2.1.1;Simples Nacional a Recolher;tributos;0;0;9800;9800
 ```
 
-Modelos disponiveis:
+Modelos disponíveis em `samples/`.
 
-- `samples/modelo_balancete_regras.csv`
-- `samples/modelo_balancete_regras.xlsx`
-- `samples/exemplo_balancete_todas_regras.csv`
-- `samples/exemplo_balancete_todas_regras.xlsx`
+### Grupos usados nas regras
 
-Para arquivos `.xls` do Domínio, o parser reconhece automaticamente o layout com as colunas `Código`, `Classificação`, `Descrição da conta`, `Saldo Anterior`, `Débito`, `Crédito` e `Saldo Atual`.
+| Grupo | Descrição |
+|-------|-----------|
+| `receita` | Receitas de serviços |
+| `tributos` | DAS, Simples Nacional, ISS, INSS e outros |
+| `folha` | Pro-labore, salários e encargos |
+| `despesas` | Despesas operacionais |
+| `socios` | Empréstimos, mútuos e contas correntes |
+| `adiantamentos` | Adiantamentos a fornecedores, clientes, etc. |
+| `caixa` / `bancos` | Disponibilidades |
+| `lucros` | Distribuição de lucros |
+| `resultado` | Lucro ou prejuízo apurado |
 
-## Estrutura
+## Integração com IA
 
-- `src/auditoria/models.py`: modelos de dados.
-- `src/auditoria/parser.py`: leitura e normalização do balancete.
-- `src/auditoria/rules/simples_servicos.py`: regras fiscais iniciais.
-- `src/auditoria/risk.py`: cálculo do nível geral de risco.
-- `src/auditoria/report_ai.py`: geração do relatório (com IA ou modo padrão).
-- `src/auditoria/ai_client.py`: cliente para chamada à API do OpenRouter (stdlib, sem dependências).
-- `src/auditoria/api.py`: API local com upload de balancete.
-- `src/auditoria/serializers.py`: conversão do resultado para JSON.
-- `src/auditoria/audit.py`: orquestração da auditoria.
-- `src/auditoria/main.py`: CLI para rodar o protótipo.
-- `REGRAS.md`: tabela das regras fiscais configuradas.
+O motor de regras **entrega o JSON v2.0.0** — não gera relatório em texto. O relatório em linguagem natural é produzido separadamente por uma IA, usando o system prompt consultivo em `src/auditoria/report_ai.py` (Parecer Técnico Consultivo Trimestral — 4 seções).
 
-## Grupos usados nas regras
+O cliente OpenRouter (`src/auditoria/ai_client.py`) pode ser usado para esse fim, mas é independente do motor de regras.
 
-Use estes valores na coluna `grupo` do CSV ou XLSX:
+## Estrutura do projeto
 
-- `receita`: receitas de servicos.
-- `tributos`: DAS, Simples Nacional, ISS, INSS e outros impostos.
-- `folha`: pro-labore, salarios e encargos.
-- `despesas`: despesas operacionais.
-- `socios`: emprestimos, mutuos e contas correntes de socios.
-- `adiantamentos`: adiantamentos a fornecedores, clientes, empregados ou terceiros.
-- `caixa`: caixa.
-- `bancos`: bancos e aplicacoes financeiras.
-- `lucros`: distribuicao de lucros.
-- `resultado`: lucro ou prejuizo apurado no periodo. Quando existir, esse grupo e usado na regra `SN-004A`.
-
-## Como funciona a análise
-
-### 1. Classificação das Contas
-Se o seu arquivo já tiver a coluna **`grupo`**, o sistema usa ela diretamente. Caso contrário (formato Domínio), ele classifica automaticamente pelo código e nome da conta (ex: contas começando com `4.*` viram despesa, `3.1.1.*` viram receita).
-
-### 2. Lógica de Debito vs Crédito
-O sistema não usa sinais (+/-) para distinguir receita de despesa; ele usa as colunas:
-- **Receitas:** Soma apenas os valores da coluna `credito`.
-- **Despesas e Custos:** Soma apenas os valores da coluna `debito`.
-- **Saldos (Balanço):** Usa a coluna `saldo_atual` para verificar caixa, bancos e tributos a recolher.
-
-### 3. Exemplo: Empresa sem Receita
-Se a coluna `credito` das contas de `receita` estiver zerada, mas houver valores em `despesas` ou movimentação em `bancos`, o sistema aciona um alerta de **Risco Alto**.
-- **Interpretação:** A empresa tem custos operacionais, mas não declarou faturamento. Isso sugere possível divergência fiscal, omissão de receita a validar ou erro de classificação contábil.
-- **Atenção:** Se a receita foi lançada direto na conta de "Resultado do Período" (em vez de "Receita de Serviços"), a análise atual não captará esse valor como faturamento, resultando em um relatório mais conservador (pior).
-
-## Próximos passos naturais
-
-1. Validar o formato real dos balancetes usados pelos clientes.
-2. Mapear contas contábeis comuns para categorias padronizadas.
-3. Refinar pesos e limites das regras com um contador/fiscalista.
-4. ~~Trocar o gerador mock de relatório por uma chamada de IA com os achados estruturados.~~ **Feito!**
-5. Adicionar upload via API e armazenamento dos relatórios por cliente/trimestre.
+- `src/auditoria/models.py` — modelos de dados (RuleFinding, AuditResult, etc.)
+- `src/auditoria/parser.py` — leitura e normalização do balancete (CSV, XLSX, XLS)
+- `src/auditoria/rules/simples_servicos.py` — 21+ regras fiscais com `normas_aplicaveis`
+- `src/auditoria/risk.py` — classificação de risco + `suggest_opinion_type`
+- `src/auditoria/audit.py` — orquestração: métricas, contexto do regime, explicação do score
+- `src/auditoria/serializers.py` — serialização para JSON v2.0.0
+- `src/auditoria/api.py` — servidor HTTP com upload, schema e download JSON
+- `src/auditoria/report_ai.py` — system prompt para geração de parecer via IA
+- `src/auditoria/ai_client.py` — cliente OpenRouter (stdlib, sem dependências)
+- `src/auditoria/main.py` — CLI para processamento em lote
+- `config/rules.json` — configuração de pesos e limites das regras
+- `REGRAS.md` — tabela das regras fiscais configuradas
+- `tests/test_auditoria.py` — 44 testes
