@@ -12,6 +12,7 @@ from xml.sax.saxutils import escape
 from src.auditoria.audit import run_quarterly_audit
 from src.auditoria.models import RiskLevel, RuleFinding
 from src.auditoria.parser import read_trial_balance_csv, read_trial_balance_csv_text, read_trial_balance_upload
+from src.auditoria.report_ai import generate_markdown_report
 from src.auditoria.serializers import audit_result_to_dict
 from src.auditoria.risk import classify_total_risk, suggest_opinion_type
 from src.auditoria.utils import format_brl, format_percent, sanitize_for_latin1
@@ -37,6 +38,20 @@ class AuditPrototypeTest(unittest.TestCase):
         self.assertEqual(payload["risco"]["nivel_geral"], "alto")
         self.assertIn("explicacao_pontuacao", payload["risco"])
         self.assertIn("modalidade_opiniao_sugerida", payload["risco"])
+
+    def test_local_markdown_report_uses_consultivo_template(self):
+        sample = Path("samples/balancete_simples_servicos.csv")
+        balance = read_trial_balance_csv(sample, cliente="Cliente Exemplo", periodo="2026-T1", cnpj="12.345.678/0001-90")
+
+        result = run_quarterly_audit(balance)
+        report = generate_markdown_report(result, use_ai=False)
+
+        self.assertIn("PARECER TÉCNICO CONTÁBIL — CONSULTIVO TRIMESTRAL", report)
+        self.assertIn("## 1. RESUMO EXECUTIVO", report)
+        self.assertIn("## 2. ACHADOS E RECOMENDAÇÕES", report)
+        self.assertIn("## 3. OPINIÃO TÉCNICA", report)
+        self.assertIn("## 4. ASSINATURA", report)
+        self.assertIn("CNPJ:     12.345.678/0001-90", report)
 
     def test_csv_text_parser_supports_upload_flow(self):
         content = Path("samples/balancete_simples_servicos.csv").read_text(encoding="utf-8")

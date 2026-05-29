@@ -28,6 +28,7 @@ class TrialBalance:
     cliente: str
     periodo: str
     contas: list[LedgerAccount]
+    cnpj: str = ""
 
     def total_por_grupo(self, grupo: str) -> Decimal:
         return sum((c.saldo_atual for c in self.contas if c.grupo == grupo), Decimal("0"))
@@ -58,6 +59,7 @@ class RuleFinding:
 class AuditResult:
     cliente: str
     periodo: str
+    cnpj: str
     regime_tributario: str
     nivel_geral: RiskLevel
     pontuacao_total: int

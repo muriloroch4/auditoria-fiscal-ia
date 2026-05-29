@@ -109,6 +109,7 @@ class AuditApiHandler(BaseHTTPRequestHandler):
                 uploaded_file.content,
                 cliente=cliente,
                 periodo=periodo,
+                cnpj=cnpj,
             )
             result = run_quarterly_audit(balance, regime_tributario=self.regime_tributario or "Simples Nacional")
             self._send_json(audit_result_to_dict(result))
@@ -303,7 +304,6 @@ def _index_html() -> str:
   <title>Auditoria Fiscal IA</title>
   <style>
     :root {{
-      color-scheme: light;
       --bg: #f4f6fa;
       --text: #172033;
       --muted: #5b6475;
@@ -331,12 +331,12 @@ def _index_html() -> str:
       inset: 24px;
       display: flex;
       gap: 20px;
-      max-width: 1200px;
+      max-width: 1280px;
       margin: 0 auto;
     }}
     .sidebar {{
-      width: 340px;
-      min-width: 260px;
+      width: 320px;
+      min-width: 240px;
       flex-shrink: 0;
       background: var(--panel);
       border: 1px solid var(--line);
@@ -344,120 +344,113 @@ def _index_html() -> str:
       padding: 24px;
       overflow-y: auto;
     }}
-    .sidebar h1 {{
-      font-size: 22px;
-      margin-bottom: 8px;
-      color: var(--accent-strong);
-    }}
-    .sidebar .tagline {{
-      color: var(--muted);
-      font-size: 13px;
-      margin-bottom: 20px;
-    }}
-    label {{
-      display: block;
-      margin: 14px 0 6px;
-      font-weight: 600;
-      font-size: 13px;
-    }}
-    input[type="text"] {{
-      width: 100%;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 10px 12px;
-      font-size: 14px;
-    }}
+    .sidebar h1 {{ font-size: 20px; margin-bottom: 4px; color: var(--accent-strong); }}
+    .sidebar .tagline {{ color: var(--muted); font-size: 12px; margin-bottom: 18px; }}
+    label {{ display: block; margin: 12px 0 4px; font-weight: 600; font-size: 13px; }}
+    input[type="text"] {{ width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 14px; }}
     input[type="text"]:focus {{ outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(31,122,109,.12); }}
-    input[type="file"] {{
-      width: 100%;
-      padding: 10px;
-      font-size: 13px;
-      border: 1px dashed var(--line);
-      border-radius: 8px;
-      background: #fafbfe;
-    }}
-    .btn {{
-      width: 100%;
-      margin-top: 20px;
-      border: 0;
-      border-radius: 8px;
-      padding: 12px;
-      background: var(--accent);
-      color: #fff;
-      font-weight: 700;
-      font-size: 14px;
-      cursor: pointer;
-    }}
+    input[type="file"] {{ width: 100%; padding: 10px; font-size: 13px; border: 1px dashed var(--line); border-radius: 8px; background: #fafbfe; }}
+    .btn {{ width: 100%; margin-top: 18px; border: 0; border-radius: 8px; padding: 12px; background: var(--accent); color: #fff; font-weight: 700; font-size: 14px; cursor: pointer; }}
     .btn:hover {{ background: var(--accent-strong); }}
     .btn:disabled {{ opacity: .6; cursor: wait; }}
 
     .main {{
-      flex: 1;
-      height: 100%;
-      min-width: 0;
-      min-height: 0;
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      display: flex;
-      flex-direction: column;
+      flex: 1; height: 100%; min-width: 0; min-height: 0;
+      background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+      display: flex; flex-direction: column;
     }}
     .main-header {{
-      padding: 18px 24px;
-      border-bottom: 1px solid var(--line);
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex-shrink: 0;
+      padding: 14px 20px; border-bottom: 1px solid var(--line);
+      display: flex; align-items: center; gap: 10px; flex-shrink: 0; flex-wrap: wrap;
     }}
-    .main-header h2 {{ font-size: 16px; }}
-    .score {{ display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }}
-    .pill {{
-      border-radius: 999px;
-      padding: 5px 12px;
-      font-size: 12px;
-      font-weight: 700;
-    }}
+    .main-header h2 {{ font-size: 15px; }}
+    .main-header .actions {{ margin-left: auto; display: flex; gap: 6px; align-items: center; }}
+    .pill {{ border-radius: 999px; padding: 4px 10px; font-size: 11px; font-weight: 700; white-space: nowrap; }}
     .pill.alto {{ background: var(--danger-bg); color: var(--danger); }}
     .pill.medio {{ background: var(--warn-bg); color: var(--warn); }}
     .pill.baixo {{ background: var(--low-bg); color: var(--low); }}
     .pill.info {{ background: var(--accent-light); color: var(--accent-strong); }}
+    .pill.outline {{ background: transparent; border: 1px solid var(--accent); color: var(--accent); cursor: pointer; }}
+    .pill.outline:hover {{ background: var(--accent-light); }}
 
     .report {{
-      padding: 24px;
-      flex: 1;
-      min-height: 0;
-      overflow-y: auto;
-      overflow-x: auto;
+      padding: 20px; flex: 1; min-height: 0; overflow-y: auto;
     }}
-    .md {{ overflow-wrap: break-word; word-break: break-word; }}
     .report-empty {{
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 300px;
-      color: var(--muted);
-      font-size: 15px;
+      display: flex; align-items: center; justify-content: center;
+      min-height: 300px; color: var(--muted); font-size: 14px;
     }}
 
-    .md h1 {{ font-size: 22px; color: var(--accent-strong); margin: 0 0 8px; padding-bottom: 8px; border-bottom: 2px solid var(--accent); }}
-    .md h2 {{ font-size: 16px; color: var(--accent); margin: 24px 0 10px; padding: 6px 12px; background: rgba(31,122,109,.08); border-radius: 6px; }}
-    .md h3 {{ font-size: 14px; color: var(--text); margin: 18px 0 8px; }}
-    .md p {{ margin: 8px 0; font-size: 13.5px; }}
-    .md ul {{ margin: 6px 0 10px 20px; font-size: 13.5px; }}
-    .md li {{ margin: 3px 0; }}
-    .md table {{ border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 13px; display: block; overflow-x: auto; }}
-    .md th {{ background: var(--accent); color: #fff; text-align: left; padding: 7px 12px; font-size: 12px; }}
-    .md td {{ padding: 7px 12px; border-bottom: 1px solid var(--line); }}
-    .md tr:nth-child(even) td {{ background: #f8fafc; }}
-    .md blockquote {{ border-left: 3px solid var(--accent); background: #f0fdf9; padding: 10px 14px; margin: 10px 0; color: var(--muted); font-style: italic; font-size: 13px; border-radius: 0 6px 6px 0; }}
-    .md hr {{ border: none; border-top: 1px solid var(--line); margin: 16px 0; }}
-    .md strong {{ color: var(--text); }}
-    .md code {{ background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 12px; }}
+    /* Dashboard cards */
+    .db-section {{ margin-bottom: 20px; }}
+    .db-section-title {{ font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px; }}
+
+    .risk-hero {{
+      display: flex; align-items: center; gap: 20px;
+      padding: 20px; border-radius: 10px; border: 1px solid var(--line);
+    }}
+    .risk-hero.alto {{ background: var(--danger-bg); border-color: #fecaca; }}
+    .risk-hero.medio {{ background: var(--warn-bg); border-color: #fde68a; }}
+    .risk-hero.baixo {{ background: var(--low-bg); border-color: #a7f3d0; }}
+    .risk-icon {{ font-size: 36px; line-height: 1; }}
+    .risk-info h3 {{ font-size: 16px; margin-bottom: 2px; }}
+    .risk-info p {{ font-size: 13px; color: var(--muted); }}
+    .risk-stats {{ display: flex; gap: 20px; margin-left: auto; text-align: center; }}
+    .risk-stats div {{ min-width: 50px; }}
+    .risk-stats .num {{ font-size: 22px; font-weight: 800; display: block; }}
+    .risk-stats .lbl {{ font-size: 11px; color: var(--muted); text-transform: uppercase; }}
+
+    .metric-grid {{
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px;
+    }}
+    .metric-card {{
+      padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: #fafbfe;
+    }}
+    .metric-card .label {{ font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .3px; }}
+    .metric-card .value {{ font-size: 18px; font-weight: 700; margin-top: 2px; }}
+    .metric-card .detail {{ font-size: 11px; color: var(--muted); margin-top: 4px; }}
+
+    .indicators {{ display: flex; gap: 10px; flex-wrap: wrap; }}
+    .indicator-badge {{
+      padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600;
+      background: var(--accent-light); color: var(--accent-strong);
+    }}
+    .indicator-badge.ok {{ background: var(--low-bg); color: var(--low); }}
+    .indicator-badge.warn {{ background: var(--warn-bg); color: var(--warn); }}
+    .indicator-badge.bad {{ background: var(--danger-bg); color: var(--danger); }}
+
+    .findings-table {{ width: 100%; border-collapse: collapse; font-size: 12px; }}
+    .findings-table th {{ background: var(--accent); color: #fff; text-align: left; padding: 7px 10px; font-size: 11px; text-transform: uppercase; }}
+    .findings-table td {{ padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }}
+    .findings-table tr:hover td {{ background: #f8fafc; }}
+    .finding-code {{ font-weight: 700; font-family: monospace; font-size: 11px; white-space: nowrap; }}
+    .finding-peer {{ background: rgba(31,122,109,.06); }}
+    .finding-peer .finding-code {{ color: var(--accent-strong); }}
+
+    .ctx-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }}
+    .ctx-item {{ padding: 10px; border: 1px solid var(--line); border-radius: 6px; background: #fafbfe; }}
+    .ctx-item .lbl {{ font-size: 10px; color: var(--muted); text-transform: uppercase; }}
+    .ctx-item .val {{ font-size: 13px; font-weight: 600; margin-top: 1px; }}
+    .ctx-obs {{ margin-top: 8px; padding: 10px 14px; background: #fffbeb; border-left: 3px solid var(--warn); border-radius: 4px; font-size: 12px; color: #78350f; }}
+
+    .explain-box {{
+      padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: #fafbfe; font-size: 12px; line-height: 1.6;
+    }}
+    .explain-box p {{ margin: 4px 0; }}
+
+    .toggle-link {{
+      font-size: 12px; color: var(--accent); cursor: pointer; text-decoration: underline; user-select: none;
+    }}
+    .toggle-link:hover {{ color: var(--accent-strong); }}
+
+    .raw-json {{ font-family: monospace; font-size: 11px; white-space: pre-wrap; background: #f1f5f9; padding: 12px; border-radius: 6px; max-height: 400px; overflow: auto; margin-top: 8px; }}
 
     @media (max-width: 860px) {{
       .app {{ flex-direction: column; }}
       .sidebar {{ width: auto; }}
+      .risk-hero {{ flex-wrap: wrap; }}
+      .risk-stats {{ margin-left: 0; }}
+      .metric-grid {{ grid-template-columns: repeat(2, 1fr); }}
     }}
   </style>
 </head>
@@ -480,8 +473,8 @@ def _index_html() -> str:
     </aside>
     <div class="main">
       <div class="main-header">
-        <h2>Relatório</h2>
-        <div id="score" class="score"></div>
+        <h2>Dashboard</h2>
+        <div id="score" class="actions"></div>
       </div>
       <div id="output" class="report">
         <div class="report-empty">Aguardando upload do balancete.</div>
@@ -495,94 +488,178 @@ def _index_html() -> str:
     const score = document.querySelector("#score");
     const button = document.querySelector("#submit-button");
 
-    function renderMarkdown(text) {{
-      const lines = text.split("\\n");
-      let html = "";
-      let i = 0;
-
-      function escapeHtml(t) {{
-        return String(t)
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .replace(/"/g, "&quot;")
-          .replace(/'/g, "&#39;");
-      }}
-
-      function processInline(t) {{
-        return escapeHtml(t)
-          .replace(/\\*\\*(.+?)\\*\\*/g, "<strong>$1</strong>")
-          .replace(/`([^`]+)`/g, "<code>$1</code>");
-      }}
-
-      while (i < lines.length) {{
-        const line = lines[i];
-
-        if (line.trim() === "") {{ i++; continue; }}
-        if (line.trim() === "---") {{ html += "<hr>"; i++; continue; }}
-
-        if (line.startsWith("### ")) {{
-          html += "<h3>" + processInline(line.slice(4)) + "</h3>";
-          i++;
-        }} else if (line.startsWith("## ")) {{
-          html += "<h2>" + processInline(line.slice(3)) + "</h2>";
-          i++;
-        }} else if (line.startsWith("# ")) {{
-          html += "<h1>" + processInline(line.slice(2)) + "</h1>";
-          i++;
-        }} else if (line.startsWith("> ")) {{
-          let quote = "";
-          while (i < lines.length && lines[i].startsWith("> ")) {{
-            quote += (quote ? " " : "") + processInline(lines[i].slice(2));
-            i++;
-          }}
-          html += "<blockquote>" + quote + "</blockquote>";
-        }} else if (line.startsWith("- **") && line.includes(":**")) {{
-          const m = line.match(/^- \\*\\*(.+?)\\*\\*:?\\s*(.*)$/);
-          if (m) {{
-            html += "<p><strong>" + m[1] + ":</strong> " + processInline(m[2]) + "</p>";
-          }} else {{
-            html += "<p>" + processInline(line.slice(2)) + "</p>";
-          }}
-          i++;
-        }} else if (line.startsWith("- ")) {{
-          html += "<ul>";
-          while (i < lines.length && lines[i].startsWith("- ")) {{
-            html += "<li>" + processInline(lines[i].slice(2)) + "</li>";
-            i++;
-          }}
-          html += "</ul>";
-        }} else if (line.startsWith("|") && line.trim().endsWith("|")) {{
-          let rows = [];
-          while (i < lines.length && lines[i].startsWith("|") && lines[i].trim().endsWith("|")) {{
-            const raw = lines[i].trim().slice(1, -1);
-            const cells = raw.split("|").map(c => c.trim());
-            if (!cells.every(c => /^[-:]+$/.test(c))) {{
-              rows.push(cells);
-            }}
-            i++;
-          }}
-          if (rows.length > 0) {{
-            html += "<table>";
-            html += "<thead><tr>" + rows[0].map(c => "<th>" + processInline(c) + "</th>").join("") + "</tr></thead>";
-            if (rows.length > 1) {{
-              html += "<tbody>" + rows.slice(1).map((cells, idx) =>
-                "<tr>" + cells.map(c => "<td>" + processInline(c) + "</td>").join("") + "</tr>"
-              ).join("") + "</tbody>";
-            }}
-            html += "</table>";
-          }}
-        }} else {{
-          html += "<p>" + processInline(line) + "</p>";
-          i++;
-        }}
-      }}
-      return html;
+    function esc(t) {{
+      return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
     }}
 
-    function renderReport(raw) {{
-      const formatted = renderMarkdown(raw);
-      output.innerHTML = "<div class='md'>" + formatted + "</div>";
+    function fmt(d) {{
+      if (d && d.formatado) return esc(d.formatado);
+      if (typeof d === "number") return d.toLocaleString("pt-BR");
+      return esc(String(d ?? ""));
+    }}
+
+    function levelIcon(lvl) {{
+      return lvl === "alto" ? "&#9888;" : lvl === "medio" ? "&#9881;" : "&#10003;";
+    }}
+
+    function pillHtml(lvl) {{
+      return `<span class="pill ${{lvl}}">${{lvl.toUpperCase()}}</span>`;
+    }}
+
+    function renderDashboard(data) {{
+      const r = data.risco || {{}};
+      const m = data.metricas || {{}};
+      const ident = data.identificacao || {{}};
+      const ctx = data.contexto_regime || {{}};
+      const achados = data.achados || [];
+      const meta = data.meta || {{}};
+      const cls = r.classificacao || {{}};
+      const lvl = r.nivel_geral || "desconhecido";
+      const opiniao = r.modalidade_opiniao_sugerida || "";
+
+      let html = "";
+
+      /* Risk Hero */
+      html += `<div class="risk-hero ${{lvl}}">`;
+      html += `<div class="risk-icon">${{levelIcon(lvl)}}</div>`;
+      html += `<div class="risk-info"><h3>Risco ${{lvl.toUpperCase()}}</h3>`;
+      html += `<p>Opinião sugerida: <strong>${{esc(opiniao.replace("_", " "))}}</strong></p></div>`;
+      html += `<div class="risk-stats">`;
+      html += `<div><span class="num">${{r.pontuacao_total ?? 0}}</span><span class="lbl">Pontos</span></div>`;
+      html += `<div><span class="num">${{achados.length}}</span><span class="lbl">Achados</span></div>`;
+      if (meta.total_contas_analisadas) html += `<div><span class="num">${{meta.total_contas_analisadas}}</span><span class="lbl">Contas</span></div>`;
+      html += `</div></div>`;
+
+      /* Classification */
+      html += `<div class="db-section"><div class="db-section-title">Classificação</div><div style="display:flex;gap:6px;flex-wrap:wrap">`;
+      const pairs = [["alto", "alto", cls.achados_alto ?? 0], ["medio", "medio", cls.achados_medio ?? 0], ["baixo", "baixo", cls.achados_baixo ?? 0]];
+      for (const [k, cl, n] of pairs) {{
+        html += `<span class="pill ${{cl}}">${{k.charAt(0).toUpperCase()+k.slice(1)}}: ${{n}}</span>`;
+      }}
+      if ((cls.achados_compostos ?? 0) > 0) html += `<span class="pill alto" style="background:#7c1d1d;color:#fff">Compostos: ${{cls.achados_compostos}}</span>`;
+      html += `</div></div>`;
+
+      /* Metrics */
+      const metricKeys = [
+        ["receita_servicos", "Receita de Serviços"],
+        ["tributos_a_recolher", "Tributos a Recolher"],
+        ["folha_pro_labore", "Folha / Pro-Labore"],
+        ["despesas_operacionais", "Despesas Operacionais"],
+        ["lucros_distribuidos", "Lucros Distribuídos"],
+        ["lucro_apurado_base", "Lucro Apurado"],
+        ["caixa_e_bancos", "Caixa e Bancos"],
+        ["clientes_recebiveis", "Clientes / Recebíveis"],
+      ];
+      html += `<div class="db-section"><div class="db-section-title">Métricas</div><div class="metric-grid">`;
+      for (const [key, label] of metricKeys) {{
+        const v = m[key];
+        if (!v) continue;
+        html += `<div class="metric-card"><div class="label">${{esc(label)}}</div><div class="value">${{fmt(v)}}</div>`;
+        if (key === "lucro_apurado_base" && m.origem_lucro_apurado) {{
+          html += `<div class="detail">${{esc(m.origem_lucro_apurado)}}</div>`;
+        }}
+        html += `</div>`;
+      }}
+      html += `</div></div>`;
+
+      /* Derived indicators */
+      const ind = m.indicadores_derivados;
+      if (ind) {{
+        html += `<div class="db-section"><div class="db-section-title">Indicadores Derivados</div><div class="indicators">`;
+        const indLabels = [
+          ["carga_tributaria_efetiva_percentual", "Carga Tributária"],
+          ["percentual_folha_sobre_receita", "Folha / Receita"],
+          ["percentual_despesas_sobre_receita", "Despesas / Receita"],
+        ];
+        for (const [key, label] of indLabels) {{
+          const v = ind[key];
+          if (!v) continue;
+          html += `<span class="indicator-badge"><strong>${{esc(label)}}:</strong> ${{esc(v)}}</span>`;
+        }}
+        if (ind.resultado_positivo !== undefined) {{
+          const ok = ind.resultado_positivo;
+          html += `<span class="indicator-badge ${{ok ? "ok" : "bad"}}"><strong>Resultado:</strong> ${{ok ? "Positivo" : "Negativo"}}</span>`;
+        }}
+        html += `</div></div>`;
+      }}
+
+      /* Contexto Regime */
+      if (ctx.regime) {{
+        html += `<div class="db-section"><div class="db-section-title">Contexto do Regime</div><div class="ctx-grid">`;
+        const ctxItems = [
+          ["regime", "Regime"],
+          ["faixa_receita_estimada", "Faixa Receita"],
+          ["aliquota_efetiva_esperada", "Alíquota Esperada"],
+        ];
+        for (const [key, label] of ctxItems) {{
+          const v = ctx[key];
+          if (!v) continue;
+          html += `<div class="ctx-item"><div class="lbl">${{esc(label)}}</div><div class="val">${{esc(v)}}</div></div>`;
+        }}
+        if (ctx.fator_r_calculado) {{
+          html += `<div class="ctx-item"><div class="lbl">Fator R</div><div class="val">${{esc(ctx.fator_r_calculado)}} <span style="font-size:11px;color:var(--muted)">(threshold ${{esc(ctx.fator_r_threshold || "28%")}})</span></div></div>`;
+        }}
+        if (ctx.sublimite_risco) {{
+          html += `<div class="ctx-item" style="background:var(--warn-bg);border-color:#fde68a"><div class="lbl">Sublimite</div><div class="val" style="color:var(--warn)">Acima do limite</div></div>`;
+        }}
+        html += `</div>`;
+        if (ctx.observacoes && ctx.observacoes.length) {{
+          for (const obs of ctx.observacoes) {{
+            html += `<div class="ctx-obs">${{esc(obs)}}</div>`;
+          }}
+        }}
+        html += `</div>`;
+      }}
+
+      /* Findings table */
+      if (achados.length > 0) {{
+        html += `<div class="db-section"><div class="db-section-title">Achados (${{achados.length}})</div>`;
+        html += `<p style="font-size:11px;color:var(--muted);margin-bottom:8px">${{meta.total_regras_acionadas ?? achados.length}} achados de ${{meta.total_regras_verificadas ?? "?"}} regras verificadas (conjunto: ${{esc(meta.conjunto_regras || "")}} v${{meta.versao_regras || ""}})</p>`;
+        html += `<div style="overflow-x:auto"><table class="findings-table">`;
+        html += `<thead><tr><th>Código</th><th>Achado</th><th>Nível</th><th>Descrição</th><th>Recomendação</th></tr></thead><tbody>`;
+
+        const order = {{ "alto": 0, "medio": 1, "baixo": 2 }};
+        const sorted = [...achados].sort((a, b) => (order[a.nivel] ?? 9) - (order[b.nivel] ?? 9));
+
+        for (const f of sorted) {{
+          const isPeer = f.codigo.startsWith("SN-COMP");
+          html += `<tr class="${{isPeer ? "finding-peer" : ""}}">`;
+          html += `<td class="finding-code">${{esc(f.codigo)}}</td>`;
+          html += `<td><strong>${{esc(f.titulo)}}</strong>${{f.normas_aplicaveis?.length ? '<br><span style="font-size:10px;color:var(--muted)">'+f.normas_aplicaveis.map(x=>esc(x)).join("; ")+'</span>' : ""}}</td>`;
+          html += `<td>${{pillHtml(f.nivel)}}</td>`;
+          html += `<td style="font-size:11px">${{esc(f.descricao)}}`;
+          const ev = f.evidencia;
+          if (ev && Object.keys(ev).length) {{
+            html += `<br><span style="font-size:10px;color:var(--muted)">${{Object.entries(ev).map(([k,v]) => esc(k)+": "+esc(v)).join(" | ")}}</span>`;
+          }}
+          html += `</td>`;
+          html += `<td style="font-size:11px">${{esc(f.recomendacao)}}</td>`;
+          html += `</tr>`;
+        }}
+
+        html += `</tbody></table></div></div>`;
+      }}
+
+      /* Score explanation */
+      if (r.explicacao_pontuacao && r.explicacao_pontuacao.length) {{
+        html += `<div class="db-section">`;
+        html += `<span class="db-section-title">Explicação da Pontuação</span> `;
+        html += `<span id="expl-toggle" class="toggle-link" onclick="document.getElementById('expl-body').style.display=document.getElementById('expl-body').style.display==='none'?'block':'none'">mostrar / ocultar</span>`;
+        html += `<div id="expl-body" class="explain-box" style="margin-top:8px;display:none">`;
+        for (const line of r.explicacao_pontuacao) {{
+          html += `<p>${{esc(line)}}</p>`;
+        }}
+        html += `</div></div>`;
+      }}
+
+      /* Raw JSON toggle */
+      html += `<div class="db-section">`;
+      html += `<span class="db-section-title">JSON Bruto</span> `;
+      html += `<span class="toggle-link" onclick="var e=document.getElementById('raw-json');e.style.display=e.style.display==='none'?'block':'none'">mostrar / ocultar</span>`;
+      html += `<div id="raw-json" class="raw-json" style="display:none">${{esc(JSON.stringify(data, null, 2))}}</div>`;
+      html += `</div>`;
+
+      output.innerHTML = html;
     }}
 
     let lastData = null;
@@ -602,9 +679,9 @@ def _index_html() -> str:
         const nivel = risco.nivel_geral || "desconhecido";
         score.innerHTML =
           `<span class="pill ${{nivel}}">Risco: ${{nivel.toUpperCase()}}</span>` +
-          `<span class="pill info">Pontuação: ${{risco.pontuacao_total || 0}}</span>` +
+          `<span class="pill info">Score: ${{risco.pontuacao_total ?? 0}}</span>` +
           `<span class="pill info">Achados: ${{(data.achados || []).length}}</span>` +
-          `<button id="download-btn" class="pill" style="border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer;margin-left:8px;">⬇ JSON</button>`;
+          `<button id="download-btn" class="pill outline" style="margin-left:4px">&#11015; JSON</button>`;
         document.getElementById("download-btn").addEventListener("click", () => {{
           const blob = new Blob([JSON.stringify(lastData, null, 2)], {{ type: "application/json" }});
           const url = URL.createObjectURL(blob);
@@ -614,9 +691,9 @@ def _index_html() -> str:
           a.click();
           URL.revokeObjectURL(url);
         }});
-        renderReport(JSON.stringify(data, null, 2));
+        renderDashboard(data);
       }} catch (error) {{
-        output.innerHTML = `<div class='report'><p style="color:var(--danger)">${{escapeHtml(error.message)}}</p></div>`;
+        output.innerHTML = `<div class='report'><p style="color:var(--danger)">${{esc(error.message)}}</p></div>`;
       }} finally {{
         button.disabled = false;
       }}

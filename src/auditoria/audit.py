@@ -42,6 +42,7 @@ def run_quarterly_audit(
     return AuditResult(
         cliente=balance.cliente,
         periodo=balance.periodo,
+        cnpj=balance.cnpj,
         regime_tributario=regime_tributario,
         nivel_geral=overall_risk,
         pontuacao_total=score,

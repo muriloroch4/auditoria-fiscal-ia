@@ -1,42 +1,47 @@
 ﻿from __future__ import annotations
 
+import json
 import logging
+from typing import Any
+
 from .models import AuditResult
 
 _logger = logging.getLogger(__name__)
 
-_VERIFY_CNPJ = "[VERIFICAR: CNPJ da empresa]"
+_VERIFY_CNPJ = ""
 
 
 _NOVO_TEMPLATE = r"""
-# PARECER TÉCNICO CONTÁBIL
+PARECER TÉCNICO CONTÁBIL — CONSULTIVO TRIMESTRAL
+[espaço para numeração manual]
 
-## 1. Resumo Executivo
+Cliente:  {cliente}
+CNPJ:     {cnpj}
+Regime:   {regime_tributario}
+Período:  {periodo}
+Emissão:  {emissao}
 
-**Empresa:** {cliente}
-**CNPJ:** {cnpj}
-**Período analisado:** {periodo}
-**Tipo do relatório:** Parecer técnico contábil sobre balancete de verificação
-**Documento-base:** Balancete de verificação contábil
-**Regime tributário:** [VERIFICAR: regime tributário quando existir]
-
-### Dados extraídos do motor de regras
-
-{dados_motor_regras}
-
-### Priorização por área
+## 1. RESUMO EXECUTIVO
 
 {resumo_executivo}
 
-## 2. Parecer Técnico
+## 2. ACHADOS E RECOMENDAÇÕES
 
-{parecer_tecnico}
+{achados_recomendacoes}
 
-## 3. Conclusão
+## 3. OPINIÃO TÉCNICA
 
-{conclusao}
+{opiniao_tecnica}
 
-Este parecer foi elaborado exclusivamente com base no balancete disponibilizado, sem validação por documentos auxiliares, extratos, obrigações acessórias ou documentação suporte.
+## 4. ASSINATURA
+
+Local e data: _________________________, _____ de ______________ de _______
+
+Nome:  ________________________________________________________________
+
+CRC:   ________________________________________________________________
+
+Assinatura: ____________________________________________________________
 """.strip()
 
 
@@ -45,9 +50,9 @@ def generate_markdown_report(
     *,
     use_ai: bool = True,
     api_key: str | None = None,
-    cnpj: str = _VERIFY_CNPJ,
+    cnpj: str | None = None,
 ) -> str:
-    cnpj = _normalize_cnpj(cnpj)
+    cnpj = _normalize_cnpj(cnpj or result.cnpj)
     if use_ai:
         try:
             return _generate_ai_report(result, api_key=api_key, cnpj=cnpj)
@@ -63,12 +68,12 @@ def _generate_ai_report(
     result: AuditResult,
     *,
     api_key: str | None = None,
-    cnpj: str = _VERIFY_CNPJ,
+    cnpj: str | None = None,
 ) -> str:
     from .ai_client import call_openrouter
 
-    prompt_data = _build_prompt_data(result)
-    user_message = _format_user_message(prompt_data, cnpj=cnpj)
+    prompt_data = _build_prompt_data(result, cnpj=cnpj)
+    user_message = _format_user_message(prompt_data)
     messages = [
         {"role": "system", "content": _system_prompt()},
         {"role": "user", "content": user_message},
@@ -79,27 +84,277 @@ def _generate_ai_report(
 def _generate_local_report(
     result: AuditResult,
     *,
-    cnpj: str = _VERIFY_CNPJ,
+    cnpj: str | None = None,
 ) -> str:
-    resumo = _render_resumo_executivo(result)
-    dados_motor = _render_dados_motor_regras(result)
-    parecer = _render_parecer_tecnico(result)
-    conclusao = _render_conclusao_operational_template(result)
+    payload = _build_prompt_data(result, cnpj=cnpj)
+    identificacao = payload["identificacao"]
+    meta = payload["meta"]
 
     return _NOVO_TEMPLATE.format(
-        cliente=result.cliente,
-        cnpj=cnpj,
-        periodo=result.periodo,
-        dados_motor_regras=dados_motor,
-        resumo_executivo=resumo,
-        parecer_tecnico=parecer,
-        conclusao=conclusao,
+        cliente=identificacao["cliente"],
+        cnpj=identificacao.get("cnpj", ""),
+        regime_tributario=identificacao["regime_tributario"],
+        periodo=identificacao["periodo"],
+        emissao=str(meta["data_analise"]).split("T", 1)[0],
+        resumo_executivo=_render_consultivo_resumo(payload),
+        achados_recomendacoes=_render_consultivo_achados(payload),
+        opiniao_tecnica=_render_consultivo_opiniao(payload),
     )
 
 
 # ---------------------------------------------------------------------------
 # Renderers for the operational template
 # ---------------------------------------------------------------------------
+
+
+def _render_consultivo_resumo(payload: dict[str, Any]) -> str:
+    identificacao = payload["identificacao"]
+    risco = payload["risco"]
+    achados = payload["achados"]
+    classificacao = risco.get("classificacao", {})
+    periodo = identificacao["periodo"]
+    nivel = risco["nivel_geral"].upper()
+    total = len(achados)
+    composto = next((a for a in achados if str(a["codigo"]).startswith("SN-COMP")), None)
+
+    if nivel == "ALTO" and composto:
+        primeiro = (
+            f"A análise do balancete do período {periodo} identificou situação de risco crítico: "
+            f"{composto['titulo']}. O nível de risco geral apurado é ALTO, com pontuação de "
+            f"{risco['pontuacao_total']} pontos distribuídos em {total} achado(s) "
+            f"({classificacao.get('achados_alto', 0)} alto, "
+            f"{classificacao.get('achados_medio', 0)} médio, "
+            f"{classificacao.get('achados_baixo', 0)} baixo)."
+        )
+    elif nivel == "ALTO":
+        primeiro = (
+            f"A análise do balancete do período {periodo} resultou em nível de risco ALTO, "
+            f"com pontuação de {risco['pontuacao_total']} pontos e {total} achado(s) "
+            f"identificado(s) ({classificacao.get('achados_alto', 0)} alto, "
+            f"{classificacao.get('achados_medio', 0)} médio, "
+            f"{classificacao.get('achados_baixo', 0)} baixo)."
+        )
+    elif nivel in ("MÉDIO", "MEDIO"):
+        primeiro = (
+            f"A análise do balancete do período {periodo} resultou em nível de risco MÉDIO, "
+            f"com pontuação de {risco['pontuacao_total']} pontos e {total} achado(s) "
+            f"identificado(s) ({classificacao.get('achados_medio', 0)} médio, "
+            f"{classificacao.get('achados_baixo', 0)} baixo)."
+        )
+    else:
+        primeiro = (
+            f"A análise do balancete do período {periodo} não identificou inconsistências materiais. "
+            f"Nível de risco BAIXO, pontuação de {risco['pontuacao_total']} pontos."
+        )
+
+    paragrafos = [primeiro, _render_metricas_principais(payload)]
+    contexto = _render_contexto_regime(payload)
+    if contexto:
+        paragrafos.append(contexto)
+    return "\n\n".join(paragrafos)
+
+
+def _render_metricas_principais(payload: dict[str, Any]) -> str:
+    metricas = payload["metricas"]
+    codes = {a["codigo"] for a in payload["achados"]}
+    selected: list[tuple[str, str]] = []
+
+    def add(label: str, value: str | None) -> None:
+        if value and all(existing_label != label for existing_label, _ in selected):
+            selected.append((label, value))
+
+    add("receita de serviços", _metric_value(metricas, "receita_servicos"))
+
+    if "SN-004A" in codes or any(code.startswith("SN-009") for code in codes):
+        add("resultado do período", _metric_value(metricas, "lucro_apurado_base"))
+        add("lucros distribuídos", _metric_value(metricas, "lucros_distribuidos"))
+    if any(code.startswith("SN-002") for code in codes):
+        add("carga tributária efetiva", metricas.get("indicadores_derivados", {}).get("carga_tributaria_efetiva_percentual"))
+    if "SN-006A" in codes:
+        add("caixa e bancos", _metric_value(metricas, "caixa_e_bancos"))
+    if any(code.startswith("SN-001") for code in codes):
+        add("faixa de receita estimada", payload.get("contexto_regime", {}).get("faixa_receita_estimada"))
+
+    for key, label in (
+        ("lucro_apurado_base", "resultado do período"),
+        ("tributos_a_recolher", "tributos a recolher"),
+        ("caixa_e_bancos", "caixa e bancos"),
+    ):
+        if len(selected) >= 4:
+            break
+        add(label, _metric_value(metricas, key))
+
+    formatted = ", ".join(f"{label} de {value}" for label, value in selected[:4])
+    return f"As principais métricas apuradas foram: {formatted}."
+
+
+def _render_contexto_regime(payload: dict[str, Any]) -> str:
+    contexto = payload.get("contexto_regime", {})
+    observacoes = contexto.get("observacoes") or []
+    if not observacoes:
+        return ""
+
+    partes = [f"faixa estimada {contexto.get('faixa_receita_estimada', '[VERIFICAR: faixa]')}"]
+    if contexto.get("fator_r_calculado"):
+        partes.append(f"Fator R estimado de {contexto['fator_r_calculado']}")
+    observacao_texto = " ".join(str(obs).rstrip(".") for obs in observacoes)
+    return f"No contexto do regime tributário, foram considerados {', '.join(partes)}. {observacao_texto}."
+
+
+def _render_consultivo_achados(payload: dict[str, Any]) -> str:
+    meta = payload["meta"]
+    achados = sorted(payload["achados"], key=_finding_sort_key)
+    abertura = (
+        f"Foram identificados {meta['total_regras_acionadas']} achado(s) a partir da aplicação "
+        f"de {meta['total_regras_verificadas']} regras fiscais do conjunto "
+        f"{meta['conjunto_regras']} (versão {meta['versao_regras']})."
+    )
+
+    if not achados:
+        regime = payload["identificacao"]["regime_tributario"]
+        return (
+            f"{abertura}\n\n"
+            f"Nenhuma regra foi acionada no período analisado. As métricas do balancete "
+            f"estão dentro dos parâmetros configurados para o regime {regime}."
+        )
+
+    linhas = [
+        abertura,
+        "",
+        "| Código | Achado | Nível | Evidência | Recomendação |",
+        "|--------|--------|-------|-----------|--------------|",
+    ]
+    for achado in achados:
+        codigo = achado["codigo"]
+        if str(codigo).startswith("SN-COMP"):
+            codigo = f"**{codigo}**"
+        linhas.append(
+            "| "
+            f"{codigo} | "
+            f"{_escape_table(achado['titulo'])} | "
+            f"{_level_label(achado['nivel'])} | "
+            f"{_escape_table(_format_evidence_dict(achado.get('evidencia', {})))} | "
+            f"{_escape_table(achado.get('recomendacao') or '[VERIFICAR: recomendação]')} |"
+        )
+
+    normas = _normas_consolidadas(achados)
+    if normas:
+        linhas.extend(["", f"Fundamentação: {'; '.join(normas)}."])
+    return "\n".join(linhas)
+
+
+def _render_consultivo_opiniao(payload: dict[str, Any]) -> str:
+    identificacao = payload["identificacao"]
+    meta = payload["meta"]
+    risco = payload["risco"]
+    achados = payload["achados"]
+    periodo = identificacao["periodo"]
+    regime = identificacao["regime_tributario"]
+    opiniao = risco["modalidade_opiniao_sugerida"]
+
+    abertura = (
+        f"Com base na análise do balancete do período {periodo}, compreendendo "
+        f"{meta['total_contas_analisadas']} contas contábeis e "
+        f"{meta['total_regras_verificadas']} regras fiscais verificadas, emito a seguinte opinião técnica:"
+    )
+
+    if opiniao == "sem_ressalva":
+        bloco = (
+            f"As informações contábeis do período {periodo} estão em conformidade com os critérios fiscais "
+            f"aplicáveis ao regime {regime}. Não foram identificadas inconsistências materiais ou riscos "
+            f"tributários relevantes. Pontuação apurada: {risco['pontuacao_total']} pontos — risco BAIXO."
+        )
+    elif opiniao == "com_ressalva":
+        codigos = _finding_codes(achados, only_medium_high=True)
+        bloco = (
+            f"Exceto pelos efeitos dos achados {codigos}, as informações contábeis do período {periodo} "
+            f"apresentam conformidade com os critérios fiscais aplicáveis ao regime {regime}. Pontuação "
+            f"apurada: {risco['pontuacao_total']} pontos — risco MÉDIO. Recomenda-se regularização dos "
+            "pontos identificados antes da entrega das obrigações acessórias do período."
+        )
+    else:
+        codigos = _finding_codes(achados)
+        extra = ""
+        if any(a["codigo"] == "SN-COMP-01" for a in achados):
+            extra = (
+                " Em especial, a distribuição de lucros com resultado negativo configura situação crítica "
+                "sujeita a multa de 75% a 150% e possível exclusão do Simples Nacional "
+                "(art. 29, V da LC 123/2006)."
+            )
+        bloco = (
+            f"As informações contábeis do período {periodo} apresentam inconsistências materiais e riscos "
+            f"tributários significativos decorrentes dos achados {codigos}.{extra} Pontuação apurada: "
+            f"{risco['pontuacao_total']} pontos — risco ALTO. Recomenda-se providências imediatas de regularização."
+        )
+
+    encerramento = (
+        f"Este parecer tem caráter consultivo e abrange exclusivamente os dados do balancete informado "
+        f"para o período {periodo}. Não substitui auditoria independente completa. Elaborado em conformidade "
+        "com a NBC PG 100 (R1)/2018, NBC TA 700 (R1) e Resolução CFC n.º 1.244/2009."
+    )
+    return "\n\n".join([abertura, bloco, encerramento])
+
+
+def _metric_value(metricas: dict[str, Any], key: str) -> str | None:
+    value = metricas.get(key)
+    if isinstance(value, dict):
+        return value.get("formatado")
+    if isinstance(value, str):
+        return value
+    return None
+
+
+def _level_label(value: str) -> str:
+    labels = {"alto": "ALTO", "medio": "MÉDIO", "baixo": "BAIXO"}
+    return labels.get(str(value).lower(), str(value).upper())
+
+
+def _finding_sort_key(achado: dict[str, Any]) -> tuple[int, str]:
+    order = {"alto": 0, "medio": 1, "baixo": 2}
+    return (order.get(str(achado.get("nivel", "")).lower(), 9), str(achado.get("codigo", "")))
+
+
+def _format_evidence_dict(evidencia: dict[str, Any]) -> str:
+    if not evidencia:
+        return "Não aplicável"
+    return "; ".join(f"{_label(str(key))}: {value}" for key, value in evidencia.items())
+
+
+def _normas_consolidadas(achados: list[dict[str, Any]]) -> list[str]:
+    normas: list[str] = []
+    for achado in achados:
+        for norma in achado.get("normas_aplicaveis", []):
+            if norma and norma not in normas:
+                normas.append(norma)
+    return sorted(normas, key=_norma_sort_key)
+
+
+def _norma_sort_key(norma: str) -> tuple[int, str]:
+    text = norma.upper()
+    if text.startswith("NBC"):
+        return (0, text)
+    if "LC " in text or text.startswith("LC"):
+        return (1, text)
+    if "DECRETO" in text:
+        return (2, text)
+    if "CTN" in text:
+        return (3, text)
+    if "CC" in text or "CÓDIGO CIVIL" in text:
+        return (4, text)
+    return (9, text)
+
+
+def _finding_codes(achados: list[dict[str, Any]], only_medium_high: bool = False) -> str:
+    selected = [
+        achado["codigo"]
+        for achado in sorted(achados, key=_finding_sort_key)
+        if not only_medium_high or achado.get("nivel") in ("alto", "medio")
+    ]
+    return ", ".join(selected) if selected else "[VERIFICAR: achados]"
+
+
+def _escape_table(value: str) -> str:
+    return str(value).replace("|", "\\|").replace("\n", " ")
 
 
 def _render_dados_motor_regras(result: AuditResult) -> str:
@@ -405,62 +660,21 @@ def _normalize_cnpj(cnpj: str | None) -> str:
     return value or _VERIFY_CNPJ
 
 
-def _build_prompt_data(result: AuditResult) -> dict:
-    return {
-        "cliente": result.cliente,
-        "periodo": result.periodo,
-        "nivel_geral": result.nivel_geral.value,
-        "pontuacao_total": result.pontuacao_total,
-        "explicacao_pontuacao": result.explicacao_pontuacao,
-        "metricas": result.resumo_metricas,
-        "achados": [
-            {
-                "codigo": f.codigo,
-                "titulo": f.titulo,
-                "nivel": f.nivel.value,
-                "pontuacao": f.pontuacao,
-                "descricao": f.descricao,
-                "evidencia": f.evidencia,
-                "recomendacao": f.recomendacao,
-            }
-            for f in result.achados
-        ],
-    }
+def _build_prompt_data(result: AuditResult, cnpj: str | None = None) -> dict[str, Any]:
+    from .serializers import audit_result_to_dict
+
+    payload = audit_result_to_dict(result)
+    payload["identificacao"]["cnpj"] = _normalize_cnpj(cnpj or result.cnpj)
+    return payload
 
 
-def _format_user_message(data: dict, cnpj: str = "[CNPJ não informado]") -> str:
-    metrics_text = "\n".join(
-        f"- **{_label(key)}:** {value}" for key, value in data["metricas"].items()
-    )
-    explicacao_text = "\n".join(f"- {r}" for r in data["explicacao_pontuacao"])
-
-    achados_text = "Nenhum achado relevante."
-    if data["achados"]:
-        sorted_achados = sorted(data["achados"], key=lambda a: a["pontuacao"], reverse=True)
-        parts = []
-        for a in sorted_achados:
-            part = f"- **{a['codigo']} — {a['titulo']}**\n"
-            part += f"  - Risco: {a['nivel'].upper()} | Pontuação: {a['pontuacao']}\n"
-            part += f"  - Descrição: {a['descricao']}\n"
-            part += f"  - Recomendação: {a['recomendacao']}\n"
-            if a["evidencia"]:
-                ev = "; ".join(f"{_label(k)}: {v}" for k, v in a["evidencia"].items())
-                part += f"  - Evidências: {ev}\n"
-            parts.append(part)
-        achados_text = "\n".join(parts)
-
+def _format_user_message(data: dict[str, Any]) -> str:
     return (
-        f"### DADOS DO CASO\n"
-        f"Empresa objeto: {data['cliente']} - CNPJ {cnpj}\n"
-        f"Período analisado: {data['periodo']}\n"
-        f"Tipo do relatório: Parecer técnico contábil sobre balancete de verificação\n"
-        f"Regime tributário: [VERIFICAR: regime tributário quando existir]\n"
-        f"\n### DADOS EXTRAÍDOS DO MOTOR DE REGRAS\n"
-        f"Pontuação de risco do motor: {data['pontuacao_total']}\n"
-        f"Nível geral do motor: {data['nivel_geral'].upper()}\n"
-        f"\nExplicação da Pontuação:\n{explicacao_text}\n"
-        f"\nMétricas:\n{metrics_text}\n"
-        f"\nAchados Identificados:\n{achados_text}"
+        "Redija o parecer técnico consultivo trimestral seguindo exatamente o system prompt. "
+        "Use exclusivamente o JSON abaixo como entrada.\n\n"
+        "```json\n"
+        f"{json.dumps(data, ensure_ascii=False, indent=2)}\n"
+        "```"
     )
 
 
@@ -666,6 +880,8 @@ Nome:  ________________________________________________________________
 CRC:   ________________________________________________________________
 
 Assinatura: ____________________________________________________________
+```
+
 ---
 
 ## INSTRUÇÕES DE FORMATAÇÃO

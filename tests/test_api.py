@@ -281,9 +281,10 @@ class APIAuditUploadTest(unittest.TestCase):
             handler._handle_audit_upload()
             mock_send.assert_called_once()
             result = mock_send.call_args.args[0]
-            self.assertIn("nivel_geral", result)
+            self.assertEqual(result["_schema_version"], "2.0.0")
+            self.assertIn("risco", result)
+            self.assertIn("nivel_geral", result["risco"])
             self.assertIn("achados", result)
-            self.assertIn("relatorio_markdown", result)
 
     def test_upload_xlsx_returns_audit_result(self):
         xlsx_content = _xlsx_trial_balance()
@@ -304,7 +305,8 @@ class APIAuditUploadTest(unittest.TestCase):
             handler._handle_audit_upload()
             mock_send.assert_called_once()
             result = mock_send.call_args.args[0]
-            self.assertIn("nivel_geral", result)
+            self.assertEqual(result["_schema_version"], "2.0.0")
+            self.assertIn("nivel_geral", result["risco"])
 
     def test_upload_missing_balancete_returns_400(self):
         body, content_type = _build_multipart_form({
@@ -389,7 +391,8 @@ class APIAuditUploadTest(unittest.TestCase):
             handler.do_POST()
             mock_send.assert_called_once()
             result = mock_send.call_args.args[0]
-            self.assertIn("nivel_geral", result)
+            self.assertEqual(result["_schema_version"], "2.0.0")
+            self.assertIn("nivel_geral", result["risco"])
 
     def test_upload_auth_key_is_not_used_as_openrouter_key(self):
         csv_content = _csv_trial_balance()
@@ -410,13 +413,12 @@ class APIAuditUploadTest(unittest.TestCase):
         handler.rfile = FakeRfile(body)
         handler.wfile = FakeWfile()
 
-        with unittest.mock.patch("src.auditoria.api.generate_markdown_report", return_value="# OK") as mock_report:
-            with unittest.mock.patch.object(handler, "_send_json") as mock_send:
-                handler.do_POST()
+        with unittest.mock.patch.object(handler, "_send_json") as mock_send:
+            handler.do_POST()
 
-        mock_report.assert_called_once()
-        self.assertIsNone(mock_report.call_args.kwargs["api_key"])
         mock_send.assert_called_once()
+        result = mock_send.call_args.args[0]
+        self.assertEqual(result["_schema_version"], "2.0.0")
 
 
 class APICORSTest(unittest.TestCase):

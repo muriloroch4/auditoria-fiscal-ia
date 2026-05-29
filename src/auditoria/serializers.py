@@ -32,7 +32,7 @@ def audit_result_to_dict(result: AuditResult) -> dict[str, Any]:
         },
         "identificacao": {
             "cliente": result.cliente,
-            "cnpj": "",
+            "cnpj": result.cnpj,
             "regime_tributario": result.regime_tributario,
             "periodo": result.periodo,
         },
