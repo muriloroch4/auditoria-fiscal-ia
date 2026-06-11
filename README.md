@@ -89,16 +89,22 @@ No Windows, também pode usar:
 .\iniciar_api.ps1
 ```
 
-### CLI (gerar JSON em arquivo)
+### CLI (gerar JSON ou Markdown em arquivo)
 
 ```powershell
 python -m src.auditoria.main samples/balancete_simples_servicos.csv --periodo "2026-T1" --cliente "Cliente Exemplo" --saida resultado.json
 ```
 
+Para gerar o parecer consultivo em Markdown:
+
+```powershell
+python -m src.auditoria.main samples/balancete_simples_servicos.csv --periodo "2026-T1" --cliente "Cliente Exemplo" --cnpj "00.000.000/0001-00" --markdown --no-ai --saida parecer.md
+```
+
 ### Testes
 
 ```powershell
-python -m unittest tests.test_auditoria -v
+python -m unittest discover -v
 ```
 
 ## Formato esperado do balancete
@@ -129,7 +135,7 @@ Modelos disponíveis em `samples/`.
 
 ## Integração com IA
 
-O motor de regras **entrega o JSON v2.0.0** — não gera relatório em texto. O relatório em linguagem natural é produzido separadamente por uma IA, usando o system prompt consultivo em `src/auditoria/report_ai.py` (Parecer Técnico Consultivo Trimestral — 4 seções).
+O motor de regras entrega o JSON v2.0.0 e o CLI também pode gerar parecer consultivo em Markdown com `--markdown`. O relatório em linguagem natural usa o system prompt consultivo em `src/auditoria/report_ai.py` (Parecer Técnico Consultivo Trimestral — 4 seções), com fallback local quando `--no-ai` é usado ou quando a IA não está disponível.
 
 O cliente OpenRouter (`src/auditoria/ai_client.py`) pode ser usado para esse fim, mas é independente do motor de regras.
 
@@ -144,7 +150,7 @@ O cliente OpenRouter (`src/auditoria/ai_client.py`) pode ser usado para esse fim
 - `src/auditoria/api.py` — servidor HTTP com upload, schema e download JSON
 - `src/auditoria/report_ai.py` — system prompt para geração de parecer via IA
 - `src/auditoria/ai_client.py` — cliente OpenRouter (stdlib, sem dependências)
-- `src/auditoria/main.py` — CLI para processamento em lote
+- `src/auditoria/main.py` — CLI para processamento em lote (JSON por padrão, Markdown com `--markdown`)
 - `config/rules.json` — configuração de pesos e limites das regras
 - `REGRAS.md` — tabela das regras fiscais configuradas
-- `tests/test_auditoria.py` — 44 testes
+- `tests/` — suíte de testes unitários e de integração leve
