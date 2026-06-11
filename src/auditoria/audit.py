@@ -3,13 +3,12 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
+from .config_loader import load_config
 from .models import AuditResult, RiskLevel, RuleFinding, TrialBalance
 from .risk import classify_total_risk
 from .rules import analyze_simples_servicos
 from .rules.simples_servicos import calculate_profit_basis
 from .utils import format_brl, format_percent
-
-_TOTAL_REGRAS_SIMPLES_SERVICOS = 11
 
 
 def run_quarterly_audit(
@@ -48,13 +47,13 @@ def run_quarterly_audit(
         pontuacao_total=score,
         achados=findings,
         resumo_metricas=_build_resumo_metricas(
-            revenue, taxes, payroll, expenses, profit_dist, profit_basis, cash
+            revenue, taxes, payroll, expenses, profit_dist, profit_basis, cash, clients
         ),
         metricas_valores=metricas_valores,
         explicacao_pontuacao=_explain_score(findings, overall_risk, score),
         contexto_regime=contexto_regime,
         total_contas_analisadas=len(balance.contas),
-        total_regras_verificadas=_TOTAL_REGRAS_SIMPLES_SERVICOS,
+        total_regras_verificadas=_total_regras_configuradas(),
     )
 
 
@@ -66,6 +65,7 @@ def _build_resumo_metricas(
     profit_dist: Decimal,
     profit_basis: Any,
     cash: Decimal,
+    clients: Decimal,
 ) -> dict[str, str]:
     return {
         "receita_servicos": format_brl(revenue),
@@ -76,7 +76,12 @@ def _build_resumo_metricas(
         "lucro_apurado_base": format_brl(profit_basis.value),
         "origem_lucro_apurado": profit_basis.source,
         "caixa_bancos": format_brl(cash),
+        "clientes_recebiveis": format_brl(clients),
     }
+
+
+def _total_regras_configuradas() -> int:
+    return sum(1 for key in load_config() if key.startswith("SN-"))
 
 
 def _build_metricas_valores(

@@ -13,7 +13,7 @@ Motor de regras fiscais para análise de balancetes trimestrais de empresas opta
     "conjunto_regras": "simples_servicos",
     "data_analise": "2026-05-26T10:30:00",
     "total_contas_analisadas": 15,
-    "total_regras_verificadas": 11,
+    "total_regras_verificadas": 17,
     "total_regras_acionadas": 7
   },
   "identificacao": {

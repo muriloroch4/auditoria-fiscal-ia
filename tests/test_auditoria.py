@@ -513,6 +513,7 @@ class SchemaV2Test(unittest.TestCase):
             """\
             codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
             1.1.1;Banco;bancos;0;0;0;0
+            1.1.2;Clientes;clientes;70000;0;0;70000
             3.1.1;Receita;receita;0;0;100000;100000
             """
         )
@@ -523,7 +524,24 @@ class SchemaV2Test(unittest.TestCase):
 
         self.assertIn("valor", metricas["receita_servicos"])
         self.assertIn("formatado", metricas["receita_servicos"])
+        self.assertEqual(metricas["clientes_recebiveis"]["valor"], 70000.0)
+        self.assertEqual(metricas["clientes_recebiveis"]["formatado"], "R$ 70.000,00")
         self.assertIn("indicadores_derivados", metricas)
+
+    def test_total_regras_verificadas_uses_configured_sn_rules(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;0;0;0
+            3.1.1;Receita;receita;0;0;100000;100000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Regras", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        payload = audit_result_to_dict(result)
+        expected_total = sum(1 for key in load_config() if key.startswith("SN-"))
+
+        self.assertEqual(payload["meta"]["total_regras_verificadas"], expected_total)
 
 
 class APITest(unittest.TestCase):
