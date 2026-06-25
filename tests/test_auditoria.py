@@ -10,6 +10,7 @@ from textwrap import dedent
 from xml.sax.saxutils import escape
 
 from src.auditoria.audit import run_quarterly_audit
+from src.auditoria.annual import build_annual_comparison, generate_annual_markdown_report
 from src.auditoria.models import RiskLevel, RuleFinding
 from src.auditoria.parser import read_trial_balance_csv, read_trial_balance_csv_text, read_trial_balance_upload
 from src.auditoria.report_ai import generate_markdown_report
@@ -379,6 +380,92 @@ class SN009AccountingLossTest(unittest.TestCase):
 
 
 class MelhoriasMotorFiscalTest(unittest.TestCase):
+    def test_receita_dominio_pode_vir_pelo_saldo_atual(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            3.1.10;Servicos Prestados;receita;0;0;0;-190000
+            3.1.20;(-) Simples Nacional;tributos_sobre_receita;0;0;0;12730
+            4.2.20;Despesas Gerais;despesas;0;1603;0;1603
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Dominio Receita", periodo="2026-T3")
+        result = run_quarterly_audit(balance)
+        payload = audit_result_to_dict(result)
+
+        self.assertEqual(payload["metricas"]["receita_servicos"]["valor"], 190000.0)
+        self.assertEqual(payload["metricas"]["deducoes_receita"]["valor"], 12730.0)
+        self.assertEqual(payload["metricas"]["lucro_apurado_base"]["valor"], 175667.0)
+
+    def test_custos_entram_em_despesas_e_resultado_estimado(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;0;0;0
+            3.1.1;Receita de Servicos;receita;0;0;100000;100000
+            4.1.1;Custos dos Servicos Prestados;custos;0;80000;0;-80000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Custos", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        payload = audit_result_to_dict(result)
+        codes = {f.codigo for f in result.achados}
+
+        self.assertIn("SN-007", codes)
+        self.assertEqual(payload["metricas"]["despesas_operacionais"]["valor"], 80000.0)
+        self.assertEqual(payload["metricas"]["lucro_apurado_base"]["valor"], 20000.0)
+
+    def test_tributos_registrados_e_passivo_tributario_sao_metricas_separadas(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;0;0;0
+            2.1.4;Simples Nacional a Recolher;tributos_a_recolher;10000;0;20000;30000
+            3.1.1;Receita de Servicos;receita;0;0;100000;100000
+            3.1.2;(-) Simples Nacional;tributos_sobre_receita;0;2000;0;-2000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Tributos separados", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        payload = audit_result_to_dict(result)
+        codes = {f.codigo for f in result.achados}
+
+        self.assertIn("SN-002B", codes)
+        self.assertIn("SN-012", codes)
+        self.assertEqual(payload["metricas"]["tributos_registrados"]["valor"], 2000.0)
+        self.assertEqual(payload["metricas"]["tributos_a_recolher"]["valor"], 30000.0)
+
+    def test_adiantamentos_de_clientes_tambem_disparam_sn011(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;0;0;0
+            2.1.6;Adiantamentos de Clientes;adiantamentos_clientes;0;0;25000;-25000
+            3.1.1;Receita de Servicos;receita;0;0;100000;100000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Adiantamento Cliente", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        codes = {f.codigo for f in result.achados}
+
+        self.assertIn("SN-011A", codes)
+
+    def test_lucros_a_pagar_por_credito_entram_como_distribuicao(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;0;0;0
+            2.1.7;Lucros e Dividendos a Pagar;lucros;0;0;60000;-60000
+            3.1.1;Receita de Servicos;receita;0;0;100000;100000
+            4.1.1;Custos;custos;0;70000;0;-70000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Lucros Credito", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        codes = {f.codigo for f in result.achados}
+
+        self.assertIn("SN-004A", codes)
+
     def test_overlap_sn008_and_sn010_zero_revenue_with_receivables(self):
         content = dedent(
             """\
@@ -542,6 +629,56 @@ class SchemaV2Test(unittest.TestCase):
         expected_total = sum(1 for key in load_config() if key.startswith("SN-"))
 
         self.assertEqual(payload["meta"]["total_regras_verificadas"], expected_total)
+
+
+class AnnualComparisonTest(unittest.TestCase):
+    def test_build_annual_comparison_consolida_metricas_e_recorrencias(self):
+        payloads = [
+            self._quarter_payload("2026-T1", revenue=100000, expenses=80000),
+            self._quarter_payload("2026-T2", revenue=100000, expenses=85000),
+            self._quarter_payload("2026-T3", revenue=100000, expenses=10000),
+            self._quarter_payload("2026-T4", revenue=100000, expenses=15000),
+        ]
+
+        annual = build_annual_comparison(payloads)
+        codes = {finding["codigo"] for finding in annual["achados_anuais"]}
+
+        self.assertEqual(annual["_schema_version"], "annual-1.0.0")
+        self.assertEqual(annual["identificacao"]["exercicio"], "2026")
+        self.assertEqual(annual["metricas_anual"]["receita_servicos_total"]["valor"], 400000.0)
+        self.assertEqual(annual["meta"]["trimestres_ausentes"], [])
+        self.assertIn("AN-REC-SN-007", codes)
+        self.assertEqual(len(annual["comparativo_trimestral"]), 4)
+
+    def test_generate_annual_markdown_report(self):
+        payloads = [
+            self._quarter_payload("2026-T1", revenue=100000, expenses=80000),
+            self._quarter_payload("2026-T2", revenue=100000, expenses=85000),
+            self._quarter_payload("2026-T3", revenue=100000, expenses=10000),
+            self._quarter_payload("2026-T4", revenue=100000, expenses=15000),
+        ]
+        annual = build_annual_comparison(payloads)
+
+        report = generate_annual_markdown_report(annual)
+
+        self.assertIn("PARECER TÉCNICO CONTÁBIL — CONSULTIVO ANUAL COMPARATIVO", report)
+        self.assertIn("## 2. COMPARATIVO TRIMESTRAL", report)
+        self.assertIn("AN-REC-SN-007", report)
+
+    def _quarter_payload(self, periodo: str, revenue: int, expenses: int) -> dict:
+        content = dedent(
+            f"""\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            2.1.4;Simples Nacional a Recolher;tributos_a_recolher;1000;0;0;1000
+            2.1.5;Provisao de Ferias;provisoes;1000;0;0;1000
+            3.1.1;Receita de Servicos;receita;0;0;{revenue};{revenue}
+            3.1.2;(-) Simples Nacional;tributos_sobre_receita;0;0;0;-6000
+            4.1.1;Folha;folha;0;10000;0;-10000
+            4.2.1;Despesas Operacionais;despesas;0;{expenses};0;-{expenses}
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Cliente Anual", periodo=periodo, cnpj="12.345.678/0001-90")
+        return audit_result_to_dict(run_quarterly_audit(balance))
 
 
 class APITest(unittest.TestCase):

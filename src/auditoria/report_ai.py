@@ -177,7 +177,7 @@ def _render_metricas_principais(payload: dict[str, Any]) -> str:
 
     for key, label in (
         ("lucro_apurado_base", "resultado do período"),
-        ("tributos_a_recolher", "tributos a recolher"),
+        ("tributos_registrados", "tributos registrados"),
         ("caixa_e_bancos", "caixa e bancos"),
     ):
         if len(selected) >= 4:
@@ -277,9 +277,9 @@ def _render_consultivo_opiniao(payload: dict[str, Any]) -> str:
         extra = ""
         if any(a["codigo"] == "SN-COMP-01" for a in achados):
             extra = (
-                " Em especial, a distribuição de lucros com resultado negativo configura situação crítica "
-                "sujeita a multa de 75% a 150% e possível exclusão do Simples Nacional "
-                "(art. 29, V da LC 123/2006)."
+                " Em especial, a combinação de indício de omissão de receita com despesas operacionais "
+                "elevadas exige cruzamento imediato entre movimentação financeira, documentos fiscais "
+                "e receitas reconhecidas."
             )
         bloco = (
             f"As informações contábeis do período {periodo} apresentam inconsistências materiais e riscos "
@@ -290,7 +290,7 @@ def _render_consultivo_opiniao(payload: dict[str, Any]) -> str:
     encerramento = (
         f"Este parecer tem caráter consultivo e abrange exclusivamente os dados do balancete informado "
         f"para o período {periodo}. Não substitui auditoria independente completa. Elaborado em conformidade "
-        "com a NBC PG 100 (R1)/2018, NBC TA 700 (R1) e Resolução CFC n.º 1.244/2009."
+        "com a NBC PG 100 (R1) de 2018, NBC TA 700 (R1), NBC TG 26 (R3) = CPC 26 R1 e Resolução CFC n.º 1.244/2009."
     )
     return "\n\n".join([abertura, bloco, encerramento])
 
@@ -720,7 +720,7 @@ Você receberá um JSON com os seguintes blocos:
 4. Use sempre o campo `formatado` para valores monetários e percentuais.
 5. A modalidade de opinião vem do campo `risco.modalidade_opiniao_sugerida` — não mude.
 6. Nunca mencione IA, sistema automatizado ou geração automática.
-7. Sem bullet points, markdown ou formatação decorativa no corpo do texto.
+7. Sem bullet points ou formatação decorativa fora da estrutura definida; manter a tabela de achados em Markdown.
 8. Linguagem formal, técnica, em português brasileiro. Parágrafos corridos.
 9. Achados compostos (código SN-COMP-xx) são sempre os mais graves — destaque-os.
 
@@ -857,16 +857,16 @@ Se `achados` estiver vazio:
 > "As informações contábeis do período {periodo} apresentam inconsistências
 > materiais e riscos tributários significativos decorrentes dos achados
 > {listar todos os códigos}. {Se SN-COMP-01 presente, adicionar: 'Em especial,
-> a distribuição de lucros com resultado negativo configura situação crítica
-> sujeita a multa de 75% a 150% e possível exclusão do Simples Nacional
-> (art. 29, V da LC 123/2006).'} Pontuação apurada: {pontuacao_total} pontos
+> a combinação de indício de omissão de receita com despesas operacionais
+> elevadas exige cruzamento imediato entre movimentação financeira, documentos
+> fiscais e receitas reconhecidas.'} Pontuação apurada: {pontuacao_total} pontos
 > — risco ALTO. Recomenda-se providências imediatas de regularização."
 
 **Parágrafo de encerramento fixo:**
 > "Este parecer tem caráter consultivo e abrange exclusivamente os dados
 > do balancete informado para o período {periodo}. Não substitui auditoria
-> independente completa. Elaborado em conformidade com a NBC PG 100 (R1)/2018,
-> NBC TA 700 (R1) e Resolução CFC n.º 1.244/2009."
+> independente completa. Elaborado em conformidade com a NBC PG 100 (R1) de 2018,
+> NBC TA 700 (R1), NBC TG 26 (R3) = CPC 26 R1 e Resolução CFC n.º 1.244/2009."
 
 ---
 

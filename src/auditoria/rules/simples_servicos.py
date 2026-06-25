@@ -10,6 +10,19 @@ from ..utils import format_brl, format_percent
 _money = format_brl
 _percent = format_percent
 
+OPERATING_EXPENSE_GROUPS = frozenset({
+    "despesas",
+    "custos",
+    "despesas_representacao",
+    "despesas_veiculos",
+    "despesas_tributarias",
+    "multas_fiscais",
+})
+ADVANCE_GROUPS = frozenset({"adiantamentos", "adiantamentos_clientes"})
+TAX_EXPENSE_GROUPS = frozenset({"despesas_tributarias"})
+TAX_LIABILITY_GROUPS = frozenset({"tributos_a_recolher"})
+LEGACY_TAX_GROUP = "tributos"
+
 
 @dataclass(frozen=True)
 class ProfitBasis:
@@ -18,16 +31,16 @@ class ProfitBasis:
 
 
 def analyze_simples_servicos(balance: TrialBalance, profit_basis: ProfitBasis | None = None) -> list[RuleFinding]:
-    revenue = _abs(balance.credito_por_grupo("receita"))
+    revenue = calculate_revenue(balance)
     active_movement = _active_movement(balance)
-    tax_balance = _abs(balance.total_por_grupo("tributos"))
+    tax_expense = calculate_tax_expense(balance)
     payroll = _abs(balance.debito_por_grupo("folha"))
-    expenses = _abs(balance.debito_por_grupo("despesas"))
+    expenses = calculate_operating_expenses(balance)
     partners = _abs(balance.total_por_grupo("socios"))
     clients = _abs(balance.total_por_grupo("clientes"))
     client_movement = _group_movement(balance, "clientes")
-    advances = _abs(balance.total_por_grupo("adiantamentos"))
-    profit_distribution = _abs(balance.debito_por_grupo("lucros"))
+    advances = calculate_advances(balance)
+    profit_distribution = calculate_profit_distribution(balance)
     cash = balance.total_por_grupo("caixa") + balance.total_por_grupo("bancos")
 
     if profit_basis is None:
@@ -36,7 +49,7 @@ def analyze_simples_servicos(balance: TrialBalance, profit_basis: ProfitBasis | 
     findings: list[RuleFinding] = []
     findings.extend(_check_low_or_missing_revenue(revenue, active_movement, _operational_movement(balance)))
     findings.extend(_check_revenue_limit(revenue))
-    findings.extend(_check_tax_ratio(revenue, tax_balance))
+    findings.extend(_check_tax_ratio(revenue, tax_expense))
     findings.extend(_check_payroll_factor(revenue, payroll))
     findings.extend(_check_profit_distribution(revenue, profit_distribution, profit_basis))
     findings.extend(_check_partner_accounts(revenue, partners))
@@ -64,12 +77,64 @@ def calculate_profit_basis(
             source="resultado informado no balancete",
         )
 
-    revenue_value = _abs(balance.credito_por_grupo("receita")) if revenue is None else revenue
-    expense_value = _abs(balance.debito_por_grupo("despesas")) if expenses is None else expenses
+    revenue_value = calculate_revenue(balance) if revenue is None else revenue
+    expense_value = calculate_operating_expenses(balance) if expenses is None else expenses
+    revenue_deductions = calculate_revenue_deductions(balance)
     return ProfitBasis(
-        value=revenue_value - expense_value,
-        source="estimativa: receita - despesas",
+        value=revenue_value - revenue_deductions - expense_value,
+        source="estimativa: receita - deduções - custos/despesas",
     )
+
+
+def calculate_revenue(balance: TrialBalance) -> Decimal:
+    credit_revenue = _abs(balance.credito_por_grupo("receita"))
+    if credit_revenue > 0:
+        return credit_revenue
+    return _abs(balance.total_por_grupo("receita"))
+
+
+def calculate_operating_expenses(balance: TrialBalance) -> Decimal:
+    return _abs(_debitos_por_grupos(balance, OPERATING_EXPENSE_GROUPS))
+
+
+def calculate_revenue_deductions(balance: TrialBalance) -> Decimal:
+    saldo_deductions = _abs(_saldos_por_grupos(balance, {"tributos_sobre_receita"}))
+    if saldo_deductions > 0:
+        return saldo_deductions
+    return _abs(_debitos_por_grupos(balance, {"tributos_sobre_receita"}))
+
+
+def calculate_tax_expense(balance: TrialBalance) -> Decimal:
+    explicit_tax = calculate_revenue_deductions(balance) + _abs(_debitos_por_grupos(balance, TAX_EXPENSE_GROUPS))
+    if explicit_tax > 0:
+        return explicit_tax
+    return _abs(balance.total_por_grupo(LEGACY_TAX_GROUP))
+
+
+def calculate_tax_liability(balance: TrialBalance) -> Decimal:
+    explicit_liability = _abs(_saldos_por_grupos(balance, TAX_LIABILITY_GROUPS))
+    if explicit_liability > 0:
+        return explicit_liability
+    return _abs(balance.total_por_grupo(LEGACY_TAX_GROUP))
+
+
+def calculate_advances(balance: TrialBalance) -> Decimal:
+    return _abs(_saldos_por_grupos(balance, ADVANCE_GROUPS))
+
+
+def calculate_profit_distribution(balance: TrialBalance) -> Decimal:
+    total = Decimal("0")
+    for account in balance.contas_por_grupo("lucros"):
+        if account.debito > 0:
+            total += account.debito
+            continue
+        text = account.conta.lower()
+        if any(key in text for key in ("lucro", "dividendo", "jcp", "juros sobre capital")):
+            if account.credito > 0:
+                total += account.credito
+            elif account.saldo_atual != 0:
+                total += _abs(account.saldo_atual)
+    return _abs(total)
 
 
 def _check_low_or_missing_revenue(revenue: Decimal, active_movement: Decimal, operational_movement: Decimal) -> list[RuleFinding]:
@@ -164,12 +229,12 @@ def _check_revenue_limit(revenue: Decimal) -> list[RuleFinding]:
     return []
 
 
-def _check_tax_ratio(revenue: Decimal, tax_balance: Decimal) -> list[RuleFinding]:
+def _check_tax_ratio(revenue: Decimal, tax_expense: Decimal) -> list[RuleFinding]:
     if revenue <= 0:
         return []
 
     cfg = get_rule_config("SN-002")
-    ratio = tax_balance / revenue
+    ratio = tax_expense / revenue
 
     lim_alto = Decimal(str(cfg.get("limite_alto", 0.03)))
     if ratio < lim_alto:
@@ -180,7 +245,7 @@ def _check_tax_ratio(revenue: Decimal, tax_balance: Decimal) -> list[RuleFinding
                 nivel=RiskLevel.ALTO,
                 pontuacao=cfg.get("pontuacao_alto", 20),
                 descricao="Os impostos registrados representam menos de 3% da receita do período, indicando possível subapuração ou divergência fiscal a validar.",
-                evidencia={"receita": _money(revenue), "tributos": _money(tax_balance), "percentual": _percent(ratio)},
+                evidencia={"receita": _money(revenue), "tributos_registrados": _money(tax_expense), "percentual": _percent(ratio)},
                 recomendacao="Conferir apuração do DAS, anexo aplicado, retenções, competência e possíveis lançamentos ausentes.",
                 normas_aplicaveis=("LC 123/2006", "Anexo III da LC 123/2006"),
             )
@@ -195,7 +260,7 @@ def _check_tax_ratio(revenue: Decimal, tax_balance: Decimal) -> list[RuleFinding
                 nivel=RiskLevel.MEDIO,
                 pontuacao=cfg.get("pontuacao_medio", 15),
                 descricao="A relação entre tributos registrados e receita está em uma faixa que merece revisão.",
-                evidencia={"receita": _money(revenue), "tributos": _money(tax_balance), "percentual": _percent(ratio)},
+                evidencia={"receita": _money(revenue), "tributos_registrados": _money(tax_expense), "percentual": _percent(ratio)},
                 recomendacao="Validar se todas as guias do trimestre foram reconhecidas e se houve retenções compensáveis.",
                 normas_aplicaveis=("LC 123/2006", "Anexo III da LC 123/2006"),
             )
@@ -552,12 +617,16 @@ def _check_tax_liability_growth(balance: TrialBalance, revenue: Decimal) -> list
     cfg = get_rule_config("SN-012")
     pts = cfg.get("pontuacao_medio", 14)
 
-    tax_accounts = balance.contas_por_grupo("tributos")
+    tax_accounts = []
+    for group in TAX_LIABILITY_GROUPS:
+        tax_accounts.extend(balance.contas_por_grupo(group))
+    if not tax_accounts:
+        tax_accounts = balance.contas_por_grupo(LEGACY_TAX_GROUP)
     if not tax_accounts:
         return []
 
-    previous_tax = sum((account.saldo_anterior for account in tax_accounts), Decimal("0"))
-    current_tax = sum((account.saldo_atual for account in tax_accounts), Decimal("0"))
+    previous_tax = _abs(sum((account.saldo_anterior for account in tax_accounts), Decimal("0")))
+    current_tax = _abs(sum((account.saldo_atual for account in tax_accounts), Decimal("0")))
 
     if previous_tax >= current_tax or previous_tax <= 0:
         return []
@@ -696,3 +765,11 @@ def _group_movement(balance: TrialBalance, group: str) -> Decimal:
         (account.debito + account.credito for account in balance.contas if account.grupo == group),
         Decimal("0"),
     )
+
+
+def _debitos_por_grupos(balance: TrialBalance, groups: frozenset[str] | set[str]) -> Decimal:
+    return sum((account.debito for account in balance.contas if account.grupo in groups), Decimal("0"))
+
+
+def _saldos_por_grupos(balance: TrialBalance, groups: frozenset[str] | set[str]) -> Decimal:
+    return sum((account.saldo_atual for account in balance.contas if account.grupo in groups), Decimal("0"))

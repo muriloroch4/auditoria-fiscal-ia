@@ -7,7 +7,16 @@ from .config_loader import load_config
 from .models import AuditResult, RiskLevel, RuleFinding, TrialBalance
 from .risk import classify_total_risk
 from .rules import analyze_simples_servicos
-from .rules.simples_servicos import calculate_profit_basis
+from .rules.simples_servicos import (
+    calculate_advances,
+    calculate_operating_expenses,
+    calculate_profit_basis,
+    calculate_profit_distribution,
+    calculate_revenue,
+    calculate_revenue_deductions,
+    calculate_tax_expense,
+    calculate_tax_liability,
+)
 from .utils import format_brl, format_percent
 
 
@@ -15,15 +24,22 @@ def run_quarterly_audit(
     balance: TrialBalance,
     regime_tributario: str = "Simples Nacional",
 ) -> AuditResult:
-    revenue = abs(balance.credito_por_grupo("receita"))
-    expenses = abs(balance.debito_por_grupo("despesas"))
+    revenue = calculate_revenue(balance)
+    revenue_deductions = calculate_revenue_deductions(balance)
+    expenses = calculate_operating_expenses(balance)
     payroll = abs(balance.debito_por_grupo("folha"))
-    taxes = abs(balance.total_por_grupo("tributos"))
+    tax_expense = calculate_tax_expense(balance)
+    tax_liability = calculate_tax_liability(balance)
     partners = abs(balance.total_por_grupo("socios"))
-    profit_dist = abs(balance.debito_por_grupo("lucros"))
+    profit_dist = calculate_profit_distribution(balance)
     cash = balance.total_por_grupo("caixa") + balance.total_por_grupo("bancos")
     clients = abs(balance.total_por_grupo("clientes"))
-    advances = abs(balance.total_por_grupo("adiantamentos"))
+    advances = calculate_advances(balance)
+    suppliers = abs(balance.total_por_grupo("fornecedores"))
+    inventory = abs(balance.total_por_grupo("estoques") + balance.total_por_grupo("estoque"))
+    tax_credits = abs(balance.total_por_grupo("creditos_fiscais"))
+    debt = abs(balance.total_por_grupo("emprestimos"))
+    equity = abs(balance.total_por_grupo("patrimonio") + balance.total_por_grupo("patrimonio_liquido"))
 
     profit_basis = calculate_profit_basis(balance, revenue, expenses)
 
@@ -31,11 +47,13 @@ def run_quarterly_audit(
     overall_risk, score = classify_total_risk(findings)
 
     metricas_valores = _build_metricas_valores(
-        revenue, taxes, payroll, expenses, profit_dist, profit_basis, cash, clients
+        revenue, revenue_deductions, tax_expense, tax_liability, payroll, expenses,
+        profit_dist, profit_basis, cash, clients, advances, suppliers, inventory,
+        tax_credits, debt, equity,
     )
 
     contexto_regime = _build_contexto_regime_simples(
-        regime_tributario, revenue, payroll, taxes
+        regime_tributario, revenue, payroll, tax_expense
     )
 
     return AuditResult(
@@ -47,7 +65,9 @@ def run_quarterly_audit(
         pontuacao_total=score,
         achados=findings,
         resumo_metricas=_build_resumo_metricas(
-            revenue, taxes, payroll, expenses, profit_dist, profit_basis, cash, clients
+            revenue, revenue_deductions, tax_expense, tax_liability, payroll, expenses,
+            profit_dist, profit_basis, cash, clients, advances, suppliers, inventory,
+            tax_credits, debt, equity,
         ),
         metricas_valores=metricas_valores,
         explicacao_pontuacao=_explain_score(findings, overall_risk, score),
@@ -59,17 +79,28 @@ def run_quarterly_audit(
 
 def _build_resumo_metricas(
     revenue: Decimal,
-    taxes: Decimal,
+    revenue_deductions: Decimal,
+    tax_expense: Decimal,
+    tax_liability: Decimal,
     payroll: Decimal,
     expenses: Decimal,
     profit_dist: Decimal,
     profit_basis: Any,
     cash: Decimal,
     clients: Decimal,
+    advances: Decimal,
+    suppliers: Decimal,
+    inventory: Decimal,
+    tax_credits: Decimal,
+    debt: Decimal,
+    equity: Decimal,
 ) -> dict[str, str]:
     return {
         "receita_servicos": format_brl(revenue),
-        "tributos": format_brl(taxes),
+        "deducoes_receita": format_brl(revenue_deductions),
+        "tributos": format_brl(tax_liability),
+        "tributos_a_recolher": format_brl(tax_liability),
+        "tributos_registrados": format_brl(tax_expense),
         "folha_pro_labore": format_brl(payroll),
         "despesas": format_brl(expenses),
         "lucros_distribuidos": format_brl(profit_dist),
@@ -77,6 +108,12 @@ def _build_resumo_metricas(
         "origem_lucro_apurado": profit_basis.source,
         "caixa_bancos": format_brl(cash),
         "clientes_recebiveis": format_brl(clients),
+        "adiantamentos": format_brl(advances),
+        "fornecedores": format_brl(suppliers),
+        "estoques": format_brl(inventory),
+        "creditos_fiscais": format_brl(tax_credits),
+        "emprestimos": format_brl(debt),
+        "patrimonio_liquido": format_brl(equity),
     }
 
 
@@ -86,20 +123,30 @@ def _total_regras_configuradas() -> int:
 
 def _build_metricas_valores(
     revenue: Decimal,
-    taxes: Decimal,
+    revenue_deductions: Decimal,
+    tax_expense: Decimal,
+    tax_liability: Decimal,
     payroll: Decimal,
     expenses: Decimal,
     profit_dist: Decimal,
     profit_basis: Any,
     cash: Decimal,
     clients: Decimal,
+    advances: Decimal,
+    suppliers: Decimal,
+    inventory: Decimal,
+    tax_credits: Decimal,
+    debt: Decimal,
+    equity: Decimal,
 ) -> dict[str, Any]:
     def _f(d: Decimal) -> float:
         return float(d)
 
     result: dict[str, Any] = {
         "receita_servicos": _f(revenue),
-        "tributos_a_recolher": _f(taxes),
+        "deducoes_receita": _f(revenue_deductions),
+        "tributos_a_recolher": _f(tax_liability),
+        "tributos_registrados": _f(tax_expense),
         "folha_pro_labore": _f(payroll),
         "despesas_operacionais": _f(expenses),
         "lucros_distribuidos": _f(profit_dist),
@@ -107,20 +154,30 @@ def _build_metricas_valores(
         "origem_lucro_apurado": profit_basis.source,
         "caixa_e_bancos": _f(cash),
         "clientes_recebiveis": _f(clients),
+        "adiantamentos": _f(advances),
+        "fornecedores": _f(suppliers),
+        "estoques": _f(inventory),
+        "creditos_fiscais": _f(tax_credits),
+        "emprestimos": _f(debt),
+        "patrimonio_liquido": _f(equity),
     }
 
     if revenue > 0:
         result["indicadores_derivados"] = {
-            "carga_tributaria_efetiva_percentual": format_percent(taxes / revenue),
+            "carga_tributaria_efetiva_percentual": format_percent(tax_expense / revenue),
+            "percentual_deducoes_sobre_receita": format_percent(revenue_deductions / revenue),
             "percentual_folha_sobre_receita": format_percent(payroll / revenue),
             "percentual_despesas_sobre_receita": format_percent(expenses / revenue),
+            "endividamento_bancario_sobre_receita": format_percent(debt / revenue),
             "resultado_positivo": profit_basis.value >= 0,
         }
     else:
         result["indicadores_derivados"] = {
             "carga_tributaria_efetiva_percentual": "0,0%",
+            "percentual_deducoes_sobre_receita": "0,0%",
             "percentual_folha_sobre_receita": "0,0%",
             "percentual_despesas_sobre_receita": "0,0%",
+            "endividamento_bancario_sobre_receita": "0,0%",
             "resultado_positivo": profit_basis.value >= 0,
         }
 

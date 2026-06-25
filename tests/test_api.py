@@ -206,6 +206,8 @@ class APIHealthTest(unittest.TestCase):
             mock_send.assert_called_once()
             html_content = mock_send.call_args.args[0]
             self.assertIn("Auditoria Fiscal IA", html_content)
+            self.assertIn("pdf-btn", html_content)
+            self.assertIn("printDashboardPdf", html_content)
 
     def test_unknown_get_route_returns_404(self):
         handler = TestableAuditApiHandler()

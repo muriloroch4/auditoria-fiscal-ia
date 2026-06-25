@@ -82,20 +82,50 @@ class DominioParserTest(unittest.TestCase):
 
     def test_dominio_group_mapeamento_principal(self):
         cases = [
+            ("1.1.1.01.00001", "CAIXA MATRIZ", "caixa"),
+            ("1.1.1.02.00001", "BANCO DO BRASIL", "bancos"),
+            ("1.1.1.03.00001", "APLICAÇÃO BANCO BRASIL", "bancos"),
+            ("1.1.2.01.00001", "CLIENTES PULVERIZADOS", "clientes"),
+            ("1.1.3.01.00001", "BANCOS CONTA VINCULADA", "bancos"),
+            ("1.1.3.02.00001", "OPERADORAS DE CARTÃO DE CREDITO", "clientes"),
+            ("1.1.3.05.00001", "ADIANTAMENTOS A FORNECEDORES NO PAÍS", "adiantamentos"),
+            ("1.1.3.08.00006", "INSS A RECUPERAR", "creditos_fiscais"),
+            ("1.1.4.01.00001", "APLICAÇÃO BANCO DO BRASIL", "investimentos"),
+            ("1.1.4.02.00001", "DISTRIBUIÇÃO ANTECIPADA DE LUCROS", "lucros"),
+            ("1.1.5.01.00001", "MERCADORIAS PARA REVENDA", "estoques"),
+            ("1.2.1.01.00001", "CLIENTES PULVERIZADOS", "clientes"),
+            ("1.2.3.01.00001", "CONTROLADA A - VALOR PATRIMONIAL", "investimentos"),
+            ("1.2.4.04.00001", "VEÍCULOS", "imobilizado"),
+            ("2.1.1.01.00001", "EMPRÉSTIMO BANCO BRASIL", "emprestimos"),
+            ("2.1.3.01.00001", "FORNECEDORES NACIONAIS", "fornecedores"),
+            ("2.1.4.01.00008", "SIMPLES NACIONAL A RECOLHER", "tributos_a_recolher"),
+            ("2.1.5.03.00001", "PROVISÃO DE FÉRIAS", "provisoes"),
+            ("2.1.6.01.00001", "ADIANTAMENTOS A CLIENTES", "adiantamentos_clientes"),
+            ("2.1.7.01.00001", "LUCROS E DIVIDENDOS", "lucros"),
+            ("2.2.1.09.00001", "OBRIGAÇÕES TRIBUTÁRIAS", "tributos_a_recolher"),
+            ("3.1.1.02.00001", "SERVIÇOS PRESTADOS", "receita"),
+            ("3.1.2.03.00008", "(-) SIMPLES NACIONAL", "tributos_sobre_receita"),
+            ("4.1.6.01.00001", "CUSTOS DOS SERVIÇOS PRESTADOS", "custos"),
+            ("4.2.1.01.00001", "SALÁRIOS", "folha"),
+            ("4.2.1.05.00001", "DESPESAS COM VIAGENS E REPRESENTAÇÕES", "despesas_representacao"),
+            ("4.2.1.11.00001", "DESPESAS TRIBUTÁRIAS", "despesas_tributarias"),
+            ("4.2.2.05.00001", "DESPESAS FINANCEIRAS", "despesas"),
             ("1.1.10.100.001", "CAIXA MATRIZ", "caixa"),
             ("1.1.10.200.006", "BANCO ITAU", "bancos"),
             ("1.1.20.100.001", "CLIENTES PULVERIZADOS", "clientes"),
             ("1.1.30.500.001", "ADIANTAMENTOS A FORNECEDORES", "adiantamentos"),
             ("1.1.30.800.006", "INSS A RECUPERAR", "creditos_fiscais"),
-            ("2.1.40.100.008", "SIMPLES NACIONAL A RECOLHER", "tributos"),
+            ("2.1.40.100.008", "SIMPLES NACIONAL A RECOLHER", "tributos_a_recolher"),
             ("2.1.50.100.001", "SALARIOS E ORDENADOS A PAGAR", "folha"),
-            ("2.1.50.200.001", "INSS A RECOLHER", "tributos"),
+            ("2.1.50.200.001", "INSS A RECOLHER", "tributos_a_recolher"),
             ("2.1.60.100.001", "ADIANTAMENTO DE CLIENTES", "adiantamentos_clientes"),
             ("2.1.60.600.002", "SOCIOS ADMINISTRADORES", "socios"),
             ("2.2.11.300.001", "EMPRESTIMO DE TERCEIROS", "emprestimos"),
+            ("1.2.20.100.001", "PARTICIPACOES SOCIETARIAS", "patrimonio"),
+            ("1.2.30.100.001", "VEICULOS", "imobilizado"),
             ("2.3.10.100.001", "CAPITAL SOCIAL", "patrimonio"),
             ("3.1.10.200.001", "SERVICOS PRESTADOS", "receita"),
-            ("3.1.20.300.008", "(-) SIMPLES NACIONAL", "tributos"),
+            ("3.1.20.300.008", "(-) SIMPLES NACIONAL", "tributos_sobre_receita"),
             ("4.2.20.300.007", "MULTAS DE MORA", "multas_fiscais"),
             ("4.2.20.400.009", "DESPESAS DE VIAGEM", "despesas_representacao"),
             ("4.2.20.500.010", "COMBUSTIVEL", "despesas_veiculos"),
@@ -114,7 +144,7 @@ class DominioParserTest(unittest.TestCase):
 
         accounts = {account.codigo: account for account in balance.contas}
         self.assertNotIn("1.1.10.1", accounts)
-        self.assertEqual(accounts["2.1.40.100.008"].grupo, "tributos")
+        self.assertEqual(accounts["2.1.40.100.008"].grupo, "tributos_a_recolher")
         self.assertEqual(accounts["2.1.40.100.008"].saldo_atual, Decimal("-12730"))
         self.assertEqual(accounts["1.1.10.200.006"].grupo, "bancos")
         self.assertEqual(accounts["1.1.10.200.006"].saldo_atual, Decimal("5.51"))

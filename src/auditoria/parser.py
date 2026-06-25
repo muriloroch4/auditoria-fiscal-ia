@@ -31,6 +31,7 @@ VALID_GRUPOS = frozenset({
     "provisoes", "imobilizado", "despesas_representacao", "despesas_veiculos",
     "custos", "investimentos", "patrimonio_liquido", "patrimonio", "estoque",
     "estoques", "creditos_fiscais", "adiantamentos_clientes", "emprestimos",
+    "tributos_a_recolher", "tributos_sobre_receita", "despesas_tributarias",
     "multas_fiscais", "outros",
 })
 
@@ -525,6 +526,37 @@ def _dominio_group(classification: str, description: str) -> str:
     if "lucros distribuidos" in text or "distribuicao antecipada de lucros" in text:
         return "lucros"
 
+    if c.startswith("1.1.1"):
+        if any(k in text for k in ("cliente", "duplicata", "receber")):
+            return "clientes"
+        if any(k in text for k in ("banco", "conta corrente", "aplicacao", "poupanca", "cdb", "lci", "lca", "rdbi", "fundo", "tesouro")):
+            return "bancos"
+        return "caixa"
+    if c.startswith("1.1.2"):
+        if any(k in text for k in ("caixa", "banco", "conta corrente", "aplicacao", "poupanca")):
+            return "bancos"
+        return "clientes"
+    if c.startswith("1.1.3"):
+        if c.startswith("1.1.3.01"):
+            return "bancos"
+        if c.startswith(("1.1.3.02", "1.1.3.03")):
+            return "clientes"
+        if any(k in text for k in ("adiantamento", "adiantamentos")):
+            return "adiantamentos"
+        if any(k in text for k in ("recuperar", "compensar", "credito", "inss", "pis", "cofins", "irrf", "csll", "icms", "iss")):
+            return "creditos_fiscais"
+        return "outros"
+    if c.startswith("1.1.40"):
+        return "estoques"
+    if c.startswith("1.1.4"):
+        if "lucro" in text:
+            return "lucros"
+        return "investimentos"
+    if c.startswith("1.1.5"):
+        return "estoques"
+    if c.startswith(("1.1.6", "1.1.7", "1.1.8", "1.1.9")):
+        return "outros"
+
     if c.startswith("1.1.10.1"):
         if any(k in text for k in ("banco", "conta corrente", "aplicacao", "poupanca", "cdb", "lci", "lca", "rdbi", "fundo", "tesouro")):
             return "bancos"
@@ -551,8 +583,6 @@ def _dominio_group(classification: str, description: str) -> str:
         if sub.startswith("8"):
             return "creditos_fiscais"
         return "outros"
-    if c.startswith("1.1.40"):
-        return "estoques"
     if c.startswith("1.1"):
         return "outros"
 
@@ -560,6 +590,26 @@ def _dominio_group(classification: str, description: str) -> str:
         return "outros"
     if c.startswith("1.2.20"):
         return "patrimonio"
+    if c.startswith(("1.2.30", "1.2.40")):
+        return "imobilizado"
+    if c.startswith("1.2.1"):
+        if "cliente" in text or "duplicata" in text or "receber" in text:
+            return "clientes"
+        return "outros"
+    if c.startswith("1.2.2"):
+        if "banco" in text or "aplicacao" in text:
+            return "bancos"
+        if any(k in text for k in ("tributo", "recuperar", "compensar", "credito", "inss", "pis", "cofins", "irrf", "csll", "icms", "iss")):
+            return "creditos_fiscais"
+        return "outros"
+    if c.startswith("1.2.3"):
+        return "investimentos"
+    if c.startswith(("1.2.4", "1.2.5")):
+        return "imobilizado"
+    if c.startswith("1.2.6"):
+        return "outros"
+    if c.startswith(("1.3.3", "1.3")):
+        return "outros"
     if c.startswith(("1.2.30", "1.2.40", "1.2")):
         return "imobilizado"
 
@@ -567,15 +617,43 @@ def _dominio_group(classification: str, description: str) -> str:
         return "fornecedores"
     if c.startswith("2.1.20"):
         return "folha"
+    if c.startswith("2.1.70"):
+        return "provisoes"
+    if c.startswith("2.1.1"):
+        return "emprestimos"
+    if c.startswith("2.1.2"):
+        return "emprestimos"
+    if c.startswith("2.1.3"):
+        return "fornecedores"
+    if c.startswith("2.1.4"):
+        return "tributos_a_recolher"
+    if c.startswith("2.1.5"):
+        if c.startswith(("2.1.5.04", "2.1.5.05", "2.1.5.06")):
+            return "tributos_a_recolher"
+        if c.startswith("2.1.5.03"):
+            return "provisoes"
+        if any(k in text for k in ("inss", "fgts", "previdencia", "contribuicao social", "imposto", "tributo", "simples", "irrf", "iss", "pis", "cofins")):
+            return "tributos_a_recolher"
+        if any(k in text for k in ("salario", "ordenado", "pro-labore", "rescis", "ferias", "13")):
+            return "folha"
+        return "folha"
+    if c.startswith("2.1.6"):
+        if c.startswith("2.1.6.01") or any(k in text for k in ("adiantamento de cliente", "adiantamentos de clientes", "cliente")):
+            return "adiantamentos_clientes"
+        if any(k in text for k in ("socio", "administrador", "pessoa ligada", "mutuo")):
+            return "socios"
+        return "outros"
+    if c.startswith("2.1.7"):
+        return "lucros"
     if c.startswith(("2.1.30", "2.1.40")):
-        return "tributos"
+        return "tributos_a_recolher"
     if c.startswith("2.1.50.1"):
         return "folha"
     if c.startswith("2.1.50.2"):
-        return "tributos"
+        return "tributos_a_recolher"
     if c.startswith("2.1.50"):
         if any(k in text for k in ("inss", "fgts", "previdencia", "contribuicao social")):
-            return "tributos"
+            return "tributos_a_recolher"
         if any(k in text for k in ("salario", "ordenado", "pro-labore", "rescis", "ferias", "13")):
             return "folha"
         return "folha"
@@ -593,11 +671,17 @@ def _dominio_group(classification: str, description: str) -> str:
         if "fornecedor" in text:
             return "fornecedores"
         if any(k in text for k in ("inss", "fgts", "simples", "irrf", "iss", "icms", "pis", "cofins", "tributo", "imposto")):
-            return "tributos"
+            return "tributos_a_recolher"
         if any(k in text for k in ("salario", "pro-labore", "ferias", "rescis")):
             return "folha"
         return "outros"
 
+    if c.startswith("2.2.1.08"):
+        return "fornecedores"
+    if c.startswith(("2.2.1.09", "2.2.1.15", "2.2.1.16")):
+        return "tributos_a_recolher"
+    if c.startswith("2.2.1.10"):
+        return "adiantamentos_clientes"
     if c.startswith(("2.2.11.3", "2.2")):
         return "emprestimos"
 
@@ -608,21 +692,37 @@ def _dominio_group(classification: str, description: str) -> str:
     if c.startswith("2.3"):
         return "patrimonio"
 
-    if c.startswith(("3.1.10", "3.1")):
+    if c.startswith("3.1.2"):
+        if any(k in text for k in ("simples", "imposto", "tributo", "iss", "icms", "pis", "cofins")):
+            return "tributos_sobre_receita"
+        return "receita"
+    if c.startswith(("3.1.1", "3.1.10", "3.1")):
         if c.startswith("3.1.20"):
-            return "tributos"
+            return "tributos_sobre_receita"
         return "receita"
     if c.startswith("3.2"):
         return "receita"
 
     if c.startswith("4.1"):
+        return "custos"
+    if c.startswith("4.2.1.01"):
+        return "folha"
+    if c.startswith("4.2.1.05"):
+        return "despesas_representacao"
+    if c.startswith(("4.2.1.11", "4.2.1.12", "4.2.2.03")):
+        return "despesas_tributarias"
+    if c.startswith("4.2.2.01"):
+        return "folha"
+    if c.startswith("4.2.2.05"):
+        return "despesas"
+    if c.startswith("4.2.3"):
         return "despesas"
     if c.startswith(("4.2.20.100", "4.2.20.200")):
         return "folha"
     if c.startswith("4.2.20.300.007"):
         return "multas_fiscais"
     if c.startswith("4.2.20.300"):
-        return "tributos"
+        return "despesas_tributarias"
     if c.startswith(("4.2.20.400", "4.2.20.500")):
         if any(k in text for k in ("representacao", "viagem", "hospedagem", "brinde", "alimentacao")):
             return "despesas_representacao"
@@ -639,7 +739,7 @@ def _dominio_group(classification: str, description: str) -> str:
         if any(k in text for k in ("veiculo", "combustivel", "manutencao")):
             return "despesas_veiculos"
         if any(k in text for k in ("imposto", "taxa", "tributo", "inss", "fgts")):
-            return "tributos"
+            return "despesas_tributarias"
         return "despesas"
 
     if "socio" in text or "socios" in text or "administradores" in text:
@@ -697,6 +797,14 @@ def _infer_grupo_from_conta(codigo: str, conta: str) -> str | None:
         return "investimentos"
     if "capital social" in text or "reserva" in text or "prejuizo" in text or "lucro acumulado" in text:
         return "patrimonio_liquido"
+    if any(k in text for k in ("imposto", "tributo", "simples", "irrf", "iss", "icms", "pis", "cofins", "inss", "fgts")):
+        if codigo.startswith("2."):
+            return "tributos_a_recolher"
+        if codigo.startswith("3."):
+            return "tributos_sobre_receita"
+        if codigo.startswith("4."):
+            return "despesas_tributarias"
+        return "tributos"
     if "despesa" in text:
         return "despesas"
 

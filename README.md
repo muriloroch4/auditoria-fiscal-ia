@@ -59,7 +59,7 @@ Requisitos: Python 3.11+
 python -m src.auditoria.api --port 8000
 ```
 
-Acesse `http://127.0.0.1:8000` — faça upload do balancete e veja o JSON de saída. Botão **⬇ JSON** para download do resultado.
+Acesse `http://127.0.0.1:8000` — faça upload do balancete e veja o dashboard/JSON de saída. Botões **⬇ JSON** e **PDF** permitem baixar o JSON e salvar o dashboard em PDF pelo navegador.
 
 Endpoint JSON:
 ```text
@@ -101,6 +101,23 @@ Para gerar o parecer consultivo em Markdown:
 python -m src.auditoria.main samples/balancete_simples_servicos.csv --periodo "2026-T1" --cliente "Cliente Exemplo" --cnpj "00.000.000/0001-00" --markdown --no-ai --saida parecer.md
 ```
 
+### Parecer anual comparativo
+
+Depois de gerar os JSONs trimestrais, consolide o exercício:
+
+```powershell
+python -m src.auditoria.main --anual t1.json t2.json t3.json t4.json --saida parecer_anual.json
+```
+
+Para gerar o parecer anual comparativo em Markdown:
+
+```powershell
+python -m src.auditoria.main --anual t1.json t2.json t3.json t4.json --markdown --saida parecer_anual.md
+```
+
+O JSON anual (`annual-1.0.0`) consolida receita, deduções, tributos registrados,
+resultado, saldos finais relevantes, recorrência de achados e risco anual.
+
 ### Testes
 
 ```powershell
@@ -124,20 +141,33 @@ Modelos disponíveis em `samples/`.
 | Grupo | Descrição |
 |-------|-----------|
 | `receita` | Receitas de serviços |
-| `tributos` | DAS, Simples Nacional, ISS, INSS e outros |
+| `tributos` | Grupo legado para CSVs antigos sem separação tributária |
+| `tributos_a_recolher` | Obrigações tributárias no passivo |
+| `tributos_sobre_receita` | Deduções/impostos incidentes sobre a receita |
+| `despesas_tributarias` | Despesas tributárias operacionais |
 | `folha` | Pro-labore, salários e encargos |
-| `despesas` | Despesas operacionais |
+| `despesas` / `custos` | Despesas operacionais e custos dos serviços |
 | `socios` | Empréstimos, mútuos e contas correntes |
-| `adiantamentos` | Adiantamentos a fornecedores, clientes, etc. |
+| `adiantamentos` / `adiantamentos_clientes` | Adiantamentos a fornecedores, clientes, empregados e terceiros |
 | `caixa` / `bancos` | Disponibilidades |
 | `lucros` | Distribuição de lucros |
 | `resultado` | Lucro ou prejuízo apurado |
+| `fornecedores`, `estoques`, `creditos_fiscais`, `emprestimos` | Métricas complementares extraídas do plano de contas |
 
 ## Integração com IA
 
 O motor de regras entrega o JSON v2.0.0 e o CLI também pode gerar parecer consultivo em Markdown com `--markdown`. O relatório em linguagem natural usa o system prompt consultivo em `src/auditoria/report_ai.py` (Parecer Técnico Consultivo Trimestral — 4 seções), com fallback local quando `--no-ai` é usado ou quando a IA não está disponível.
 
 O cliente OpenRouter (`src/auditoria/ai_client.py`) pode ser usado para esse fim, mas é independente do motor de regras.
+
+### Chats externos por JSON
+
+Para uso em chats treinados ou assistentes externos, mantenha dois chats separados:
+
+- **Parecer Trimestral via JSON** — recebe o JSON trimestral `v2.0.0` gerado pelo motor.
+- **Parecer Anual Comparativo via JSON** — recebe o JSON anual `annual-1.0.0` gerado pela consolidação dos trimestres.
+
+Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`. Em ambos os casos, a orientação é enviar apenas o JSON gerado pelo sistema como entrada e solicitar a saída em Markdown.
 
 ## Estrutura do projeto
 
@@ -146,11 +176,13 @@ O cliente OpenRouter (`src/auditoria/ai_client.py`) pode ser usado para esse fim
 - `src/auditoria/rules/simples_servicos.py` — 21+ regras fiscais com `normas_aplicaveis`
 - `src/auditoria/risk.py` — classificação de risco + `suggest_opinion_type`
 - `src/auditoria/audit.py` — orquestração: métricas, contexto do regime, explicação do score
+- `src/auditoria/annual.py` — consolidação anual dos JSONs trimestrais e parecer anual comparativo
 - `src/auditoria/serializers.py` — serialização para JSON v2.0.0
-- `src/auditoria/api.py` — servidor HTTP com upload, schema e download JSON
+- `src/auditoria/api.py` — servidor HTTP com upload, schema, dashboard, download JSON e impressão em PDF
 - `src/auditoria/report_ai.py` — system prompt para geração de parecer via IA
 - `src/auditoria/ai_client.py` — cliente OpenRouter (stdlib, sem dependências)
 - `src/auditoria/main.py` — CLI para processamento em lote (JSON por padrão, Markdown com `--markdown`)
 - `config/rules.json` — configuração de pesos e limites das regras
 - `REGRAS.md` — tabela das regras fiscais configuradas
+- `docs/PROMPTS_IA.md` — prompts para chats externos de parecer trimestral e anual
 - `tests/` — suíte de testes unitários e de integração leve

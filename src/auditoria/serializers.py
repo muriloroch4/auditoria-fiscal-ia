@@ -8,6 +8,18 @@ from .models import AuditResult, RuleFinding
 from .risk import suggest_opinion_type
 from .utils import format_brl
 
+_NORMA_LABELS = {
+    "LC 123/2006": "Lei Complementar nº 123/2006",
+    "art. 3° LC 123/2006": "Lei Complementar nº 123/2006, art. 3º",
+    "art. 14° LC 123/2006": "Lei Complementar nº 123/2006, art. 14",
+    "art. 18° LC 123/2006": "Lei Complementar nº 123/2006, art. 18",
+    "art. 47° LC 123/2006": "Lei Complementar nº 123/2006, art. 47",
+    "Anexo III da LC 123/2006": "Lei Complementar nº 123/2006, Anexo III",
+    "LC 155/2016": "Lei Complementar nº 155/2016",
+    "NBC TG 1000": "NBC TG 1000 (R1)",
+    "ITG 2000": "ITG 2000 (R1)",
+}
+
 
 def audit_result_to_dict(result: AuditResult) -> dict[str, Any]:
     cfg = load_config()
@@ -66,13 +78,21 @@ def _build_metricas_block(result: AuditResult) -> dict[str, Any]:
 
     block: dict[str, Any] = {
         "receita_servicos": _entry("receita_servicos", "receita_servicos"),
-        "tributos_a_recolher": _entry("tributos_a_recolher", "tributos"),
+        "deducoes_receita": _entry("deducoes_receita", "deducoes_receita"),
+        "tributos_a_recolher": _entry("tributos_a_recolher", "tributos_a_recolher"),
+        "tributos_registrados": _entry("tributos_registrados", "tributos_registrados"),
         "folha_pro_labore": _entry("folha_pro_labore", "folha_pro_labore"),
         "despesas_operacionais": _entry("despesas_operacionais", "despesas"),
         "lucros_distribuidos": _entry("lucros_distribuidos", "lucros_distribuidos"),
         "lucro_apurado_base": _entry("lucro_apurado_base", "lucro_apurado_base"),
         "caixa_e_bancos": _entry("caixa_e_bancos", "caixa_bancos"),
         "clientes_recebiveis": _entry("clientes_recebiveis", "clientes_recebiveis"),
+        "adiantamentos": _entry("adiantamentos", "adiantamentos"),
+        "fornecedores": _entry("fornecedores", "fornecedores"),
+        "estoques": _entry("estoques", "estoques"),
+        "creditos_fiscais": _entry("creditos_fiscais", "creditos_fiscais"),
+        "emprestimos": _entry("emprestimos", "emprestimos"),
+        "patrimonio_liquido": _entry("patrimonio_liquido", "patrimonio_liquido"),
         "origem_lucro_apurado": vals.get("origem_lucro_apurado", fmts.get("origem_lucro_apurado", "")),
     }
 
@@ -91,7 +111,7 @@ def _finding_to_dict(finding: RuleFinding) -> dict[str, Any]:
         "descricao": finding.descricao,
         "evidencia": finding.evidencia,
         "recomendacao": finding.recomendacao,
-        "normas_aplicaveis": list(finding.normas_aplicaveis),
+        "normas_aplicaveis": _normalize_normas(finding.normas_aplicaveis),
     }
 
 
@@ -102,3 +122,12 @@ def _infer_conjunto(regime: str) -> str:
         "lucro real": "lucro_real",
     }
     return mapa.get(regime.lower(), "simples_servicos")
+
+
+def _normalize_normas(normas: tuple[str, ...]) -> list[str]:
+    normalized: list[str] = []
+    for norma in normas:
+        label = _NORMA_LABELS.get(norma, norma)
+        if label and label not in normalized:
+            normalized.append(label)
+    return normalized

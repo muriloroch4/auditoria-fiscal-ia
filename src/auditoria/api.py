@@ -256,18 +256,28 @@ def _schema_v2_definition() -> dict:
         },
         "metricas": {
             "receita_servicos": {"valor": "float", "formatado": "str"},
+            "deducoes_receita": {"valor": "float", "formatado": "str"},
             "tributos_a_recolher": {"valor": "float", "formatado": "str"},
+            "tributos_registrados": {"valor": "float", "formatado": "str"},
             "folha_pro_labore": {"valor": "float", "formatado": "str"},
             "despesas_operacionais": {"valor": "float", "formatado": "str"},
             "lucros_distribuidos": {"valor": "float", "formatado": "str"},
             "lucro_apurado_base": {"valor": "float", "formatado": "str"},
             "caixa_e_bancos": {"valor": "float", "formatado": "str"},
             "clientes_recebiveis": {"valor": "float", "formatado": "str"},
+            "adiantamentos": {"valor": "float", "formatado": "str"},
+            "fornecedores": {"valor": "float", "formatado": "str"},
+            "estoques": {"valor": "float", "formatado": "str"},
+            "creditos_fiscais": {"valor": "float", "formatado": "str"},
+            "emprestimos": {"valor": "float", "formatado": "str"},
+            "patrimonio_liquido": {"valor": "float", "formatado": "str"},
             "origem_lucro_apurado": "str",
             "indicadores_derivados": {
                 "carga_tributaria_efetiva_percentual": "str",
+                "percentual_deducoes_sobre_receita": "str",
                 "percentual_folha_sobre_receita": "str",
                 "percentual_despesas_sobre_receita": "str",
+                "endividamento_bancario_sobre_receita": "str",
                 "resultado_positivo": "bool",
             },
         },
@@ -452,6 +462,16 @@ def _index_html() -> str:
       .risk-stats {{ margin-left: 0; }}
       .metric-grid {{ grid-template-columns: repeat(2, 1fr); }}
     }}
+
+    @media print {{
+      body {{ background: #fff; }}
+      .sidebar, .main-header, .toggle-link, .raw-json {{ display: none !important; }}
+      .app, .main, .report {{ display: block; height: auto; overflow: visible; }}
+      .main {{ width: 100%; }}
+      .report {{ padding: 0; }}
+      .risk-hero, .metric-card, .ctx-item, .explain-box {{ break-inside: avoid; }}
+      .findings-table tr {{ break-inside: avoid; }}
+    }}
   </style>
 </head>
 <body>
@@ -542,6 +562,8 @@ def _index_html() -> str:
       /* Metrics */
       const metricKeys = [
         ["receita_servicos", "Receita de Serviços"],
+        ["deducoes_receita", "Deduções da Receita"],
+        ["tributos_registrados", "Tributos Registrados"],
         ["tributos_a_recolher", "Tributos a Recolher"],
         ["folha_pro_labore", "Folha / Pro-Labore"],
         ["despesas_operacionais", "Despesas Operacionais"],
@@ -549,6 +571,11 @@ def _index_html() -> str:
         ["lucro_apurado_base", "Lucro Apurado"],
         ["caixa_e_bancos", "Caixa e Bancos"],
         ["clientes_recebiveis", "Clientes / Recebíveis"],
+        ["adiantamentos", "Adiantamentos"],
+        ["fornecedores", "Fornecedores"],
+        ["estoques", "Estoques"],
+        ["creditos_fiscais", "Créditos Fiscais"],
+        ["emprestimos", "Empréstimos"],
       ];
       html += `<div class="db-section"><div class="db-section-title">Métricas</div><div class="metric-grid">`;
       for (const [key, label] of metricKeys) {{
@@ -568,8 +595,10 @@ def _index_html() -> str:
         html += `<div class="db-section"><div class="db-section-title">Indicadores Derivados</div><div class="indicators">`;
         const indLabels = [
           ["carga_tributaria_efetiva_percentual", "Carga Tributária"],
+          ["percentual_deducoes_sobre_receita", "Deduções / Receita"],
           ["percentual_folha_sobre_receita", "Folha / Receita"],
           ["percentual_despesas_sobre_receita", "Despesas / Receita"],
+          ["endividamento_bancario_sobre_receita", "Empréstimos / Receita"],
         ];
         for (const [key, label] of indLabels) {{
           const v = ind[key];
@@ -662,6 +691,67 @@ def _index_html() -> str:
       output.innerHTML = html;
     }}
 
+    function dashboardFilename(ext) {{
+      const ident = lastData?.identificacao || {{}};
+      const clean = (value, fallback) => String(value || fallback)
+        .replace(/\\s+/g, "_")
+        .replace(/[^\\w.-]/g, "_");
+      return `auditoria_${{clean(ident.cliente, "cliente")}}_${{clean(ident.periodo, "periodo")}}.${{ext}}`;
+    }}
+
+    function printDashboardPdf() {{
+      if (!lastData) return;
+      const printWindow = window.open("", "_blank");
+      if (!printWindow) {{
+        window.print();
+        return;
+      }}
+
+      const ident = lastData.identificacao || {{}};
+      const style = document.querySelector("style")?.innerHTML || "";
+      const title = `Dashboard de Auditoria - ${{ident.cliente || "cliente"}} - ${{ident.periodo || "periodo"}}`;
+      const printCss = `
+        @page {{ size: A4; margin: 12mm; }}
+        body {{ background: #fff; color: #111827; padding: 0; }}
+        .print-page {{ max-width: 100%; margin: 0; }}
+        .print-header {{ margin-bottom: 18px; border-bottom: 1px solid #d1d5db; padding-bottom: 10px; }}
+        .print-header h1 {{ font-size: 20px; margin: 0 0 4px; }}
+        .print-header p {{ margin: 0; color: #4b5563; font-size: 12px; }}
+        .report {{ padding: 0; overflow: visible; }}
+        .toggle-link, #raw-json, .raw-json {{ display: none !important; }}
+        .risk-hero, .metric-card, .ctx-item, .explain-box {{ break-inside: avoid; }}
+        .findings-table tr {{ break-inside: avoid; }}
+      `;
+      const content = output.innerHTML;
+      printWindow.document.open();
+      printWindow.document.write(`<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>${{esc(title)}}</title>
+  <style>${{style}}${{printCss}}</style>
+</head>
+<body>
+  <div class="print-page">
+    <div class="print-header">
+      <h1>${{esc(title)}}</h1>
+      <p>Gerado a partir do dashboard de auditoria. Use a opção "Salvar como PDF" do navegador.</p>
+    </div>
+    <div class="report">${{content}}</div>
+  </div>
+  <script>
+    window.addEventListener("load", function() {{
+      setTimeout(function() {{
+        window.focus();
+        window.print();
+      }}, 250);
+    }});
+  <\\/script>
+</body>
+</html>`);
+      printWindow.document.close();
+    }}
+
     let lastData = null;
 
     form.addEventListener("submit", async (event) => {{
@@ -681,16 +771,18 @@ def _index_html() -> str:
           `<span class="pill ${{nivel}}">Risco: ${{nivel.toUpperCase()}}</span>` +
           `<span class="pill info">Score: ${{risco.pontuacao_total ?? 0}}</span>` +
           `<span class="pill info">Achados: ${{(data.achados || []).length}}</span>` +
-          `<button id="download-btn" class="pill outline" style="margin-left:4px">&#11015; JSON</button>`;
+          `<button id="download-btn" class="pill outline" style="margin-left:4px">&#11015; JSON</button>` +
+          `<button id="pdf-btn" class="pill outline" style="margin-left:4px">&#128462; PDF</button>`;
         document.getElementById("download-btn").addEventListener("click", () => {{
           const blob = new Blob([JSON.stringify(lastData, null, 2)], {{ type: "application/json" }});
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
-          a.download = `auditoria_${{(data.identificacao?.cliente || "cliente").replace(/\\s+/g, "_")}}_${{(data.identificacao?.periodo || "periodo")}}.json`;
+          a.download = dashboardFilename("json");
           a.click();
           URL.revokeObjectURL(url);
         }});
+        document.getElementById("pdf-btn").addEventListener("click", printDashboardPdf);
         renderDashboard(data);
       }} catch (error) {{
         output.innerHTML = `<div class='report'><p style="color:var(--danger)">${{esc(error.message)}}</p></div>`;
