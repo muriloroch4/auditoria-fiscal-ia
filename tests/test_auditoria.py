@@ -29,16 +29,16 @@ class AuditPrototypeTest(unittest.TestCase):
         payload = audit_result_to_dict(result)
 
         self.assertEqual(result.nivel_geral, RiskLevel.ALTO)
-        self.assertEqual(payload["_schema_version"], "2.0.0")
-        self.assertIn("meta", payload)
-        self.assertIn("identificacao", payload)
-        self.assertIn("risco", payload)
-        self.assertIn("metricas", payload)
-        self.assertIn("achados", payload)
-        self.assertIn("contexto_regime", payload)
-        self.assertEqual(payload["risco"]["nivel_geral"], "alto")
-        self.assertIn("explicacao_pontuacao", payload["risco"])
-        self.assertIn("modalidade_opiniao_sugerida", payload["risco"])
+        self.assertEqual(payload["metadados"]["versao_schema"], "3.0.0")
+        self.assertIn("identificacao_empresa", payload)
+        self.assertIn("resumo_analise", payload)
+        self.assertIn("principais_achados", payload)
+        self.assertIn("fundamentacao_tecnica_resumida", payload)
+        self.assertIn("conclusao_tecnica", payload)
+        self.assertIn("recomendacoes_tecnicas", payload)
+        self.assertEqual(payload["resumo_analise"]["risco_geral"], "alto")
+        self.assertIn("principais_pontos", payload["resumo_analise"])
+        self.assertIn("conclusao_sugerida", payload["conclusao_tecnica"])
 
     def test_local_markdown_report_uses_consultivo_template(self):
         sample = Path("samples/balancete_simples_servicos.csv")
@@ -47,11 +47,11 @@ class AuditPrototypeTest(unittest.TestCase):
         result = run_quarterly_audit(balance)
         report = generate_markdown_report(result, use_ai=False)
 
-        self.assertIn("PARECER TÉCNICO CONTÁBIL — CONSULTIVO TRIMESTRAL", report)
-        self.assertIn("## 1. RESUMO EXECUTIVO", report)
-        self.assertIn("## 2. ACHADOS E RECOMENDAÇÕES", report)
-        self.assertIn("## 3. OPINIÃO TÉCNICA", report)
-        self.assertIn("## 4. ASSINATURA", report)
+        self.assertIn("Parecer técnico contábil consultivo trimestral", report)
+        self.assertIn("## 1. Resumo executivo", report)
+        self.assertIn("## 2. Achados e recomendações", report)
+        self.assertIn("## 3. Opinião técnica", report)
+        self.assertIn("## 4. Assinatura", report)
         self.assertIn("CNPJ:     12.345.678/0001-90", report)
 
     def test_csv_text_parser_supports_upload_flow(self):
@@ -180,9 +180,9 @@ class AuditPrototypeTest(unittest.TestCase):
         result = run_quarterly_audit(balance)
         payload = audit_result_to_dict(result)
 
-        for achado in payload["achados"]:
-            self.assertIn("normas_aplicaveis", achado)
-            self.assertIsInstance(achado["normas_aplicaveis"], list)
+        for achado in payload["principais_achados"]:
+            self.assertIn("norma_fundamento", achado)
+            self.assertIsInstance(achado["norma_fundamento"], list)
 
     def test_suggest_opinion_type_logic(self):
         alto = RuleFinding(codigo="SN-008A", titulo="Test", nivel=RiskLevel.ALTO, pontuacao=20, descricao="Test")
@@ -391,11 +391,10 @@ class MelhoriasMotorFiscalTest(unittest.TestCase):
         )
         balance = read_trial_balance_csv_text(content, cliente="Dominio Receita", periodo="2026-T3")
         result = run_quarterly_audit(balance)
-        payload = audit_result_to_dict(result)
 
-        self.assertEqual(payload["metricas"]["receita_servicos"]["valor"], 190000.0)
-        self.assertEqual(payload["metricas"]["deducoes_receita"]["valor"], 12730.0)
-        self.assertEqual(payload["metricas"]["lucro_apurado_base"]["valor"], 175667.0)
+        self.assertEqual(result.metricas_valores["receita_servicos"], 190000.0)
+        self.assertEqual(result.metricas_valores["deducoes_receita"], 12730.0)
+        self.assertEqual(result.metricas_valores["lucro_apurado_base"], 175667.0)
 
     def test_custos_entram_em_despesas_e_resultado_estimado(self):
         content = dedent(
@@ -408,12 +407,11 @@ class MelhoriasMotorFiscalTest(unittest.TestCase):
         )
         balance = read_trial_balance_csv_text(content, cliente="Custos", periodo="2026-T1")
         result = run_quarterly_audit(balance)
-        payload = audit_result_to_dict(result)
         codes = {f.codigo for f in result.achados}
 
         self.assertIn("SN-007", codes)
-        self.assertEqual(payload["metricas"]["despesas_operacionais"]["valor"], 80000.0)
-        self.assertEqual(payload["metricas"]["lucro_apurado_base"]["valor"], 20000.0)
+        self.assertEqual(result.metricas_valores["despesas_operacionais"], 80000.0)
+        self.assertEqual(result.metricas_valores["lucro_apurado_base"], 20000.0)
 
     def test_tributos_registrados_e_passivo_tributario_sao_metricas_separadas(self):
         content = dedent(
@@ -427,13 +425,12 @@ class MelhoriasMotorFiscalTest(unittest.TestCase):
         )
         balance = read_trial_balance_csv_text(content, cliente="Tributos separados", periodo="2026-T1")
         result = run_quarterly_audit(balance)
-        payload = audit_result_to_dict(result)
         codes = {f.codigo for f in result.achados}
 
         self.assertIn("SN-002B", codes)
         self.assertIn("SN-012", codes)
-        self.assertEqual(payload["metricas"]["tributos_registrados"]["valor"], 2000.0)
-        self.assertEqual(payload["metricas"]["tributos_a_recolher"]["valor"], 30000.0)
+        self.assertEqual(result.metricas_valores["tributos_registrados"], 2000.0)
+        self.assertEqual(result.metricas_valores["tributos_a_recolher"], 30000.0)
 
     def test_adiantamentos_de_clientes_tambem_disparam_sn011(self):
         content = dedent(
@@ -466,6 +463,40 @@ class MelhoriasMotorFiscalTest(unittest.TestCase):
 
         self.assertIn("SN-004A", codes)
 
+    def test_lucros_acumulados_suportam_distribuicao_trimestral(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;0;0;0
+            2.3.20;Lucros Acumulados;patrimonio;0;0;90000;-90000
+            3.1.1;Receita de Servicos;receita;0;0;100000;100000
+            4.1.1;Custos;custos;0;120000;0;-120000
+            5.1.1;Distribuicao de Lucros;lucros;0;50000;0;-50000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Lucros Acumulados", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        codes = {f.codigo for f in result.achados}
+
+        self.assertNotIn("SN-004A", codes)
+        self.assertIn("SN-004B", codes)
+
+    def test_sn001_evidencia_receita_trimestral_anualizada(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;0;0;0
+            3.1.1;Receita de Servicos;receita;0;0;900000;900000
+            4.1.1;Folha;folha;0;100000;0;-100000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Receita Alta", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        finding = next(f for f in result.achados if f.codigo == "SN-001A")
+
+        self.assertIn("receita_anualizada_estimativa", finding.evidencia)
+        self.assertIn("limite_anual_simples", finding.evidencia)
+
     def test_overlap_sn008_and_sn010_zero_revenue_with_receivables(self):
         content = dedent(
             """\
@@ -494,6 +525,36 @@ class MelhoriasMotorFiscalTest(unittest.TestCase):
         result = run_quarterly_audit(balance)
         codes = {f.codigo for f in result.achados}
         self.assertNotIn("SN-011A", codes)
+
+    def test_sn011_usa_maior_referencia_entre_percentual_e_valor_absoluto(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;0;0;0
+            1.1.3;Adiantamento a Fornecedores;adiantamentos;0;15000;0;15000
+            3.1.1;Receita;receita;0;0;200000;200000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="SN011 Referencia", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        codes = {f.codigo for f in result.achados}
+
+        self.assertNotIn("SN-011A", codes)
+
+    def test_sn011_dispara_acima_da_maior_referencia(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;0;0;0
+            1.1.3;Adiantamento a Fornecedores;adiantamentos;0;25000;0;25000
+            3.1.1;Receita;receita;0;0;200000;200000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="SN011 Acima", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        finding = next(f for f in result.achados if f.codigo == "SN-011A")
+
+        self.assertEqual(finding.evidencia["referencia_aplicada"], "R$ 20.000,00")
 
     def test_sn_comp01_compound_rule_triggers(self):
         content = dedent(
@@ -555,9 +616,58 @@ class MelhoriasMotorFiscalTest(unittest.TestCase):
         self.assertIn("provisoes", contas_por_grupo)
         self.assertIn("despesas_representacao", contas_por_grupo)
 
+    def test_simples_comercio_triggers_commerce_rules(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;100000;90000;10000
+            1.1.5;Mercadorias para revenda;estoques;0;0;0;250000
+            1.1.8;ICMS a recuperar;creditos_fiscais;0;0;0;10000
+            2.1.3;Fornecedores nacionais;fornecedores;0;0;0;180000
+            3.1.1;Receita de venda de mercadorias;receita;0;0;100000;100000
+            4.1.1;CMV;custos;0;0;0;0
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Comercio", periodo="2026-T1")
+        result = run_quarterly_audit(balance, atividade="comercio")
+        payload = audit_result_to_dict(result)
+        codes = {f.codigo for f in result.achados}
 
-class SchemaV2Test(unittest.TestCase):
-    def test_audit_result_dict_has_schema_version(self):
+        self.assertEqual(result.conjunto_regras, "simples_comercio")
+        self.assertEqual(payload["metadados"]["conjunto_regras"], "simples_comercio")
+        self.assertIn("SN-015C", codes)
+        self.assertIn("SN-016C", codes)
+        self.assertIn("SN-017", codes)
+        self.assertIn("SN-018A", codes)
+        self.assertIn("SN-COMP-04", codes)
+        self.assertNotIn("SN-003", codes)
+
+    def test_simples_comercio_servicos_triggers_revenue_segregation_rule(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;150000;120000;30000
+            1.1.5;Mercadorias para revenda;estoques;0;0;0;40000
+            2.1.3;Fornecedores nacionais;fornecedores;0;0;0;30000
+            3.1.1;Receita operacional;receita;0;0;150000;150000
+            3.1.2;Simples Nacional;tributos_sobre_receita;0;10000;0;-10000
+            4.1.1;Folha;folha;0;20000;0;-20000
+            4.2.1;CMV;custos;0;60000;0;-60000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Mista", periodo="2026-T1")
+        result = run_quarterly_audit(balance, atividade="comercio_servicos")
+        payload = audit_result_to_dict(result)
+        codes = {f.codigo for f in result.achados}
+
+        self.assertEqual(result.conjunto_regras, "simples_comercio_servicos")
+        self.assertEqual(payload["metadados"]["conjunto_regras"], "simples_comercio_servicos")
+        self.assertIn("SN-020", codes)
+        self.assertIn("SN-020", {achado["codigo"] for achado in payload["principais_achados"]})
+
+
+class SchemaV3ResumoTest(unittest.TestCase):
+    def test_audit_result_dict_has_summary_schema(self):
         content = dedent(
             """\
             codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
@@ -569,13 +679,25 @@ class SchemaV2Test(unittest.TestCase):
         result = run_quarterly_audit(balance)
         payload = audit_result_to_dict(result)
 
-        self.assertEqual(payload["_schema_version"], "2.0.0")
-        self.assertEqual(payload["meta"]["versao_schema"], "2.0.0")
-        self.assertEqual(payload["identificacao"]["regime_tributario"], "Simples Nacional")
-        self.assertIn("total_contas_analisadas", payload["meta"])
-        self.assertIn("total_regras_verificadas", payload["meta"])
+        self.assertEqual(
+            list(payload.keys()),
+            [
+                "identificacao_empresa",
+                "resumo_analise",
+                "principais_achados",
+                "fundamentacao_tecnica_resumida",
+                "conclusao_tecnica",
+                "recomendacoes_tecnicas",
+                "metadados",
+            ],
+        )
+        self.assertEqual(payload["metadados"]["versao_schema"], "3.0.0")
+        self.assertEqual(payload["identificacao_empresa"]["regime_tributario"], "Simples Nacional")
+        self.assertIn("total_regras_verificadas", payload["resumo_analise"])
+        self.assertIn("total_regras_acionadas", payload["resumo_analise"])
+        self.assertNotIn("_schema_version", payload)
 
-    def test_risco_block_has_classificacao_and_opiniao(self):
+    def test_resumo_and_conclusao_have_risk_and_opinion(self):
         content = dedent(
             """\
             codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
@@ -586,16 +708,18 @@ class SchemaV2Test(unittest.TestCase):
         balance = read_trial_balance_csv_text(content, cliente="Risco", periodo="2026-T1")
         result = run_quarterly_audit(balance)
         payload = audit_result_to_dict(result)
-        risco = payload["risco"]
+        resumo = payload["resumo_analise"]
+        conclusao = payload["conclusao_tecnica"]
 
-        self.assertIn("classificacao", risco)
-        self.assertIn("modalidade_opiniao_sugerida", risco)
-        self.assertIn("achados_alto", risco["classificacao"])
-        self.assertIn("achados_medio", risco["classificacao"])
-        self.assertIn("achados_baixo", risco["classificacao"])
-        self.assertIn("achados_compostos", risco["classificacao"])
+        self.assertIn("achados_por_severidade", resumo)
+        self.assertIn("conclusao_sugerida", conclusao)
+        self.assertIn("alta", resumo["achados_por_severidade"])
+        self.assertIn("media", resumo["achados_por_severidade"])
+        self.assertIn("baixa", resumo["achados_por_severidade"])
+        self.assertTrue(conclusao["ressalva_base_json"])
+        self.assertTrue(conclusao["necessita_validacao_documental"])
 
-    def test_metricas_block_has_valor_and_formatado(self):
+    def test_principais_achados_have_summary_fields(self):
         content = dedent(
             """\
             codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
@@ -607,13 +731,15 @@ class SchemaV2Test(unittest.TestCase):
         balance = read_trial_balance_csv_text(content, cliente="MetricasV2", periodo="2026-T1")
         result = run_quarterly_audit(balance)
         payload = audit_result_to_dict(result)
-        metricas = payload["metricas"]
+        achado = payload["principais_achados"][0]
 
-        self.assertIn("valor", metricas["receita_servicos"])
-        self.assertIn("formatado", metricas["receita_servicos"])
-        self.assertEqual(metricas["clientes_recebiveis"]["valor"], 70000.0)
-        self.assertEqual(metricas["clientes_recebiveis"]["formatado"], "R$ 70.000,00")
-        self.assertIn("indicadores_derivados", metricas)
+        self.assertIn("codigo", achado)
+        self.assertIn("severidade", achado)
+        self.assertIn("achado", achado)
+        self.assertIn("evidencia_identificada", achado)
+        self.assertIn("impacto_tecnico", achado)
+        self.assertIn("pontuacao", achado)
+        self.assertIn("norma_fundamento", achado)
 
     def test_total_regras_verificadas_uses_configured_sn_rules(self):
         content = dedent(
@@ -626,9 +752,9 @@ class SchemaV2Test(unittest.TestCase):
         balance = read_trial_balance_csv_text(content, cliente="Regras", periodo="2026-T1")
         result = run_quarterly_audit(balance)
         payload = audit_result_to_dict(result)
-        expected_total = sum(1 for key in load_config() if key.startswith("SN-"))
+        expected_total = len(load_config()["conjuntos_regras"]["simples_servicos"])
 
-        self.assertEqual(payload["meta"]["total_regras_verificadas"], expected_total)
+        self.assertEqual(payload["resumo_analise"]["total_regras_verificadas"], expected_total)
 
 
 class AnnualComparisonTest(unittest.TestCase):
@@ -645,7 +771,6 @@ class AnnualComparisonTest(unittest.TestCase):
 
         self.assertEqual(annual["_schema_version"], "annual-1.0.0")
         self.assertEqual(annual["identificacao"]["exercicio"], "2026")
-        self.assertEqual(annual["metricas_anual"]["receita_servicos_total"]["valor"], 400000.0)
         self.assertEqual(annual["meta"]["trimestres_ausentes"], [])
         self.assertIn("AN-REC-SN-007", codes)
         self.assertEqual(len(annual["comparativo_trimestral"]), 4)
@@ -661,8 +786,8 @@ class AnnualComparisonTest(unittest.TestCase):
 
         report = generate_annual_markdown_report(annual)
 
-        self.assertIn("PARECER TÉCNICO CONTÁBIL — CONSULTIVO ANUAL COMPARATIVO", report)
-        self.assertIn("## 2. COMPARATIVO TRIMESTRAL", report)
+        self.assertIn("Parecer técnico contábil consultivo anual comparativo", report)
+        self.assertIn("## 2. Comparativo trimestral", report)
         self.assertIn("AN-REC-SN-007", report)
 
     def _quarter_payload(self, periodo: str, revenue: int, expenses: int) -> dict:

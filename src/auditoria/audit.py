@@ -6,14 +6,18 @@ from typing import Any
 from .config_loader import load_config
 from .models import AuditResult, RiskLevel, RuleFinding, TrialBalance
 from .risk import classify_total_risk
-from .rules import analyze_simples_servicos
+from .rules import analyze_simples_nacional, normalize_ruleset
 from .rules.simples_servicos import (
     calculate_advances,
+    calculate_cost_of_goods,
+    calculate_inventory,
     calculate_operating_expenses,
     calculate_profit_basis,
     calculate_profit_distribution,
     calculate_revenue,
     calculate_revenue_deductions,
+    calculate_suppliers,
+    calculate_tax_credits,
     calculate_tax_expense,
     calculate_tax_liability,
 )
@@ -23,7 +27,9 @@ from .utils import format_brl, format_percent
 def run_quarterly_audit(
     balance: TrialBalance,
     regime_tributario: str = "Simples Nacional",
+    atividade: str = "servicos",
 ) -> AuditResult:
+    conjunto_regras = normalize_ruleset(atividade)
     revenue = calculate_revenue(balance)
     revenue_deductions = calculate_revenue_deductions(balance)
     expenses = calculate_operating_expenses(balance)
@@ -35,25 +41,26 @@ def run_quarterly_audit(
     cash = balance.total_por_grupo("caixa") + balance.total_por_grupo("bancos")
     clients = abs(balance.total_por_grupo("clientes"))
     advances = calculate_advances(balance)
-    suppliers = abs(balance.total_por_grupo("fornecedores"))
-    inventory = abs(balance.total_por_grupo("estoques") + balance.total_por_grupo("estoque"))
-    tax_credits = abs(balance.total_por_grupo("creditos_fiscais"))
+    suppliers = calculate_suppliers(balance)
+    inventory = calculate_inventory(balance)
+    tax_credits = calculate_tax_credits(balance)
+    cogs = calculate_cost_of_goods(balance)
     debt = abs(balance.total_por_grupo("emprestimos"))
     equity = abs(balance.total_por_grupo("patrimonio") + balance.total_por_grupo("patrimonio_liquido"))
 
     profit_basis = calculate_profit_basis(balance, revenue, expenses)
 
-    findings = analyze_simples_servicos(balance, profit_basis=profit_basis)
+    findings = analyze_simples_nacional(balance, conjunto_regras, profit_basis=profit_basis)
     overall_risk, score = classify_total_risk(findings)
 
     metricas_valores = _build_metricas_valores(
         revenue, revenue_deductions, tax_expense, tax_liability, payroll, expenses,
         profit_dist, profit_basis, cash, clients, advances, suppliers, inventory,
-        tax_credits, debt, equity,
+        tax_credits, cogs, debt, equity,
     )
 
     contexto_regime = _build_contexto_regime_simples(
-        regime_tributario, revenue, payroll, tax_expense
+        regime_tributario, revenue, payroll, tax_expense, conjunto_regras
     )
 
     return AuditResult(
@@ -67,13 +74,14 @@ def run_quarterly_audit(
         resumo_metricas=_build_resumo_metricas(
             revenue, revenue_deductions, tax_expense, tax_liability, payroll, expenses,
             profit_dist, profit_basis, cash, clients, advances, suppliers, inventory,
-            tax_credits, debt, equity,
+            tax_credits, cogs, debt, equity,
         ),
         metricas_valores=metricas_valores,
         explicacao_pontuacao=_explain_score(findings, overall_risk, score),
         contexto_regime=contexto_regime,
         total_contas_analisadas=len(balance.contas),
-        total_regras_verificadas=_total_regras_configuradas(),
+        total_regras_verificadas=_total_regras_configuradas(conjunto_regras),
+        conjunto_regras=conjunto_regras,
     )
 
 
@@ -92,11 +100,13 @@ def _build_resumo_metricas(
     suppliers: Decimal,
     inventory: Decimal,
     tax_credits: Decimal,
+    cogs: Decimal,
     debt: Decimal,
     equity: Decimal,
 ) -> dict[str, str]:
     return {
         "receita_servicos": format_brl(revenue),
+        "receita_operacional": format_brl(revenue),
         "deducoes_receita": format_brl(revenue_deductions),
         "tributos": format_brl(tax_liability),
         "tributos_a_recolher": format_brl(tax_liability),
@@ -111,14 +121,19 @@ def _build_resumo_metricas(
         "adiantamentos": format_brl(advances),
         "fornecedores": format_brl(suppliers),
         "estoques": format_brl(inventory),
+        "cmv_custos": format_brl(cogs),
         "creditos_fiscais": format_brl(tax_credits),
         "emprestimos": format_brl(debt),
         "patrimonio_liquido": format_brl(equity),
     }
 
 
-def _total_regras_configuradas() -> int:
-    return sum(1 for key in load_config() if key.startswith("SN-"))
+def _total_regras_configuradas(conjunto_regras: str) -> int:
+    cfg = load_config()
+    configured = cfg.get("conjuntos_regras", {}).get(conjunto_regras)
+    if configured:
+        return len(configured)
+    return sum(1 for key in cfg if key.startswith("SN-"))
 
 
 def _build_metricas_valores(
@@ -136,6 +151,7 @@ def _build_metricas_valores(
     suppliers: Decimal,
     inventory: Decimal,
     tax_credits: Decimal,
+    cogs: Decimal,
     debt: Decimal,
     equity: Decimal,
 ) -> dict[str, Any]:
@@ -144,6 +160,7 @@ def _build_metricas_valores(
 
     result: dict[str, Any] = {
         "receita_servicos": _f(revenue),
+        "receita_operacional": _f(revenue),
         "deducoes_receita": _f(revenue_deductions),
         "tributos_a_recolher": _f(tax_liability),
         "tributos_registrados": _f(tax_expense),
@@ -157,6 +174,7 @@ def _build_metricas_valores(
         "adiantamentos": _f(advances),
         "fornecedores": _f(suppliers),
         "estoques": _f(inventory),
+        "cmv_custos": _f(cogs),
         "creditos_fiscais": _f(tax_credits),
         "emprestimos": _f(debt),
         "patrimonio_liquido": _f(equity),
@@ -168,6 +186,7 @@ def _build_metricas_valores(
             "percentual_deducoes_sobre_receita": format_percent(revenue_deductions / revenue),
             "percentual_folha_sobre_receita": format_percent(payroll / revenue),
             "percentual_despesas_sobre_receita": format_percent(expenses / revenue),
+            "percentual_cmv_sobre_receita": format_percent(cogs / revenue),
             "endividamento_bancario_sobre_receita": format_percent(debt / revenue),
             "resultado_positivo": profit_basis.value >= 0,
         }
@@ -177,6 +196,7 @@ def _build_metricas_valores(
             "percentual_deducoes_sobre_receita": "0,0%",
             "percentual_folha_sobre_receita": "0,0%",
             "percentual_despesas_sobre_receita": "0,0%",
+            "percentual_cmv_sobre_receita": "0,0%",
             "endividamento_bancario_sobre_receita": "0,0%",
             "resultado_positivo": profit_basis.value >= 0,
         }
@@ -189,6 +209,7 @@ def _build_contexto_regime_simples(
     revenue: Decimal,
     payroll: Decimal,
     taxes: Decimal,
+    conjunto_regras: str,
 ) -> dict[str, Any]:
     annual_proxy = revenue * Decimal("4")
 
@@ -201,28 +222,38 @@ def _build_contexto_regime_simples(
         fator_r = format_percent(payroll / revenue)
 
     observacoes: list[str] = []
+    if conjunto_regras == "simples_comercio":
+        observacoes.append(
+            "Atividade analisada como comercio: validar segregacao de receitas, estoque, fornecedores, CMV e possivel incidencia de ICMS."
+        )
+    elif conjunto_regras == "simples_comercio_servicos":
+        observacoes.append(
+            "Atividade analisada como comercio e servicos: validar segregacao de receitas por natureza, anexos aplicaveis, Fator R, ISS e ICMS."
+        )
+
     if fator_r:
         fator_r_valor = payroll / revenue if revenue > 0 else Decimal("0")
         if fator_r_valor < Decimal("0.28"):
             observacoes.append(
-                f"Fator R estimado de {fator_r} está abaixo do threshold de 28% "
-                "— empresa permanece no Anexo V (alíquota mais elevada)."
+                f"Fator R trimestral estimado de {fator_r} está abaixo da referência de 28%. "
+                "Validar o cálculo oficial com folha e receita acumuladas dos últimos 12 meses antes de concluir sobre o anexo aplicável."
             )
         else:
             observacoes.append(
-                f"Fator R estimado de {fator_r} está acima de 28% "
-                "— empresa pode migrar para o Anexo III (alíquota reduzida)."
+                f"Fator R trimestral estimado de {fator_r} está acima de 28%. "
+                "Validar o cálculo oficial com folha e receita acumuladas dos últimos 12 meses antes de concluir sobre o anexo aplicável."
             )
 
     sublimite_risco = annual_proxy > Decimal("3600000")
     if sublimite_risco:
         observacoes.append(
-            "Receita anualizada supera R$ 3.600.000 — verificar sublimite estadual "
+            "Receita trimestral anualizada supera R$ 3.600.000 — verificar receita acumulada dos últimos 12 meses, sublimite estadual "
             "para ICMS/ISS fora do DAS (art. 20 da LC 123/2006)."
         )
 
     return {
         "regime": regime,
+        "atividade": conjunto_regras,
         "faixa_receita_estimada": faixa,
         "aliquota_efetiva_esperada": aliquota_esperada,
         "fator_r_calculado": fator_r,

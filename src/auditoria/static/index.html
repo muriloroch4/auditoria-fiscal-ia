@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Auditoria Fiscal IA</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/styles.css">
+  <script defer src="/static/app.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">AF</div>
+        <div>
+          <h1>Auditoria Fiscal IA</h1>
+          <p>Pré-auditoria fiscal para Simples Nacional</p>
+        </div>
+      </div>
+
+      <form id="audit-form" class="upload-form">
+        <label for="cliente">Cliente</label>
+        <input type="text" id="cliente" name="cliente" value="Cliente exemplo" required>
+
+        <label for="cnpj">CNPJ</label>
+        <input type="text" id="cnpj" name="cnpj" value="00.000.000/0001-00" placeholder="00.000.000/0001-00">
+
+        <label for="periodo">Período</label>
+        <input type="text" id="periodo" name="periodo" value="2026-T1" required>
+
+        <label for="atividade">Atividade</label>
+        <select id="atividade" name="atividade" required>
+          <option value="servicos">Serviços</option>
+          <option value="comercio">Comércio</option>
+          <option value="comercio_servicos">Comércio e serviços</option>
+        </select>
+
+        <label for="balancete">Balancete</label>
+        <input type="file" id="balancete" name="balancete" accept=".csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
+        <p id="file-meta" class="file-meta">CSV, XLSX ou XLS</p>
+
+        <button class="primary-button" id="submit-button" type="submit">Gerar análise</button>
+      </form>
+
+      <div class="sidebar-footer">
+        <span>JSON trimestral</span>
+        <strong>v3.0.0</strong>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div class="topbar-title">
+          <span class="eyebrow">Dashboard</span>
+          <h2 id="report-title">Pré-auditoria fiscal trimestral</h2>
+        </div>
+        <div id="status-chips" class="status-chips" aria-live="polite"></div>
+        <div id="action-bar" class="action-bar is-hidden">
+          <button id="new-upload-btn" class="secondary-button" type="button">Nova análise</button>
+          <button id="download-btn" class="secondary-button" type="button">Baixar JSON</button>
+          <button id="pdf-btn" class="secondary-button" type="button">Salvar PDF</button>
+        </div>
+      </header>
+
+      <section id="output" class="report" aria-live="polite">
+        <div class="empty-state">
+          <h3>Aguardando o balancete</h3>
+          <p>Nenhuma análise gerada nesta sessão.</p>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

@@ -206,8 +206,41 @@ class APIHealthTest(unittest.TestCase):
             mock_send.assert_called_once()
             html_content = mock_send.call_args.args[0]
             self.assertIn("Auditoria Fiscal IA", html_content)
-            self.assertIn("pdf-btn", html_content)
-            self.assertIn("printDashboardPdf", html_content)
+            self.assertIn('/static/favicon.svg', html_content)
+            self.assertIn('/static/styles.css', html_content)
+            self.assertIn('/static/app.js', html_content)
+
+    def test_static_favicon_returns_svg(self):
+        handler = TestableAuditApiHandler()
+        handler.path = "/static/favicon.svg"
+
+        handler.do_GET()
+
+        self.assertEqual(handler._response_code, HTTPStatus.OK)
+        self.assertEqual(handler._response_headers["Content-Type"], "image/svg+xml; charset=utf-8")
+        content = handler.wfile.getvalue().decode("utf-8")
+        self.assertIn("<svg", content)
+
+    def test_static_javascript_returns_asset(self):
+        handler = TestableAuditApiHandler()
+        handler.path = "/static/app.js"
+
+        handler.do_GET()
+
+        self.assertEqual(handler._response_code, HTTPStatus.OK)
+        self.assertEqual(handler._response_headers["Content-Type"], "text/javascript; charset=utf-8")
+        content = handler.wfile.getvalue().decode("utf-8")
+        self.assertIn("printDashboardPdf", content)
+        self.assertIn("data-finding-filter", content)
+
+    def test_static_missing_asset_returns_404(self):
+        handler = TestableAuditApiHandler()
+        handler.path = "/static/missing.css"
+
+        with unittest.mock.patch.object(handler, "_send_json") as mock_send:
+            handler.do_GET()
+            mock_send.assert_called_once()
+            self.assertEqual(mock_send.call_args.kwargs.get("status"), HTTPStatus.NOT_FOUND)
 
     def test_unknown_get_route_returns_404(self):
         handler = TestableAuditApiHandler()
@@ -283,10 +316,10 @@ class APIAuditUploadTest(unittest.TestCase):
             handler._handle_audit_upload()
             mock_send.assert_called_once()
             result = mock_send.call_args.args[0]
-            self.assertEqual(result["_schema_version"], "2.0.0")
-            self.assertIn("risco", result)
-            self.assertIn("nivel_geral", result["risco"])
-            self.assertIn("achados", result)
+            self.assertEqual(result["metadados"]["versao_schema"], "3.0.0")
+            self.assertIn("resumo_analise", result)
+            self.assertIn("risco_geral", result["resumo_analise"])
+            self.assertIn("principais_achados", result)
 
     def test_upload_xlsx_returns_audit_result(self):
         xlsx_content = _xlsx_trial_balance()
@@ -307,8 +340,8 @@ class APIAuditUploadTest(unittest.TestCase):
             handler._handle_audit_upload()
             mock_send.assert_called_once()
             result = mock_send.call_args.args[0]
-            self.assertEqual(result["_schema_version"], "2.0.0")
-            self.assertIn("nivel_geral", result["risco"])
+            self.assertEqual(result["metadados"]["versao_schema"], "3.0.0")
+            self.assertIn("risco_geral", result["resumo_analise"])
 
     def test_upload_missing_balancete_returns_400(self):
         body, content_type = _build_multipart_form({
@@ -393,8 +426,8 @@ class APIAuditUploadTest(unittest.TestCase):
             handler.do_POST()
             mock_send.assert_called_once()
             result = mock_send.call_args.args[0]
-            self.assertEqual(result["_schema_version"], "2.0.0")
-            self.assertIn("nivel_geral", result["risco"])
+            self.assertEqual(result["metadados"]["versao_schema"], "3.0.0")
+            self.assertIn("risco_geral", result["resumo_analise"])
 
     def test_upload_auth_key_is_not_used_as_openrouter_key(self):
         csv_content = _csv_trial_balance()
@@ -420,7 +453,7 @@ class APIAuditUploadTest(unittest.TestCase):
 
         mock_send.assert_called_once()
         result = mock_send.call_args.args[0]
-        self.assertEqual(result["_schema_version"], "2.0.0")
+        self.assertEqual(result["metadados"]["versao_schema"], "3.0.0")
 
 
 class APICORSTest(unittest.TestCase):

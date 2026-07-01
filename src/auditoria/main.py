@@ -33,7 +33,7 @@ def main() -> None:
         raise SystemExit("Para análise trimestral, informe --cliente e --periodo.")
 
     balance = read_trial_balance(args.balancete, cliente=args.cliente, periodo=args.periodo, cnpj=args.cnpj)
-    result = run_quarterly_audit(balance)
+    result = run_quarterly_audit(balance, atividade=args.atividade)
     payload = audit_result_to_dict(result)
 
     if args.markdown:
@@ -47,15 +47,21 @@ def main() -> None:
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Pre-auditoria fiscal trimestral e parecer anual comparativo.")
+    parser = argparse.ArgumentParser(description="Pré-auditoria fiscal trimestral e parecer anual comparativo.")
     parser.add_argument("balancete", nargs="?", help="Caminho do CSV ou XLSX do balancete trimestral.")
     parser.add_argument("--anual", nargs="+", help="JSONs trimestrais para consolidar o parecer anual comparativo.")
     parser.add_argument("--cliente", help="Nome do cliente analisado.")
-    parser.add_argument("--periodo", help='Periodo analisado. Exemplo: "2026-T1".')
+    parser.add_argument("--periodo", help='Período analisado. Exemplo: "2026-T1".')
     parser.add_argument("--cnpj", default="", help="CNPJ da empresa. Exemplo: 00.000.000/0001-00.")
-    parser.add_argument("--saida", help="Arquivo de saida (JSON por padrao, Markdown com --markdown).")
-    parser.add_argument("--markdown", action="store_true", help="Gerar relatorio Markdown em vez de JSON.")
-    parser.add_argument("--no-ai", action="store_true", help="Desabilitar IA no relatorio Markdown.")
+    parser.add_argument(
+        "--atividade",
+        default="servicos",
+        choices=["servicos", "comercio", "comercio_servicos"],
+        help="Conjunto de regras: servicos, comercio ou comercio_servicos.",
+    )
+    parser.add_argument("--saida", help="Arquivo de saída (JSON por padrão, Markdown com --markdown).")
+    parser.add_argument("--markdown", action="store_true", help="Gerar relatório Markdown em vez de JSON.")
+    parser.add_argument("--no-ai", action="store_true", help="Desabilitar IA no relatório Markdown.")
     parser.add_argument("--openrouter-key", help="Chave da API OpenRouter (ou use OPENROUTER_API_KEY).")
     return parser.parse_args()
 

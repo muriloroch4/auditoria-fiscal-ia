@@ -50,19 +50,19 @@ def generate_annual_markdown_report(payload: dict[str, Any]) -> str:
 
     return "\n\n".join(
         [
-            "PARECER TÉCNICO CONTÁBIL — CONSULTIVO ANUAL COMPARATIVO\n"
+            "Parecer técnico contábil consultivo anual comparativo\n"
             "[espaço para numeração manual]\n\n"
             f"Cliente:  {identificacao.get('cliente', '')}\n"
             f"CNPJ:     {identificacao.get('cnpj', '')}\n"
             f"Regime:   {identificacao.get('regime_tributario', '')}\n"
             f"Exercício:{identificacao.get('exercicio', '')}\n"
             f"Emissão:  {str(meta['data_analise']).split('T', 1)[0]}",
-            "## 1. RESUMO EXECUTIVO\n\n" + _render_annual_summary(payload),
-            "## 2. COMPARATIVO TRIMESTRAL\n\n" + _render_quarter_table(payload),
-            "## 3. ACHADOS ANUAIS E RECORRÊNCIAS\n\n" + _render_annual_findings(findings),
-            "## 4. INDICADORES CONSOLIDADOS\n\n" + _render_annual_metrics(metricas, evolution),
-            "## 5. OPINIÃO TÉCNICA ANUAL\n\n" + _render_annual_opinion(payload),
-            "## 6. ASSINATURA\n\n"
+            "## 1. Resumo executivo\n\n" + _render_annual_summary(payload),
+            "## 2. Comparativo trimestral\n\n" + _render_quarter_table(payload),
+            "## 3. Achados anuais e recorrências\n\n" + _render_annual_findings(findings),
+            "## 4. Indicadores consolidados\n\n" + _render_annual_metrics(metricas, evolution),
+            "## 5. Opinião técnica anual\n\n" + _render_annual_opinion(payload),
+            "## 6. Assinatura\n\n"
             "Local e data: _________________________, _____ de ______________ de _______\n\n"
             "Nome:  ________________________________________________________________\n\n"
             "CRC:   ________________________________________________________________\n\n"
@@ -72,6 +72,43 @@ def generate_annual_markdown_report(payload: dict[str, Any]) -> str:
 
 
 def _quarter_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    if "identificacao_empresa" in payload and "resumo_analise" in payload:
+        identificacao = payload.get("identificacao_empresa", {})
+        resumo = payload.get("resumo_analise", {})
+        conclusao = payload.get("conclusao_tecnica", {})
+        achados = payload.get("principais_achados", [])
+        metricas = payload.get("metricas", {})
+        periodo = str(identificacao.get("periodo_analisado") or "[VERIFICAR: período]")
+        trimestre = _quarter_label(periodo)
+
+        return {
+            "trimestre": trimestre,
+            "ordem": _quarter_order(trimestre, periodo),
+            "periodo": periodo,
+            "cliente": resumo.get("empresa", ""),
+            "cnpj": identificacao.get("cnpj", ""),
+            "regime_tributario": identificacao.get("regime_tributario", ""),
+            "risco": resumo.get("risco_geral") or conclusao.get("risco_geral") or "baixo",
+            "pontuacao": int(resumo.get("pontuacao_total") or 0),
+            "modalidade_opiniao_sugerida": _opinion_code(conclusao.get("conclusao_sugerida", "sem ressalva")),
+            "metricas": {
+                "receita_servicos": _metric(metricas, "receita_servicos"),
+                "deducoes_receita": _metric(metricas, "deducoes_receita"),
+                "tributos_registrados": _metric(metricas, "tributos_registrados"),
+                "tributos_a_recolher": _metric(metricas, "tributos_a_recolher"),
+                "folha_pro_labore": _metric(metricas, "folha_pro_labore"),
+                "despesas_operacionais": _metric(metricas, "despesas_operacionais"),
+                "lucros_distribuidos": _metric(metricas, "lucros_distribuidos"),
+                "lucro_apurado_base": _metric(metricas, "lucro_apurado_base"),
+                "caixa_e_bancos": _metric(metricas, "caixa_e_bancos"),
+                "clientes_recebiveis": _metric(metricas, "clientes_recebiveis"),
+                "adiantamentos": _metric(metricas, "adiantamentos"),
+                "emprestimos": _metric(metricas, "emprestimos"),
+            },
+            "achados": achados,
+            "achados_codigos": [str(item.get("codigo", "")) for item in achados if item.get("codigo")],
+        }
+
     identificacao = payload.get("identificacao", {})
     metricas = payload.get("metricas", {})
     risco = payload.get("risco", {})
@@ -323,7 +360,7 @@ def _render_annual_summary(payload: dict[str, Any]) -> str:
     return (
         f"A análise comparativa do exercício {identificacao.get('exercicio')} considerou "
         f"{meta['total_trimestres_informados']} trimestre(s) informado(s). O nível de risco anual "
-        f"apurado é {risco['nivel_geral'].upper()}, com pontuação de {risco['pontuacao_total']} pontos "
+        f"apurado é {_risk_label(risco['nivel_geral']).lower()}, com pontuação de {risco['pontuacao_total']} pontos "
         f"e {len(payload['achados_anuais'])} achado(s) anual(is). A receita anual consolidada foi "
         f"{metricas['receita_servicos_total']['formatado']} e o resultado anual apurado foi "
         f"{metricas['lucro_apurado_total']['formatado']}."
@@ -340,7 +377,7 @@ def _render_quarter_table(payload: dict[str, Any]) -> str:
         lines.append(
             "| "
             f"{q['trimestre']} | {q['periodo']} | {format_brl(metrics['receita_servicos'])} | "
-            f"{format_brl(metrics['lucro_apurado_base'])} | {q['risco'].upper()} | "
+            f"{format_brl(metrics['lucro_apurado_base'])} | {_risk_label(q['risco'])} | "
             f"{', '.join(q['achados_codigos']) or 'nenhum'} |"
         )
     return "\n".join(lines)
@@ -358,7 +395,7 @@ def _render_annual_findings(findings: list[dict[str, Any]]) -> str:
         evidence = "; ".join(f"{key}: {value}" for key, value in finding["evidencia"].items()) or "Não aplicável"
         lines.append(
             "| "
-            f"{finding['codigo']} | {finding['titulo']} | {finding['nivel'].upper()} | "
+            f"{finding['codigo']} | {finding['titulo']} | {_risk_label(finding['nivel'])} | "
             f"{evidence} | {finding['recomendacao']} |"
         )
     return "\n".join(lines)
@@ -386,7 +423,7 @@ def _render_annual_opinion(payload: dict[str, Any]) -> str:
     codes = ", ".join(f["codigo"] for f in findings) or "nenhum achado anual adicional"
     return (
         f"Com base na consolidação dos trimestres do exercício {identificacao.get('exercicio')}, "
-        f"emito opinião técnica anual {risco['modalidade_opiniao_sugerida']} para o conjunto analisado. "
+        f"emito opinião técnica anual {_opinion_label(risco['modalidade_opiniao_sugerida'])} para o conjunto analisado. "
         f"Os principais achados anuais considerados foram: {codes}. A conclusão anual não substitui "
         "auditoria independente completa e deve ser lida em conjunto com os pareceres trimestrais que "
         "serviram de base para esta consolidação."
@@ -398,6 +435,32 @@ def _metric(metricas: dict[str, Any], key: str) -> Decimal:
     if isinstance(value, dict):
         return Decimal(str(value.get("valor") or 0))
     return Decimal("0")
+
+
+def _risk_label(value: str) -> str:
+    labels = {"alto": "Alto", "medio": "Médio", "baixo": "Baixo"}
+    return labels.get(str(value).lower(), str(value).capitalize())
+
+
+def _opinion_label(value: str) -> str:
+    labels = {
+        "sem_ressalva": "sem ressalva",
+        "com_ressalva": "com ressalva",
+        "adversa": "adversa",
+        "abstencao_opiniao": "com abstenção de opinião",
+    }
+    return labels.get(str(value), str(value).replace("_", " "))
+
+
+def _opinion_code(value: str) -> str:
+    text = str(value or "").strip().lower().replace("_", " ")
+    if text in ("adversa", "opinião adversa", "opiniao adversa"):
+        return "adversa"
+    if text in ("com ressalva", "ressalva"):
+        return "com_ressalva"
+    if text in ("abstenção de opinião", "abstencao de opiniao"):
+        return "abstencao_opiniao"
+    return "sem_ressalva"
 
 
 def _entry(value: Decimal) -> dict[str, Any]:

@@ -70,3 +70,4 @@ class AuditResult:
     contexto_regime: dict[str, Any]
     total_contas_analisadas: int
     total_regras_verificadas: int
+    conjunto_regras: str = "simples_servicos"

@@ -12,7 +12,7 @@ _VERIFY_CNPJ = ""
 
 
 _NOVO_TEMPLATE = r"""
-PARECER TÉCNICO CONTÁBIL — CONSULTIVO TRIMESTRAL
+Parecer técnico contábil consultivo trimestral
 [espaço para numeração manual]
 
 Cliente:  {cliente}
@@ -21,19 +21,19 @@ Regime:   {regime_tributario}
 Período:  {periodo}
 Emissão:  {emissao}
 
-## 1. RESUMO EXECUTIVO
+## 1. Resumo executivo
 
 {resumo_executivo}
 
-## 2. ACHADOS E RECOMENDAÇÕES
+## 2. Achados e recomendações
 
 {achados_recomendacoes}
 
-## 3. OPINIÃO TÉCNICA
+## 3. Opinião técnica
 
 {opiniao_tecnica}
 
-## 4. ASSINATURA
+## 4. Assinatura
 
 Local e data: _________________________, _____ de ______________ de _______
 
@@ -87,14 +87,15 @@ def _generate_local_report(
     cnpj: str | None = None,
 ) -> str:
     payload = _build_prompt_data(result, cnpj=cnpj)
-    identificacao = payload["identificacao"]
-    meta = payload["meta"]
+    identificacao = payload["identificacao_empresa"]
+    resumo = payload["resumo_analise"]
+    meta = payload["metadados"]
 
     return _NOVO_TEMPLATE.format(
-        cliente=identificacao["cliente"],
+        cliente=resumo["empresa"],
         cnpj=identificacao.get("cnpj", ""),
         regime_tributario=identificacao["regime_tributario"],
-        periodo=identificacao["periodo"],
+        periodo=identificacao["periodo_analisado"],
         emissao=str(meta["data_analise"]).split("T", 1)[0],
         resumo_executivo=_render_consultivo_resumo(payload),
         achados_recomendacoes=_render_consultivo_achados(payload),
@@ -108,110 +109,48 @@ def _generate_local_report(
 
 
 def _render_consultivo_resumo(payload: dict[str, Any]) -> str:
-    identificacao = payload["identificacao"]
-    risco = payload["risco"]
-    achados = payload["achados"]
-    classificacao = risco.get("classificacao", {})
-    periodo = identificacao["periodo"]
-    nivel = risco["nivel_geral"].upper()
-    total = len(achados)
-    composto = next((a for a in achados if str(a["codigo"]).startswith("SN-COMP")), None)
+    identificacao = payload["identificacao_empresa"]
+    resumo = payload["resumo_analise"]
+    counts = resumo.get("achados_por_severidade", {})
+    periodo = identificacao["periodo_analisado"]
+    total = resumo["total_regras_acionadas"]
+    pontos = resumo.get("principais_pontos") or []
 
-    if nivel == "ALTO" and composto:
-        primeiro = (
-            f"A análise do balancete do período {periodo} identificou situação de risco crítico: "
-            f"{composto['titulo']}. O nível de risco geral apurado é ALTO, com pontuação de "
-            f"{risco['pontuacao_total']} pontos distribuídos em {total} achado(s) "
-            f"({classificacao.get('achados_alto', 0)} alto, "
-            f"{classificacao.get('achados_medio', 0)} médio, "
-            f"{classificacao.get('achados_baixo', 0)} baixo)."
-        )
-    elif nivel == "ALTO":
-        primeiro = (
-            f"A análise do balancete do período {periodo} resultou em nível de risco ALTO, "
-            f"com pontuação de {risco['pontuacao_total']} pontos e {total} achado(s) "
-            f"identificado(s) ({classificacao.get('achados_alto', 0)} alto, "
-            f"{classificacao.get('achados_medio', 0)} médio, "
-            f"{classificacao.get('achados_baixo', 0)} baixo)."
-        )
-    elif nivel in ("MÉDIO", "MEDIO"):
-        primeiro = (
-            f"A análise do balancete do período {periodo} resultou em nível de risco MÉDIO, "
-            f"com pontuação de {risco['pontuacao_total']} pontos e {total} achado(s) "
-            f"identificado(s) ({classificacao.get('achados_medio', 0)} médio, "
-            f"{classificacao.get('achados_baixo', 0)} baixo)."
-        )
-    else:
-        primeiro = (
-            f"A análise do balancete do período {periodo} não identificou inconsistências materiais. "
-            f"Nível de risco BAIXO, pontuação de {risco['pontuacao_total']} pontos."
-        )
+    primeiro = (
+        f"A análise do período {periodo}, com base em {resumo['base_analise']}, resultou em risco "
+        f"{resumo['risco_geral']} e pontuação total de {resumo['pontuacao_total']} ponto(s). "
+        f"Foram verificadas {resumo['total_regras_verificadas']} regras, das quais {total} foram acionadas "
+        f"({counts.get('alta', 0)} alta, {counts.get('media', 0)} média e {counts.get('baixa', 0)} baixa)."
+    )
 
-    paragrafos = [primeiro, _render_metricas_principais(payload)]
+    segundo = "Principais pontos identificados: " + ("; ".join(pontos) if pontos else "[VERIFICAR: principais pontos].")
     contexto = _render_contexto_regime(payload)
-    if contexto:
-        paragrafos.append(contexto)
-    return "\n\n".join(paragrafos)
+    return "\n\n".join(item for item in (primeiro, segundo, contexto) if item)
 
 
 def _render_metricas_principais(payload: dict[str, Any]) -> str:
-    metricas = payload["metricas"]
-    codes = {a["codigo"] for a in payload["achados"]}
-    selected: list[tuple[str, str]] = []
-
-    def add(label: str, value: str | None) -> None:
-        if value and all(existing_label != label for existing_label, _ in selected):
-            selected.append((label, value))
-
-    add("receita de serviços", _metric_value(metricas, "receita_servicos"))
-
-    if "SN-004A" in codes or any(code.startswith("SN-009") for code in codes):
-        add("resultado do período", _metric_value(metricas, "lucro_apurado_base"))
-        add("lucros distribuídos", _metric_value(metricas, "lucros_distribuidos"))
-    if any(code.startswith("SN-002") for code in codes):
-        add("carga tributária efetiva", metricas.get("indicadores_derivados", {}).get("carga_tributaria_efetiva_percentual"))
-    if "SN-006A" in codes:
-        add("caixa e bancos", _metric_value(metricas, "caixa_e_bancos"))
-    if any(code.startswith("SN-001") for code in codes):
-        add("faixa de receita estimada", payload.get("contexto_regime", {}).get("faixa_receita_estimada"))
-
-    for key, label in (
-        ("lucro_apurado_base", "resultado do período"),
-        ("tributos_registrados", "tributos registrados"),
-        ("caixa_e_bancos", "caixa e bancos"),
-    ):
-        if len(selected) >= 4:
-            break
-        add(label, _metric_value(metricas, key))
-
-    formatted = ", ".join(f"{label} de {value}" for label, value in selected[:4])
-    return f"As principais métricas apuradas foram: {formatted}."
+    pontos = payload.get("resumo_analise", {}).get("principais_pontos") or []
+    return "Principais pontos identificados: " + ("; ".join(pontos) if pontos else "[VERIFICAR: principais pontos].")
 
 
 def _render_contexto_regime(payload: dict[str, Any]) -> str:
-    contexto = payload.get("contexto_regime", {})
-    observacoes = contexto.get("observacoes") or []
+    fundamentacao = payload.get("fundamentacao_tecnica_resumida", {})
+    observacoes = fundamentacao.get("observacoes_tecnicas") or []
     if not observacoes:
         return ""
-
-    partes = [f"faixa estimada {contexto.get('faixa_receita_estimada', '[VERIFICAR: faixa]')}"]
-    if contexto.get("fator_r_calculado"):
-        partes.append(f"Fator R estimado de {contexto['fator_r_calculado']}")
-    observacao_texto = " ".join(str(obs).rstrip(".") for obs in observacoes)
-    return f"No contexto do regime tributário, foram considerados {', '.join(partes)}. {observacao_texto}."
+    return "Observações técnicas resumidas: " + " ".join(str(obs).rstrip(".") + "." for obs in observacoes[:4])
 
 
 def _render_consultivo_achados(payload: dict[str, Any]) -> str:
-    meta = payload["meta"]
-    achados = sorted(payload["achados"], key=_finding_sort_key)
+    resumo = payload["resumo_analise"]
+    achados = payload["principais_achados"]
     abertura = (
-        f"Foram identificados {meta['total_regras_acionadas']} achado(s) a partir da aplicação "
-        f"de {meta['total_regras_verificadas']} regras fiscais do conjunto "
-        f"{meta['conjunto_regras']} (versão {meta['versao_regras']})."
+        f"Foram identificados {resumo['total_regras_acionadas']} achado(s) a partir da aplicação "
+        f"de {resumo['total_regras_verificadas']} regras fiscais."
     )
 
     if not achados:
-        regime = payload["identificacao"]["regime_tributario"]
+        regime = payload["identificacao_empresa"]["regime_tributario"]
         return (
             f"{abertura}\n\n"
             f"Nenhuma regra foi acionada no período analisado. As métricas do balancete "
@@ -221,7 +160,7 @@ def _render_consultivo_achados(payload: dict[str, Any]) -> str:
     linhas = [
         abertura,
         "",
-        "| Código | Achado | Nível | Evidência | Recomendação |",
+        "| Código | Achado | Nível | Evidência | Impacto técnico |",
         "|--------|--------|-------|-----------|--------------|",
     ]
     for achado in achados:
@@ -231,61 +170,57 @@ def _render_consultivo_achados(payload: dict[str, Any]) -> str:
         linhas.append(
             "| "
             f"{codigo} | "
-            f"{_escape_table(achado['titulo'])} | "
-            f"{_level_label(achado['nivel'])} | "
-            f"{_escape_table(_format_evidence_dict(achado.get('evidencia', {})))} | "
-            f"{_escape_table(achado.get('recomendacao') or '[VERIFICAR: recomendação]')} |"
+            f"{_escape_table(achado['achado'])} | "
+            f"{_level_label(achado['severidade'])} | "
+            f"{_escape_table(achado.get('evidencia_identificada') or 'Não aplicável')} | "
+            f"{_escape_table(achado.get('impacto_tecnico') or '[VERIFICAR: impacto técnico]')} |"
         )
 
-    normas = _normas_consolidadas(achados)
+    normas = payload.get("fundamentacao_tecnica_resumida", {}).get("normas_aplicaveis") or []
     if normas:
         linhas.extend(["", f"Fundamentação: {'; '.join(normas)}."])
+
+    recommendations = payload.get("recomendacoes_tecnicas") or []
+    if recommendations:
+        linhas.extend(
+            [
+                "",
+                "Recomendações técnicas:",
+                "",
+                "| Ordem | Recomendação | Área | Prioridade |",
+                "|-------|--------------|------|------------|",
+            ]
+        )
+        for item in recommendations:
+            linhas.append(
+                "| "
+                f"{item.get('ordem', '')} | "
+                f"{_escape_table(item.get('descricao') or '[VERIFICAR: recomendação]')} | "
+                f"{_escape_table(item.get('area_relacionada') or '[VERIFICAR: área]')} | "
+                f"{_level_label(item.get('prioridade') or '')} |"
+            )
     return "\n".join(linhas)
 
 
 def _render_consultivo_opiniao(payload: dict[str, Any]) -> str:
-    identificacao = payload["identificacao"]
-    meta = payload["meta"]
-    risco = payload["risco"]
-    achados = payload["achados"]
-    periodo = identificacao["periodo"]
+    identificacao = payload["identificacao_empresa"]
+    resumo = payload["resumo_analise"]
+    conclusao = payload["conclusao_tecnica"]
+    achados = payload["principais_achados"]
+    periodo = identificacao["periodo_analisado"]
     regime = identificacao["regime_tributario"]
-    opiniao = risco["modalidade_opiniao_sugerida"]
 
     abertura = (
         f"Com base na análise do balancete do período {periodo}, compreendendo "
-        f"{meta['total_contas_analisadas']} contas contábeis e "
-        f"{meta['total_regras_verificadas']} regras fiscais verificadas, emito a seguinte opinião técnica:"
+        f"{resumo['total_regras_verificadas']} regras fiscais verificadas, emito a seguinte opinião técnica:"
     )
 
-    if opiniao == "sem_ressalva":
-        bloco = (
-            f"As informações contábeis do período {periodo} estão em conformidade com os critérios fiscais "
-            f"aplicáveis ao regime {regime}. Não foram identificadas inconsistências materiais ou riscos "
-            f"tributários relevantes. Pontuação apurada: {risco['pontuacao_total']} pontos — risco BAIXO."
-        )
-    elif opiniao == "com_ressalva":
-        codigos = _finding_codes(achados, only_medium_high=True)
-        bloco = (
-            f"Exceto pelos efeitos dos achados {codigos}, as informações contábeis do período {periodo} "
-            f"apresentam conformidade com os critérios fiscais aplicáveis ao regime {regime}. Pontuação "
-            f"apurada: {risco['pontuacao_total']} pontos — risco MÉDIO. Recomenda-se regularização dos "
-            "pontos identificados antes da entrega das obrigações acessórias do período."
-        )
-    else:
-        codigos = _finding_codes(achados)
-        extra = ""
-        if any(a["codigo"] == "SN-COMP-01" for a in achados):
-            extra = (
-                " Em especial, a combinação de indício de omissão de receita com despesas operacionais "
-                "elevadas exige cruzamento imediato entre movimentação financeira, documentos fiscais "
-                "e receitas reconhecidas."
-            )
-        bloco = (
-            f"As informações contábeis do período {periodo} apresentam inconsistências materiais e riscos "
-            f"tributários significativos decorrentes dos achados {codigos}.{extra} Pontuação apurada: "
-            f"{risco['pontuacao_total']} pontos — risco ALTO. Recomenda-se providências imediatas de regularização."
-        )
+    codigos = ", ".join(str(achado.get("codigo")) for achado in achados) or "nenhum achado acionado"
+    bloco = (
+        f"Conclusão sugerida: {conclusao['conclusao_sugerida']}. "
+        f"Risco geral {conclusao['risco_geral']} para o regime {regime}, considerando os achados {codigos}. "
+        f"{conclusao['texto_conclusivo']}"
+    )
 
     encerramento = (
         f"Este parecer tem caráter consultivo e abrange exclusivamente os dados do balancete informado "
@@ -305,8 +240,8 @@ def _metric_value(metricas: dict[str, Any], key: str) -> str | None:
 
 
 def _level_label(value: str) -> str:
-    labels = {"alto": "ALTO", "medio": "MÉDIO", "baixo": "BAIXO"}
-    return labels.get(str(value).lower(), str(value).upper())
+    labels = {"alto": "Alto", "medio": "Médio", "baixo": "Baixo", "alta": "Alta", "media": "Média", "baixa": "Baixa"}
+    return labels.get(str(value).lower(), str(value).capitalize())
 
 
 def _finding_sort_key(achado: dict[str, Any]) -> tuple[int, str]:
@@ -372,7 +307,7 @@ def _render_dados_motor_regras(result: AuditResult) -> str:
     regras = _render_regras_acionadas(result)
 
     return (
-        f"**Nível geral calculado:** {result.nivel_geral.value.upper()}\n\n"
+        f"**Nível geral calculado:** {_level_label(result.nivel_geral.value)}\n\n"
         f"**Pontuação total calculada:** {result.pontuacao_total}\n\n"
         f"**Métricas calculadas:**\n{metricas}\n\n"
         f"**Explicação da pontuação:**\n{explicacao}\n\n"
@@ -388,7 +323,7 @@ def _render_regras_acionadas(result: AuditResult) -> str:
     for finding in sorted(result.achados, key=lambda item: item.pontuacao, reverse=True):
         linhas.append(
             f"- **{finding.codigo}:** {finding.titulo} | "
-            f"nível {finding.nivel.value.upper()} | "
+            f"nível {_level_label(finding.nivel.value).lower()} | "
             f"{finding.pontuacao} ponto(s) | "
             f"evidências: {_format_evidencia(finding)}"
         )
@@ -408,13 +343,13 @@ def _render_resumo_executivo(result: AuditResult) -> str:
             criticidade = _highest_criticality(area_findings)
         else:
             situacao = "Sem achado automático relevante nos dados analisados"
-            criticidade = "BAIXO"
+            criticidade = "Baixo"
         linhas.append(f"| {area} | {situacao} | {criticidade} |")
 
     linhas.extend(
         [
             "",
-            f"**Grau geral de exposição fiscal:** {result.nivel_geral.value.upper()}",
+            f"**Grau geral de exposição fiscal:** {_level_label(result.nivel_geral.value)}",
             f"**Pontuação total:** {result.pontuacao_total}",
         ]
     )
@@ -459,7 +394,7 @@ def _render_conclusao_operational_template(result: AuditResult) -> str:
         return (
             "A análise automática do balancete não identificou achados relevantes nos testes "
             "de risco executados. O grau geral de exposição fiscal foi classificado como "
-            f"{result.nivel_geral.value.upper()}, considerando a pontuação total de "
+            f"{_level_label(result.nivel_geral.value).lower()}, considerando a pontuação total de "
             f"{result.pontuacao_total} ponto(s). Os próximos passos consistem na manutenção "
             "das conciliações periódicas e na guarda da documentação suporte dos saldos."
         )
@@ -470,7 +405,7 @@ def _render_conclusao_operational_template(result: AuditResult) -> str:
     )
     return (
         f"A análise automática do balancete identificou {len(result.achados)} achado(s), "
-        f"com grau geral de exposição fiscal {result.nivel_geral.value.upper()} e pontuação "
+        f"com grau geral de exposição fiscal {_level_label(result.nivel_geral.value).lower()} e pontuação "
         f"total de {result.pontuacao_total} ponto(s). Os principais riscos foram: "
         f"{principais}. Os próximos passos consistem em validar os saldos com documentos "
         f"suporte, conciliar as contas relacionadas, revisar obrigações acessórias aplicáveis "
@@ -482,8 +417,10 @@ def _risk_area_map() -> dict[str, tuple[str, ...]]:
     return {
         "Disponibilidades": ("SN-006", "SN-008"),
         "Clientes e recebíveis": ("SN-008", "SN-010", "SN-COMP-03"),
+        "Estoques e CMV": ("SN-015", "SN-018", "SN-COMP-04"),
+        "Fornecedores": ("SN-016",),
         "Adiantamentos": ("SN-005", "SN-011", "SN-COMP-03"),
-        "Obrigações tributárias": ("SN-001", "SN-002", "SN-012"),
+        "Obrigações tributárias": ("SN-001", "SN-002", "SN-012", "SN-017", "SN-019", "SN-020", "SN-COMP-05"),
         "Obrigações trabalhistas": ("SN-003", "SN-014"),
         "Movimentação com sócios": ("SN-004", "SN-005"),
         "Resultado": ("SN-007", "SN-008", "SN-009", "SN-013", "SN-COMP-01"),
@@ -501,10 +438,10 @@ def _findings_by_prefix(result: AuditResult, prefixes: tuple[str, ...]):
 
 def _highest_criticality(findings) -> str:
     if any(f.nivel.value == "alto" for f in findings):
-        return "ALTO"
+        return "Alto"
     if any(f.nivel.value == "medio" for f in findings):
-        return "MEDIO"
-    return "BAIXO"
+        return "Médio"
+    return "Baixo"
 
 
 def _first_available(evidencia: dict, keys: tuple[str, ...], default: str) -> str:
@@ -523,7 +460,7 @@ def _first_available_conta(evidencia: dict) -> str:
             "saldo_anterior_tributos", "despesas_representacao",
             "despesas_veiculos", "receita", "folha_pro_labore",
         ),
-        "[VERIFICAR: conta contabil relacionada]",
+        "[VERIFICAR: conta contábil relacionada]",
     )
 
 
@@ -539,7 +476,7 @@ def _first_available_saldo(evidencia: dict) -> str:
             "lucro_apurado", "lucros_distribuidos",
             "folha_pro_labore", "provisoes",
         ),
-        "[VERIFICAR: saldo contabil relacionado]",
+        "[VERIFICAR: saldo contábil relacionado]",
     )
 
 
@@ -563,7 +500,7 @@ def _get_risco_identificado_operational_template(finding) -> str:
     }
     return riscos.get(
         code,
-        f"Risco {finding.nivel.value.upper()} que exige validação documental e acompanhamento contábil."
+        f"Risco {_level_label(finding.nivel.value).lower()} que exige validação documental e acompanhamento contábil."
     )
 
 
@@ -664,7 +601,7 @@ def _build_prompt_data(result: AuditResult, cnpj: str | None = None) -> dict[str
     from .serializers import audit_result_to_dict
 
     payload = audit_result_to_dict(result)
-    payload["identificacao"]["cnpj"] = _normalize_cnpj(cnpj or result.cnpj)
+    payload["identificacao_empresa"]["cnpj"] = _normalize_cnpj(cnpj or result.cnpj)
     return payload
 
 
@@ -684,215 +621,48 @@ def _label(value: str) -> str:
 
 def _system_prompt() -> str:
     return """
-# System Prompt — Parecer Técnico Consultivo Trimestral
-# Versão 2.0.0 | Compatível com schema de saída do motor v2.0.0
-# Formato simplificado — 4 seções — 2 a 3 páginas
-
----
+# System Prompt — Parecer técnico consultivo trimestral
+# Compatível com o schema resumido v3.0.0 do motor de regras
 
 Você é um contador especialista em auditoria fiscal e direito tributário brasileiro,
-com registro ativo no CRC. Sua função é redigir pareceres técnicos consultivos
-trimestrais a partir de dados estruturados gerados por um motor de regras fiscais.
+com registro ativo no CRC. Sua função é redigir parecer técnico consultivo trimestral
+a partir exclusivamente do JSON recebido.
 
-O parecer deve ser direto, objetivo e útil numa reunião com o cliente — sem
-repetições, sem texto de preenchimento, sem explicações de normas que o contador
-já conhece. O que importa é o que foi encontrado, o que significa e o que fazer.
+## Entrada
 
----
+O JSON terá estes blocos:
 
-## ENTRADA
+- `identificacao_empresa`
+- `resumo_analise`
+- `principais_achados`
+- `fundamentacao_tecnica_resumida`
+- `conclusao_tecnica`
+- `recomendacoes_tecnicas`
+- `metadados`
 
-Você receberá um JSON com os seguintes blocos:
+## Regras obrigatórias
 
-- `identificacao` — cliente, CNPJ, regime, período
-- `risco` — nível geral, pontuação, modalidade de opinião sugerida
-- `metricas` — valores apurados do balancete com `valor` (numérico) e `formatado` (string)
-- `achados` — lista de achados com código, título, nível, evidência, recomendação e normas
-- `contexto_regime` — faixa do Simples, Fator R, alíquota esperada, observações
+1. Use exclusivamente os dados do JSON.
+2. Não invente valores, documentos, CNPJ, CRC, achados, normas ou conclusões.
+3. Se algum dado estiver ausente, preserve `[VERIFICAR: dado necessário]`.
+4. Não use linguagem de auditoria independente definitiva.
+5. Informe que a análise foi feita com base exclusivamente no JSON e depende de validação documental.
+6. Todos os itens de `principais_achados` devem aparecer no parecer.
+7. Todas as recomendações de `recomendacoes_tecnicas` devem aparecer no parecer.
+8. Mantenha o texto objetivo e resumido, em Markdown.
 
----
+## Estrutura esperada
 
-## REGRAS ABSOLUTAS
+Use esta estrutura:
 
-1. Use exclusivamente os dados do JSON. Não extrapole, não suavize, não invente.
-2. Todos os achados do JSON devem aparecer no parecer — nenhum pode ser omitido.
-3. Não adicione achados que não estejam na lista.
-4. Use sempre o campo `formatado` para valores monetários e percentuais.
-5. A modalidade de opinião vem do campo `risco.modalidade_opiniao_sugerida` — não mude.
-6. Nunca mencione IA, sistema automatizado ou geração automática.
-7. Sem bullet points ou formatação decorativa fora da estrutura definida; manter a tabela de achados em Markdown.
-8. Linguagem formal, técnica, em português brasileiro. Parágrafos corridos.
-9. Achados compostos (código SN-COMP-xx) são sempre os mais graves — destaque-os.
+1. Identificação da empresa
+2. Resumo da análise
+3. Principais achados
+4. Fundamentação técnica resumida
+5. Conclusão técnica
+6. Recomendações técnicas
+7. Data e assinatura
 
----
-
-## ESTRUTURA DO PARECER
-
-### Cabeçalho
-
-```
-PARECER TÉCNICO CONTÁBIL — CONSULTIVO TRIMESTRAL
-[espaço para numeração manual]
-
-Cliente:  {identificacao.cliente}
-CNPJ:     {identificacao.cnpj — se vazio, deixar linha em branco para preenchimento}
-Regime:   {identificacao.regime_tributario}
-Período:  {identificacao.periodo}
-Emissão:  {meta.data_analise — somente a data}
-```
-
----
-
-### 1. RESUMO EXECUTIVO
-
-**Estrutura:** três parágrafos curtos e diretos.
-
-**Parágrafo 1 — Resultado da análise:**
-Informar o nível de risco geral em maiúsculas, a pontuação total e a contagem
-de achados por nível. Se houver achado composto (SN-COMP-xx), abrir com ele —
-é a informação mais crítica.
-
-Exemplo de abertura para nível ALTO com achado composto:
-> "A análise do balancete do período {periodo} identificou situação de risco
-> crítico: {titulo do SN-COMP-xx}. O nível de risco geral apurado é ALTO,
-> com pontuação de {pontuacao_total} pontos distribuídos em {n} achados
-> ({n_alto} alto, {n_medio} médio)."
-
-Exemplo para nível MÉDIO:
-> "A análise do balancete do período {periodo} resultou em nível de risco
-> MÉDIO, com pontuação de {pontuacao_total} pontos e {total} achados
-> identificados ({n_medio} médio, {n_baixo} baixo)."
-
-Exemplo para nível BAIXO:
-> "A análise do balancete do período {periodo} não identificou inconsistências
-> materiais. Nível de risco BAIXO, pontuação de {pontuacao_total} pontos."
-
-**Parágrafo 2 — Métricas principais:**
-Três ou quatro indicadores mais relevantes para o nível de risco identificado.
-Escolher com base nos achados presentes — não listar todos os indicadores.
-
-Regra de seleção:
-- Se SN-004A ou SN-009x presentes → incluir receita, resultado e lucros distribuídos
-- Se SN-002x presente → incluir receita e carga tributária efetiva
-- Se SN-005 presente → incluir receita e saldo de sócios
-- Se SN-006A presente → incluir caixa e bancos
-- Se SN-001x presente → incluir receita e referência do limite proporcional
-- Sempre incluir receita como primeira métrica
-
-Formato: texto corrido, não tabela. Ex:
-> "As principais métricas apuradas foram: receita de serviços de R$ X,
-> resultado do período de R$ X, lucros distribuídos de R$ X e carga tributária
-> efetiva de X%."
-
-**Parágrafo 3 — Contexto do regime** (somente se `contexto_regime.observacoes` não estiver vazio):
-Informar em uma frase a faixa do Simples, o Fator R estimado (se disponível)
-e qualquer observação relevante do campo `contexto_regime.observacoes`.
-Se `observacoes` estiver vazio, omitir este parágrafo.
-
----
-
-### 2. ACHADOS E RECOMENDAÇÕES
-
-**Abertura fixa:**
-> "Foram identificados {total_regras_acionadas} achados a partir da aplicação
-> de {total_regras_verificadas} regras fiscais do conjunto
-> {meta.conjunto_regras} (versão {meta.versao_regras})."
-
-**Tabela de achados — uma linha por achado, na ordem: Alto → Médio → Baixo:**
-
-| Código | Achado | Nível | Evidência | Recomendação |
-|--------|--------|-------|-----------|--------------|
-
-Preenchimento de cada coluna:
-
-- **Código:** `achado.codigo` — ex: SN-004A. Achados compostos em negrito.
-- **Achado:** `achado.titulo`
-- **Nível:** ALTO / MÉDIO / BAIXO em maiúsculas
-- **Evidência:** redigir em uma frase os valores de `achado.evidencia`.
-  Usar os campos `formatado` quando disponíveis.
-  Ex: "Lucros distribuídos de R$ 65.000,00 com resultado negativo de R$ -35.000,00"
-- **Recomendação:** `achado.recomendacao` — se muito longo, resumir em uma frase
-  objetiva mantendo a ação principal. Nunca omitir.
-
-**Rodapé da tabela — normas consolidadas:**
-Após a tabela, um parágrafo único listando todas as normas únicas de todos os
-achados, sem repetição:
-
-> "Fundamentação: {lista das normas_aplicaveis únicas de todos os achados,
-> separadas por ponto e vírgula, em ordem: NBC → LC → Decreto → CTN → CC}"
-
-Se `achados` estiver vazio:
-> "Nenhuma regra foi acionada no período analisado. As métricas do balancete
-> estão dentro dos parâmetros configurados para o regime
-> {identificacao.regime_tributario}."
-
----
-
-### 3. OPINIÃO TÉCNICA
-
-**Parágrafo de abertura fixo:**
-> "Com base na análise do balancete do período {identificacao.periodo},
-> compreendendo {meta.total_contas_analisadas} contas contábeis e
-> {meta.total_regras_verificadas} regras fiscais verificadas, emito a seguinte
-> opinião técnica:"
-
-**Bloco de opinião — escolher exatamente um com base em
-`risco.modalidade_opiniao_sugerida`:**
-
-**`sem_ressalva`:**
-> "As informações contábeis do período {periodo} estão em conformidade com os
-> critérios fiscais aplicáveis ao regime {regime_tributario}. Não foram
-> identificadas inconsistências materiais ou riscos tributários relevantes.
-> Pontuação apurada: {pontuacao_total} pontos — risco BAIXO."
-
-**`com_ressalva`:**
-> "Exceto pelos efeitos dos achados {listar apenas os códigos dos achados
-> Médio e Alto separados por vírgula}, as informações contábeis do período
-> {periodo} apresentam conformidade com os critérios fiscais aplicáveis ao
-> regime {regime_tributario}. Pontuação apurada: {pontuacao_total} pontos —
-> risco MÉDIO. Recomenda-se regularização dos pontos identificados antes da
-> entrega das obrigações acessórias do período."
-
-**`adversa`:**
-> "As informações contábeis do período {periodo} apresentam inconsistências
-> materiais e riscos tributários significativos decorrentes dos achados
-> {listar todos os códigos}. {Se SN-COMP-01 presente, adicionar: 'Em especial,
-> a combinação de indício de omissão de receita com despesas operacionais
-> elevadas exige cruzamento imediato entre movimentação financeira, documentos
-> fiscais e receitas reconhecidas.'} Pontuação apurada: {pontuacao_total} pontos
-> — risco ALTO. Recomenda-se providências imediatas de regularização."
-
-**Parágrafo de encerramento fixo:**
-> "Este parecer tem caráter consultivo e abrange exclusivamente os dados
-> do balancete informado para o período {periodo}. Não substitui auditoria
-> independente completa. Elaborado em conformidade com a NBC PG 100 (R1) de 2018,
-> NBC TA 700 (R1), NBC TG 26 (R3) = CPC 26 R1 e Resolução CFC n.º 1.244/2009."
-
----
-
-### 4. ASSINATURA
-
-```
-Local e data: _________________________, _____ de ______________ de _______
-
-Nome:  ________________________________________________________________
-
-CRC:   ________________________________________________________________
-
-Assinatura: ____________________________________________________________
-```
-
----
-
-## INSTRUÇÕES DE FORMATAÇÃO
-
-- **Extensão alvo:** 1 a 2 páginas A4 — se passar de 2 páginas, resumir as
-  recomendações da tabela, não cortar achados nem a opinião
-- **Tabela de achados:** é a única tabela do documento — não criar outras
-- **Valores monetários:** sempre "R$ X.XXX,XX"
-- **Percentuais:** sempre "X,X%"
-- **Níveis de risco:** sempre em MAIÚSCULAS quando qualificando
-- **Normas:** citar somente as que aparecem nos achados do JSON — nunca inventar
-- **Tom:** direto e consultivo — escrever como um contador experiente
-  explicando a situação para o cliente, não como um documento jurídico formal
+Na seção de achados, use tabela com: Código, Severidade, Achado, Evidência, Impacto técnico, Pontuação e Norma/Fundamento.
+Na seção de recomendações, use tabela com: Ordem, Recomendação, Área relacionada e Prioridade.
 """.strip()

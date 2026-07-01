@@ -44,11 +44,30 @@ def get_rule_config(codigo: str) -> dict[str, Any]:
 
 def _build_defaults() -> dict[str, Any]:
     return {
-        "version": "1.3.0",
+        "version": "1.4.0",
         "limites_gerais": {
             "simples_anual": 4800000,
             "limite_movimentacao_ativa": 10000,
             "receita_baixa_ratio": 0.05,
+        },
+        "conjuntos_regras": {
+            "simples_servicos": [
+                "SN-001", "SN-002", "SN-003", "SN-004", "SN-005", "SN-006", "SN-007",
+                "SN-008", "SN-009", "SN-010", "SN-011", "SN-012", "SN-013", "SN-014",
+                "SN-COMP-01", "SN-COMP-02", "SN-COMP-03",
+            ],
+            "simples_comercio": [
+                "SN-001", "SN-002", "SN-004", "SN-005", "SN-006", "SN-007",
+                "SN-008", "SN-009", "SN-010", "SN-011", "SN-012", "SN-013", "SN-014",
+                "SN-015", "SN-016", "SN-017", "SN-018", "SN-019",
+                "SN-COMP-01", "SN-COMP-02", "SN-COMP-03", "SN-COMP-04",
+            ],
+            "simples_comercio_servicos": [
+                "SN-001", "SN-002", "SN-003", "SN-004", "SN-005", "SN-006", "SN-007",
+                "SN-008", "SN-009", "SN-010", "SN-011", "SN-012", "SN-013", "SN-014",
+                "SN-015", "SN-016", "SN-017", "SN-018", "SN-019", "SN-020",
+                "SN-COMP-01", "SN-COMP-02", "SN-COMP-03", "SN-COMP-04", "SN-COMP-05",
+            ],
         },
         "SN-001": {
             "limite_alto": 0.90,
@@ -99,6 +118,8 @@ def _build_defaults() -> dict[str, Any]:
             "pontuacao_alto": 20,
         },
         "SN-011": {
+            "limite_ratio": 0.10,
+            "limite_absoluto": 10000,
             "pontuacao_medio": 12,
         },
         "SN-012": {
@@ -115,6 +136,40 @@ def _build_defaults() -> dict[str, Any]:
             "limite_folha_receita": 0.10,
             "pontuacao_medio": 12,
         },
+        "SN-015": {
+            "limite_absoluto_sem_receita": 10000,
+            "limite_medio_ratio": 1.0,
+            "pontuacao_medio": 14,
+            "limite_alto_ratio": 2.0,
+            "pontuacao_alto": 24,
+        },
+        "SN-016": {
+            "limite_absoluto_sem_receita": 10000,
+            "limite_medio_ratio": 0.8,
+            "pontuacao_medio": 14,
+            "limite_alto_ratio": 1.5,
+            "pontuacao_alto": 22,
+        },
+        "SN-017": {
+            "limite_absoluto": 5000,
+            "limite_ratio": 0.02,
+            "pontuacao_medio": 16,
+        },
+        "SN-018": {
+            "receita_minima": 10000,
+            "limite_baixo_ratio": 0.30,
+            "pontuacao_medio": 14,
+            "limite_alto_ratio": 0.95,
+            "pontuacao_alto": 24,
+        },
+        "SN-019": {
+            "sublimite_anual": 3600000,
+            "pontuacao_medio": 16,
+        },
+        "SN-020": {
+            "tolerancia_receita_nao_segregada": 0.20,
+            "pontuacao_medio": 18,
+        },
         "SN-COMP-01": {
             "pontuacao": 15,
         },
@@ -123,5 +178,11 @@ def _build_defaults() -> dict[str, Any]:
         },
         "SN-COMP-03": {
             "pontuacao": 10,
+        },
+        "SN-COMP-04": {
+            "pontuacao": 15,
+        },
+        "SN-COMP-05": {
+            "pontuacao": 15,
         },
     }
