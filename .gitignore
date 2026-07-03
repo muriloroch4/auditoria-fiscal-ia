@@ -26,6 +26,8 @@ Thumbs.db
 .env
 *.log
 *.err
+data/*.sqlite
+data/*.sqlite-*
 
 # Reports generated (optional, but good to keep repo clean)
 relatorio*.pdf

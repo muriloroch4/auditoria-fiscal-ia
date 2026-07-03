@@ -665,6 +665,52 @@ class MelhoriasMotorFiscalTest(unittest.TestCase):
         self.assertIn("SN-020", codes)
         self.assertIn("SN-020", {achado["codigo"] for achado in payload["principais_achados"]})
 
+    def test_high_profit_margin_triggers_attention_rule(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;100000;50000;50000
+            3.1.1;Receita de Servicos;receita;0;0;250000;250000
+            4.2.1;Despesas Gerais;despesas;0;40000;0;-40000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Margem", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        codes = {f.codigo for f in result.achados}
+
+        self.assertIn("SN-021B", codes)
+
+    def test_physical_cash_above_activity_parameter_triggers_rule(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Caixa;caixa;0;0;0;15000
+            1.1.2;Banco;bancos;0;100000;90000;10000
+            3.1.1;Receita de Servicos;receita;0;0;100000;100000
+            4.2.1;Despesas Gerais;despesas;0;50000;0;-50000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Caixa", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        codes = {f.codigo for f in result.achados}
+
+        self.assertIn("SN-022B", codes)
+
+    def test_zero_receivables_with_relevant_revenue_triggers_attention_rule(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;250000;200000;50000
+            3.1.1;Receita de Servicos;receita;0;0;250000;250000
+            4.2.1;Despesas Gerais;despesas;0;100000;0;-100000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Clientes Zerados", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        codes = {f.codigo for f in result.achados}
+
+        self.assertIn("SN-023", codes)
+
 
 class SchemaV3ResumoTest(unittest.TestCase):
     def test_audit_result_dict_has_summary_schema(self):

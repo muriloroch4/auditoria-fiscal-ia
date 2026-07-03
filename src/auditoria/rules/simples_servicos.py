@@ -101,6 +101,7 @@ def _analyze_simples_nacional(
     advances = calculate_advances(balance)
     profit_distribution = calculate_profit_distribution(balance)
     cash = balance.total_por_grupo("caixa") + balance.total_por_grupo("bancos")
+    physical_cash = _abs(balance.total_por_grupo("caixa"))
     suppliers = calculate_suppliers(balance)
     inventory = calculate_inventory(balance)
     tax_credits = calculate_tax_credits(balance)
@@ -119,10 +120,13 @@ def _analyze_simples_nacional(
     findings.extend(_check_profit_distribution(revenue, profit_distribution, profit_basis, profit_distribution_capacity))
     findings.extend(_check_partner_accounts(revenue, partners))
     findings.extend(_check_receivables(revenue, clients, client_movement))
+    findings.extend(_check_zero_receivables(revenue, clients, client_movement))
     findings.extend(_check_advances(revenue, advances))
     findings.extend(_check_cash_position(revenue, cash))
+    findings.extend(_check_physical_cash_position(revenue, physical_cash, ruleset))
     findings.extend(_check_expense_ratio(revenue, expenses, balance, ruleset))
     findings.extend(_check_accounting_loss(revenue, profit_basis))
+    findings.extend(_check_high_profit_margin(revenue, profit_basis))
     findings.extend(_check_tax_liability_growth(balance, revenue))
     findings.extend(_check_missing_provisions(revenue, payroll, balance))
     if ruleset in _COMMERCE_RULESETS:
@@ -539,6 +543,31 @@ def _check_receivables(revenue: Decimal, clients: Decimal, client_movement: Deci
     return []
 
 
+def _check_zero_receivables(revenue: Decimal, clients: Decimal, client_movement: Decimal) -> list[RuleFinding]:
+    cfg = get_rule_config("SN-023")
+    min_revenue = Decimal(str(cfg.get("receita_minima", 200000)))
+    if revenue < min_revenue or clients != 0 or client_movement != 0:
+        return []
+
+    return [
+        RuleFinding(
+            codigo="SN-023",
+            titulo="Clientes e recebíveis zerados com receita relevante",
+            nivel=RiskLevel.BAIXO,
+            pontuacao=cfg.get("pontuacao_baixo", 6),
+            descricao="A empresa apresenta receita relevante no trimestre, mas não possui saldo ou movimentação em clientes e recebíveis.",
+            evidencia={
+                "receita": _money(revenue),
+                "clientes_recebiveis": _money(clients),
+                "movimentacao_clientes_trimestre": _money(client_movement),
+                "receita_minima": _money(min_revenue),
+            },
+            recomendacao="Validar se as vendas ou serviços foram recebidos à vista/no mesmo mês, conciliando notas fiscais, meios de pagamento, extratos bancários e baixas de recebíveis.",
+            normas_aplicaveis=("NBC TG 1000", "ITG 2000"),
+        )
+    ]
+
+
 def _check_advances(revenue: Decimal, advances: Decimal) -> list[RuleFinding]:
     if revenue <= 0 or advances <= 0:
         return []
@@ -603,6 +632,66 @@ def _check_cash_position(revenue: Decimal, cash: Decimal) -> list[RuleFinding]:
                     normas_aplicaveis=("NBC TG 1000", "ITG 2000"),
                 )
             ]
+
+    return []
+
+
+def _check_physical_cash_position(
+    revenue: Decimal,
+    physical_cash: Decimal,
+    ruleset: str,
+) -> list[RuleFinding]:
+    if revenue <= 0 or physical_cash <= 0:
+        return []
+
+    cfg = get_rule_config("SN-022")
+    if ruleset == RULESET_COMERCIO:
+        absolute_limit = Decimal(str(cfg.get("limite_comercio_absoluto", 10000)))
+        ratio_limit = Decimal(str(cfg.get("limite_comercio_ratio", 0.05)))
+    else:
+        absolute_limit = Decimal(str(cfg.get("limite_servicos_absoluto", 3000)))
+        ratio_limit = Decimal(str(cfg.get("limite_servicos_ratio", 0.02)))
+
+    reference = max(absolute_limit, revenue * ratio_limit)
+    high_multiplier = Decimal(str(cfg.get("multiplicador_alto", 3)))
+    high_reference = reference * high_multiplier
+
+    if physical_cash > high_reference:
+        return [
+            RuleFinding(
+                codigo="SN-022B",
+                titulo="Caixa físico muito elevado para o porte e atividade",
+                nivel=RiskLevel.ALTO,
+                pontuacao=cfg.get("pontuacao_alto", 18),
+                descricao="O saldo de caixa físico é muito superior ao parâmetro esperado para a atividade e o porte da empresa.",
+                evidencia={
+                    "receita": _money(revenue),
+                    "caixa_fisico": _money(physical_cash),
+                    "limite_caixa": _money(reference),
+                    "limite_alto_caixa": _money(high_reference),
+                },
+                recomendacao="Reconciliar caixa físico, extratos bancários, recebimentos em dinheiro, pagamentos sem suporte bancário e eventual uso indevido de conta caixa.",
+                normas_aplicaveis=("NBC TG 1000", "ITG 2000"),
+            )
+        ]
+
+    if physical_cash > reference:
+        return [
+            RuleFinding(
+                codigo="SN-022A",
+                titulo="Caixa físico acima do parâmetro esperado",
+                nivel=RiskLevel.MEDIO,
+                pontuacao=cfg.get("pontuacao_medio", 12),
+                descricao="O saldo de caixa físico está acima do parâmetro esperado para a atividade e deve ser conciliado com os documentos de suporte.",
+                evidencia={
+                    "receita": _money(revenue),
+                    "caixa_fisico": _money(physical_cash),
+                    "limite_caixa": _money(reference),
+                },
+                recomendacao="Validar se o saldo representa numerário real, recebimentos pendentes de depósito, pagamentos em espécie ou lançamentos que deveriam estar em bancos/sócios.",
+                normas_aplicaveis=("NBC TG 1000", "ITG 2000"),
+            )
+        ]
 
     return []
 
@@ -742,6 +831,59 @@ def _check_accounting_loss(revenue: Decimal, profit_basis: ProfitBasis) -> list[
             normas_aplicaveis=("NBC TG 1000", "ITG 2000"),
         )
     ]
+
+
+def _check_high_profit_margin(revenue: Decimal, profit_basis: ProfitBasis) -> list[RuleFinding]:
+    if revenue <= 0 or profit_basis.value <= 0:
+        return []
+
+    cfg = get_rule_config("SN-021")
+    margin = profit_basis.value / revenue
+    reference = Decimal(str(cfg.get("referencia_presuncao_servicos", 0.32)))
+
+    high_limit = Decimal(str(cfg.get("limite_medio_ratio", 0.64)))
+    if margin > high_limit:
+        return [
+            RuleFinding(
+                codigo="SN-021B",
+                titulo="Margem de lucro contábil muito elevada",
+                nivel=RiskLevel.MEDIO,
+                pontuacao=cfg.get("pontuacao_medio", 12),
+                descricao="O lucro contábil representa percentual muito elevado da receita, sugerindo possível ausência de despesas, custos ou lançamentos de competência.",
+                evidencia={
+                    "receita": _money(revenue),
+                    "lucro_apurado": _money(profit_basis.value),
+                    "origem_lucro": profit_basis.source,
+                    "margem_lucro": _percent(margin),
+                    "referencia_presuncao": _percent(reference),
+                },
+                recomendacao="Revisar se todas as despesas, custos, folha, pró-labore, fornecedores, serviços tomados e encargos foram reconhecidos pelo regime de competência.",
+                normas_aplicaveis=("NBC TG 1000", "ITG 2000"),
+            )
+        ]
+
+    attention_limit = Decimal(str(cfg.get("limite_baixo_ratio", 0.45)))
+    if margin > attention_limit:
+        return [
+            RuleFinding(
+                codigo="SN-021A",
+                titulo="Margem de lucro contábil acima da referência esperada",
+                nivel=RiskLevel.BAIXO,
+                pontuacao=cfg.get("pontuacao_baixo", 6),
+                descricao="O lucro contábil está acima da referência gerencial usada como alerta, exigindo validação das despesas e custos do período.",
+                evidencia={
+                    "receita": _money(revenue),
+                    "lucro_apurado": _money(profit_basis.value),
+                    "origem_lucro": profit_basis.source,
+                    "margem_lucro": _percent(margin),
+                    "referencia_presuncao": _percent(reference),
+                },
+                recomendacao="Conferir despesas, custos e apropriações de competência para confirmar se a margem elevada representa a realidade operacional.",
+                normas_aplicaveis=("NBC TG 1000", "ITG 2000"),
+            )
+        ]
+
+    return []
 
 
 def _check_tax_liability_growth(balance: TrialBalance, revenue: Decimal) -> list[RuleFinding]:

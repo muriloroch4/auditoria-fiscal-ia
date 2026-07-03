@@ -6,16 +6,21 @@ import logging
 import os
 import traceback
 from dataclasses import dataclass
+from decimal import Decimal
 from email import policy
 from email.parser import BytesParser
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import unquote, urlparse
 from pathlib import Path
+from typing import Any
+from urllib.parse import parse_qs, unquote, urlparse
 
+from .annual import build_annual_comparison
 from .audit import run_quarterly_audit
+from .models import AuditResult
 from .parser import read_trial_balance_upload
 from .serializers import audit_result_to_dict
+from .storage import DB_SCHEMA_VERSION, AuditStorage, file_sha256
 
 logger = logging.getLogger(__name__)
 _STATIC_DIR = Path(__file__).with_name("static")
@@ -33,10 +38,13 @@ class AuditApiHandler(BaseHTTPRequestHandler):
     ai_api_key: str | None = None
     regime_tributario: str | None = None
     atividade: str = "servicos"
+    db_path: str | None = None
     max_upload_bytes: int = 10 * 1024 * 1024
 
     def do_GET(self) -> None:
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
+        query = parse_qs(parsed.query)
 
         if path == "/":
             self._send_html(_index_html())
@@ -54,6 +62,18 @@ class AuditApiHandler(BaseHTTPRequestHandler):
             self._send_json(_schema_summary_definition())
             return
 
+        if path == "/api/auditorias":
+            if self.api_key and not self._check_auth():
+                return
+            self._handle_audit_list(query)
+            return
+
+        if path == "/api/auditorias/anual":
+            if self.api_key and not self._check_auth():
+                return
+            self._handle_latest_annual(query)
+            return
+
         logger.warning("Rota não encontrada: GET %s", path)
         self._send_json({"erro": "Rota não encontrada."}, status=HTTPStatus.NOT_FOUND)
 
@@ -68,12 +88,26 @@ class AuditApiHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Headers", "Content-Type, X-API-Key")
 
     def do_POST(self) -> None:
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
+        query = parse_qs(parsed.query)
 
         if path == "/api/auditorias":
             if self.api_key and not self._check_auth():
                 return
             self._handle_audit_upload()
+            return
+
+        if path == "/api/auditorias/anual":
+            if self.api_key and not self._check_auth():
+                return
+            self._handle_saved_annual_generation(query)
+            return
+
+        if path == "/api/auditorias/anual-balancetes":
+            if self.api_key and not self._check_auth():
+                return
+            self._handle_annual_upload()
             return
 
         logger.warning("Rota não encontrada: POST %s", path)
@@ -123,13 +157,165 @@ class AuditApiHandler(BaseHTTPRequestHandler):
                 regime_tributario=self.regime_tributario or "Simples Nacional",
                 atividade=atividade,
             )
-            self._send_json(audit_result_to_dict(result))
-            logger.info("Auditoria concluida: nivel=%s score=%d achados=%d", result.nivel_geral.value, result.pontuacao_total, len(result.achados))
+            payload = audit_result_to_dict(result)
+            annual_source = _audit_result_to_annual_source(result)
+            storage_id = self._storage().save_quarterly_audit(
+                result,
+                payload,
+                annual_source,
+                filename=uploaded_file.filename,
+                file_hash=file_sha256(uploaded_file.content),
+                atividade=atividade,
+            )
+            self._send_json(payload)
+            logger.info(
+                "Auditoria concluida: id=%s nivel=%s score=%d achados=%d",
+                storage_id,
+                result.nivel_geral.value,
+                result.pontuacao_total,
+                len(result.achados),
+            )
         except ValueError as exc:
             logger.warning("Erro de validacao: %s", exc)
             self._send_json({"erro": str(exc)}, status=HTTPStatus.BAD_REQUEST)
         except Exception as exc:
             logger.error("Erro inesperado: %s", exc, exc_info=True)
+            self._send_json({"erro": f"Erro inesperado: {exc}"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def _handle_annual_upload(self) -> None:
+        try:
+            content_length = int(self.headers.get("Content-Length", "0"))
+            if content_length > self.max_upload_bytes * 4:
+                self._send_json(
+                    {"erro": f"Arquivos muito grandes. Limite anual: {(self.max_upload_bytes * 4) // (1024 * 1024)} MB."},
+                    status=HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+                )
+                return
+
+            form = self._read_multipart_form()
+            manifest_text = _form_text(form, "manifest", "")
+            if not manifest_text:
+                self._send_json({"erro": "Envie o campo 'manifest' com os trimestres."}, status=HTTPStatus.BAD_REQUEST)
+                return
+
+            manifest = json.loads(manifest_text)
+            quarters = manifest.get("trimestres") if isinstance(manifest, dict) else None
+            if not isinstance(quarters, list) or not quarters:
+                self._send_json({"erro": "O manifest deve conter a lista 'trimestres'."}, status=HTTPStatus.BAD_REQUEST)
+                return
+            if len(quarters) > 4:
+                self._send_json({"erro": "Informe no máximo 4 trimestres para a análise anual."}, status=HTTPStatus.BAD_REQUEST)
+                return
+
+            annual_sources = []
+            for index, quarter in enumerate(quarters, start=1):
+                if not isinstance(quarter, dict):
+                    raise ValueError(f"Trimestre {index}: item inválido no manifest.")
+                field = str(quarter.get("field") or f"balancete_{index - 1}")
+                uploaded_file = form.get(field)
+                if not isinstance(uploaded_file, UploadedFile) or not uploaded_file.content:
+                    raise ValueError(f"Trimestre {index}: arquivo não encontrado no campo '{field}'.")
+
+                cliente = str(quarter.get("cliente") or "Cliente sem nome")
+                periodo = str(quarter.get("periodo") or f"2025-T{index}")
+                cnpj = str(quarter.get("cnpj") or "")
+                atividade = str(quarter.get("atividade") or self.atividade)
+
+                balance = read_trial_balance_upload(
+                    uploaded_file.filename,
+                    uploaded_file.content,
+                    cliente=cliente,
+                    periodo=periodo,
+                    cnpj=cnpj,
+                )
+                result = run_quarterly_audit(
+                    balance,
+                    regime_tributario=self.regime_tributario or "Simples Nacional",
+                    atividade=atividade,
+                )
+                annual_sources.append(_audit_result_to_annual_source(result))
+
+            annual_payload = build_annual_comparison(annual_sources)
+            self._send_json(annual_payload)
+            logger.info("Auditoria anual concluida: trimestres=%d", len(annual_sources))
+        except json.JSONDecodeError as exc:
+            logger.warning("Manifest anual invalido: %s", exc)
+            self._send_json({"erro": "Manifest anual inválido. Envie JSON válido."}, status=HTTPStatus.BAD_REQUEST)
+        except ValueError as exc:
+            logger.warning("Erro de validacao anual: %s", exc)
+            self._send_json({"erro": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+        except Exception as exc:
+            logger.error("Erro inesperado na auditoria anual: %s", exc, exc_info=True)
+            self._send_json({"erro": f"Erro inesperado: {exc}"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def _handle_audit_list(self, query: dict[str, list[str]]) -> None:
+        try:
+            cnpj = _query_text(query, "cnpj")
+            ano = _query_int(query, "ano")
+            items = self._storage().list_quarterly_audits(cnpj=cnpj, ano=ano)
+            self._send_json(
+                {
+                    "items": items,
+                    "total": len(items),
+                    "db_schema_version": DB_SCHEMA_VERSION,
+                }
+            )
+        except ValueError as exc:
+            self._send_json({"erro": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+        except Exception as exc:
+            logger.error("Erro ao listar auditorias: %s", exc, exc_info=True)
+            self._send_json({"erro": f"Erro inesperado: {exc}"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def _handle_saved_annual_generation(self, query: dict[str, list[str]]) -> None:
+        try:
+            payload = self._read_json_body()
+            cnpj = _query_text(query, "cnpj") or str(payload.get("cnpj") or "")
+            ano = _query_int(query, "ano") or _payload_int(payload, "ano")
+            if not cnpj:
+                self._send_json({"erro": "Informe o CNPJ para gerar a análise anual salva."}, status=HTTPStatus.BAD_REQUEST)
+                return
+            if ano is None:
+                self._send_json({"erro": "Informe o ano para gerar a análise anual salva."}, status=HTTPStatus.BAD_REQUEST)
+                return
+
+            annual_sources = self._storage().annual_sources(cnpj=cnpj, ano=ano)
+            if not annual_sources:
+                self._send_json({"erro": "Nenhum trimestre salvo encontrado para o CNPJ e ano informados."}, status=HTTPStatus.NOT_FOUND)
+                return
+
+            annual_payload = build_annual_comparison(annual_sources)
+            self._storage().save_annual_audit(cnpj=cnpj, ano=ano, payload=annual_payload)
+            self._send_json(annual_payload)
+            logger.info("Auditoria anual salva gerada: cnpj=%s ano=%s trimestres=%d", cnpj, ano, len(annual_sources))
+        except json.JSONDecodeError:
+            self._send_json({"erro": "Envie JSON válido no corpo da requisição ou use cnpj/ano na URL."}, status=HTTPStatus.BAD_REQUEST)
+        except ValueError as exc:
+            logger.warning("Erro de validacao anual salva: %s", exc)
+            self._send_json({"erro": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+        except Exception as exc:
+            logger.error("Erro inesperado ao gerar auditoria anual salva: %s", exc, exc_info=True)
+            self._send_json({"erro": f"Erro inesperado: {exc}"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    def _handle_latest_annual(self, query: dict[str, list[str]]) -> None:
+        try:
+            cnpj = _query_text(query, "cnpj")
+            ano = _query_int(query, "ano")
+            if not cnpj:
+                self._send_json({"erro": "Informe o CNPJ para consultar a análise anual salva."}, status=HTTPStatus.BAD_REQUEST)
+                return
+            if ano is None:
+                self._send_json({"erro": "Informe o ano para consultar a análise anual salva."}, status=HTTPStatus.BAD_REQUEST)
+                return
+
+            payload = self._storage().latest_annual_audit(cnpj=cnpj, ano=ano)
+            if payload is None:
+                self._send_json({"erro": "Nenhuma análise anual salva encontrada para o CNPJ e ano informados."}, status=HTTPStatus.NOT_FOUND)
+                return
+            self._send_json(payload)
+        except ValueError as exc:
+            self._send_json({"erro": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+        except Exception as exc:
+            logger.error("Erro ao consultar auditoria anual: %s", exc, exc_info=True)
             self._send_json({"erro": f"Erro inesperado: {exc}"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def _read_multipart_form(self) -> dict[str, str | UploadedFile]:
@@ -164,8 +350,24 @@ class AuditApiHandler(BaseHTTPRequestHandler):
 
         return form
 
-    def _send_json(self, payload: dict, status: HTTPStatus = HTTPStatus.OK) -> None:
-        content = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+    def _read_json_body(self) -> dict[str, Any]:
+        content_length = int(self.headers.get("Content-Length", "0") or "0")
+        if content_length <= 0:
+            return {}
+
+        body = self.rfile.read(content_length)
+        if not body.strip():
+            return {}
+        payload = json.loads(body.decode("utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("O corpo JSON deve ser um objeto.")
+        return payload
+
+    def _storage(self) -> AuditStorage:
+        return AuditStorage(self.db_path)
+
+    def _send_json(self, payload: Any, status: HTTPStatus = HTTPStatus.OK) -> None:
+        content = json.dumps(payload, ensure_ascii=False, indent=2, default=_json_default).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self._send_cors_headers()
@@ -209,14 +411,17 @@ def run_server(
     api_key: str | None = None,
     regime_tributario: str | None = None,
     atividade: str = "servicos",
+    db_path: str | None = None,
 ) -> None:
     AuditApiHandler.api_key = api_key
     AuditApiHandler.regime_tributario = regime_tributario
     AuditApiHandler.atividade = atividade
+    AuditApiHandler.db_path = db_path
     server = ThreadingHTTPServer((host, port), AuditApiHandler)
     logger.info("Servidor iniciado em http://%s:%d", host, port)
     logger.info("Regime tributario: %s", regime_tributario or "Simples Nacional (padrao)")
     logger.info("Atividade/conjunto de regras: %s", atividade)
+    logger.info("Banco de dados local: %s", db_path or os.environ.get("AUDIT_DB_PATH") or "data/auditoria.sqlite")
     if api_key:
         logger.info("Autenticacao por API key: habilitada.")
     server.serve_forever()
@@ -231,6 +436,7 @@ def main() -> None:
         api_key=args.api_key or os.environ.get("AUDIT_API_KEY"),
         regime_tributario=args.regime_tributario,
         atividade=args.atividade,
+        db_path=args.db_path,
     )
 
 
@@ -246,6 +452,7 @@ def _parse_args() -> argparse.Namespace:
         choices=["servicos", "comercio", "comercio_servicos"],
         help="Conjunto de regras do Simples Nacional.",
     )
+    parser.add_argument("--db-path", help="Caminho do SQLite local (ou use AUDIT_DB_PATH).")
     parser.add_argument("--verbose", action="store_true", help="Ativar logging detalhado.")
     return parser.parse_args()
 
@@ -262,6 +469,80 @@ def _setup_logging(verbose: bool = False) -> None:
 def _form_text(form: dict[str, str | UploadedFile], field: str, default: str) -> str:
     value = form.get(field)
     return value.strip() if isinstance(value, str) and value.strip() else default
+
+
+def _query_text(query: dict[str, list[str]], field: str) -> str:
+    values = query.get(field) or []
+    value = values[0] if values else ""
+    return str(value or "").strip()
+
+
+def _query_int(query: dict[str, list[str]], field: str) -> int | None:
+    value = _query_text(query, field)
+    if not value:
+        return None
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise ValueError(f"O parâmetro '{field}' deve ser numérico.") from exc
+
+
+def _payload_int(payload: dict[str, Any], field: str) -> int | None:
+    value = payload.get(field)
+    if value in (None, ""):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"O campo '{field}' deve ser numérico.") from exc
+
+
+def _json_default(value):
+    if isinstance(value, Decimal):
+        return float(value)
+    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
+
+
+def _audit_result_to_annual_source(result: AuditResult) -> dict:
+    return {
+        "identificacao": {
+            "cliente": result.cliente,
+            "cnpj": result.cnpj,
+            "regime_tributario": result.regime_tributario,
+            "periodo": result.periodo,
+        },
+        "risco": {
+            "nivel_geral": result.nivel_geral.value,
+            "pontuacao_total": result.pontuacao_total,
+            "modalidade_opiniao_sugerida": "com_ressalva" if result.achados else "sem_ressalva",
+        },
+        "metricas": _annual_metric_entries(result),
+        "achados": [
+            {
+                "codigo": finding.codigo,
+                "titulo": finding.titulo,
+                "nivel": finding.nivel.value,
+                "pontuacao": finding.pontuacao,
+                "descricao": finding.descricao,
+                "evidencia": finding.evidencia,
+                "recomendacao": finding.recomendacao,
+                "normas_aplicaveis": list(finding.normas_aplicaveis),
+            }
+            for finding in result.achados
+        ],
+    }
+
+
+def _annual_metric_entries(result: AuditResult) -> dict:
+    metricas: dict[str, dict] = {}
+    for key, value in result.metricas_valores.items():
+        if key == "indicadores_derivados" or not isinstance(value, (int, float)):
+            continue
+        metricas[key] = {
+            "valor": value,
+            "formatado": result.resumo_metricas.get(key, str(value)),
+        }
+    return metricas
 
 
 def _schema_summary_definition() -> dict:

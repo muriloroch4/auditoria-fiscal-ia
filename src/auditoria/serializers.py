@@ -212,6 +212,9 @@ def _impacto_tecnico(finding: RuleFinding) -> str:
         "SN-018": "Risco de margem e resultado distorcidos por CMV ausente, baixo ou excessivo.",
         "SN-019": "Risco de sublimite estadual, ICMS fora do DAS ou apuração fiscal incompleta.",
         "SN-020": "Risco de anexo, Fator R, ISS/ICMS ou DAS incorreto por falta de segregação de receitas.",
+        "SN-021": "Risco de resultado superestimado por despesas, custos ou apropriações de competência não reconhecidos.",
+        "SN-022": "Risco de saldo de caixa físico sem suporte operacional, bancário ou documental compatível.",
+        "SN-023": "Ponto de atenção sobre recebimento à vista, baixa de recebíveis ou ausência de controle de clientes.",
         "SN-COM": "Risco composto por combinação de achados, exigindo análise prioritária integrada.",
     }
     return impacts.get(code, _shorten(finding.descricao or VERIFY, 220))
@@ -224,9 +227,9 @@ def _area_relacionada(code: str) -> str:
         return "trabalhista"
     if code.startswith(("SN-004", "SN-005")):
         return "societária"
-    if code.startswith(("SN-006", "SN-010", "SN-011", "SN-016")):
+    if code.startswith(("SN-006", "SN-010", "SN-011", "SN-016", "SN-022", "SN-023")):
         return "financeira"
-    if code.startswith(("SN-007", "SN-009", "SN-013", "SN-015", "SN-018")):
+    if code.startswith(("SN-007", "SN-009", "SN-013", "SN-015", "SN-018", "SN-021")):
         return "contábil"
     return "documental"
 
@@ -353,6 +356,12 @@ def _label(value: str) -> str:
         "receita_comercio_identificada": "Receita de comércio identificada",
         "receita_servicos_identificada": "Receita de serviços identificada",
         "receita_nao_segregada_estimativa": "Receita não segregada estimada",
+        "margem_lucro": "Margem de lucro",
+        "referencia_presuncao": "Referência de presunção",
+        "caixa_fisico": "Caixa físico",
+        "limite_caixa": "Limite de caixa",
+        "limite_alto_caixa": "Limite alto de caixa",
+        "receita_minima": "Receita mínima",
     }
     return labels.get(value, value.replace("_", " ").capitalize())
 

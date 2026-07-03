@@ -88,6 +88,21 @@ Schema de saída:
 GET /api/auditorias/schema
 ```
 
+Persistência local:
+```text
+GET  /api/auditorias?cnpj=00.000.000/0001-00&ano=2026
+POST /api/auditorias/anual?cnpj=00.000.000/0001-00&ano=2026
+GET  /api/auditorias/anual?cnpj=00.000.000/0001-00&ano=2026
+```
+
+Cada upload trimestral salva automaticamente o JSON resumido e a fonte compacta para consolidação anual em SQLite. Por padrão, o banco fica em `data/auditoria.sqlite` e não deve ser versionado. Para alterar o caminho:
+
+```powershell
+python -m src.auditoria.api --port 8000 --db-path C:\dados\auditoria.sqlite
+```
+
+Ou use a variável de ambiente `AUDIT_DB_PATH`.
+
 Autenticação opcional:
 ```powershell
 $env:AUDIT_API_KEY = "dev-local-secret"
@@ -205,6 +220,7 @@ Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`.
 - `src/auditoria/audit.py` — orquestração: métricas, contexto do regime, explicação do score
 - `src/auditoria/annual.py` — consolidação anual dos JSONs trimestrais e parecer anual comparativo
 - `src/auditoria/serializers.py` — serialização para JSON trimestral resumido v3.0.0
+- `src/auditoria/storage.py` — persistência SQLite dos trimestres e consolidações anuais
 - `src/auditoria/api.py` — servidor HTTP com upload, schema e rotas estáticas do dashboard
 - `src/auditoria/static/` — frontend do dashboard, download JSON, filtros de achados e impressão em PDF
 - `src/auditoria/report_ai.py` — system prompt para geração de parecer via IA

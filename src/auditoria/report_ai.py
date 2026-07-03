@@ -415,15 +415,15 @@ def _render_conclusao_operational_template(result: AuditResult) -> str:
 
 def _risk_area_map() -> dict[str, tuple[str, ...]]:
     return {
-        "Disponibilidades": ("SN-006", "SN-008"),
-        "Clientes e recebíveis": ("SN-008", "SN-010", "SN-COMP-03"),
+        "Disponibilidades": ("SN-006", "SN-008", "SN-022"),
+        "Clientes e recebíveis": ("SN-008", "SN-010", "SN-023", "SN-COMP-03"),
         "Estoques e CMV": ("SN-015", "SN-018", "SN-COMP-04"),
         "Fornecedores": ("SN-016",),
         "Adiantamentos": ("SN-005", "SN-011", "SN-COMP-03"),
         "Obrigações tributárias": ("SN-001", "SN-002", "SN-012", "SN-017", "SN-019", "SN-020", "SN-COMP-05"),
         "Obrigações trabalhistas": ("SN-003", "SN-014"),
         "Movimentação com sócios": ("SN-004", "SN-005"),
-        "Resultado": ("SN-007", "SN-008", "SN-009", "SN-013", "SN-COMP-01"),
+        "Resultado": ("SN-007", "SN-008", "SN-009", "SN-013", "SN-021", "SN-COMP-01"),
         "Patrimônio líquido": ("SN-004", "SN-009", "SN-COMP-02"),
     }
 

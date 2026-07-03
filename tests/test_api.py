@@ -1,10 +1,13 @@
 import io
 import json
+import tempfile
 import unittest
 import unittest.mock
 import zipfile
+from decimal import Decimal
 from http import HTTPStatus
 from io import BytesIO
+from pathlib import Path
 from textwrap import dedent
 from xml.sax.saxutils import escape
 
@@ -40,10 +43,16 @@ class FakeWfile:
 class TestableAuditApiHandler(AuditApiHandler):
     """A version of AuditApiHandler that can be used without a real socket."""
 
-    def __init__(self, api_key: str | None = None, max_upload_bytes: int = 10 * 1024 * 1024):
+    def __init__(
+        self,
+        api_key: str | None = None,
+        max_upload_bytes: int = 10 * 1024 * 1024,
+        db_path: str | None = ":memory:",
+    ):
         self.client_address = ("127.0.0.1", 8000)
         self.api_key = api_key
         self.ai_api_key = None
+        self.db_path = db_path
         self.max_upload_bytes = max_upload_bytes
         self.rfile = FakeRfile(b"")
         self.wfile = FakeWfile()
@@ -250,6 +259,15 @@ class APIHealthTest(unittest.TestCase):
             mock_send.assert_called_once()
             self.assertEqual(mock_send.call_args.kwargs.get("status"), HTTPStatus.NOT_FOUND)
 
+    def test_send_json_serializes_decimal_values(self):
+        handler = TestableAuditApiHandler()
+
+        handler._send_json({"valor": Decimal("123.45")})
+
+        self.assertEqual(handler._response_code, HTTPStatus.OK)
+        payload = json.loads(handler.wfile.getvalue().decode("utf-8"))
+        self.assertEqual(payload["valor"], 123.45)
+
 
 class APIAuthTest(unittest.TestCase):
     def test_auth_rejects_missing_key(self):
@@ -454,6 +472,129 @@ class APIAuditUploadTest(unittest.TestCase):
         mock_send.assert_called_once()
         result = mock_send.call_args.args[0]
         self.assertEqual(result["metadados"]["versao_schema"], "3.0.0")
+
+
+class APIAnnualUploadTest(unittest.TestCase):
+    def test_annual_upload_with_four_trial_balances_returns_annual_json(self):
+        fields: dict[str, str | tuple[str, bytes, str]] = {
+            "manifest": json.dumps({
+                "trimestres": [
+                    {"field": "balancete_0", "cliente": "BNF Tecnologia", "periodo": "2025-T1", "cnpj": "18.534.694/0001-02", "atividade": "servicos"},
+                    {"field": "balancete_1", "cliente": "BNF Tecnologia", "periodo": "2025-T2", "cnpj": "18.534.694/0001-02", "atividade": "servicos"},
+                    {"field": "balancete_2", "cliente": "BNF Tecnologia", "periodo": "2025-T3", "cnpj": "18.534.694/0001-02", "atividade": "servicos"},
+                    {"field": "balancete_3", "cliente": "BNF Tecnologia", "periodo": "2025-T4", "cnpj": "18.534.694/0001-02", "atividade": "servicos"},
+                ],
+            })
+        }
+        for index in range(4):
+            fields[f"balancete_{index}"] = (f"balancete_t{index + 1}.csv", _csv_trial_balance(), "text/csv")
+
+        body, content_type = _build_multipart_form(fields)
+        handler = TestableAuditApiHandler()
+        handler.path = "/api/auditorias/anual-balancetes"
+        handler.headers = {"Content-Type": content_type, "Content-Length": str(len(body))}
+        handler.rfile = FakeRfile(body)
+        handler.wfile = FakeWfile()
+
+        with unittest.mock.patch.object(handler, "_send_json") as mock_send:
+            handler.do_POST()
+
+        mock_send.assert_called_once()
+        result = mock_send.call_args.args[0]
+        self.assertEqual(result["_schema_version"], "annual-1.0.0")
+        self.assertEqual(result["meta"]["total_trimestres_informados"], 4)
+        self.assertEqual(result["identificacao"]["cliente"], "BNF Tecnologia")
+        self.assertEqual(result["metricas_anual"]["receita_servicos_total"]["valor"], 400000.0)
+
+    def test_annual_upload_requires_manifest(self):
+        body, content_type = _build_multipart_form({
+            "balancete_0": ("balancete.csv", _csv_trial_balance(), "text/csv"),
+        })
+        handler = TestableAuditApiHandler()
+        handler.path = "/api/auditorias/anual-balancetes"
+        handler.headers = {"Content-Type": content_type, "Content-Length": str(len(body))}
+        handler.rfile = FakeRfile(body)
+        handler.wfile = FakeWfile()
+
+        with unittest.mock.patch.object(handler, "_send_json") as mock_send:
+            handler.do_POST()
+
+        mock_send.assert_called_once()
+        self.assertEqual(mock_send.call_args.kwargs.get("status"), HTTPStatus.BAD_REQUEST)
+
+
+class APIStoredAuditTest(unittest.TestCase):
+    def _post_quarter(self, db_path: str, periodo: str) -> dict:
+        body, content_type = _build_multipart_form({
+            "cliente": "BNF Tecnologia",
+            "cnpj": "18.534.694/0001-02",
+            "periodo": periodo,
+            "atividade": "servicos",
+            "balancete": (f"balancete_{periodo}.csv", _csv_trial_balance(), "text/csv"),
+        })
+        handler = TestableAuditApiHandler(db_path=db_path)
+        handler.path = "/api/auditorias"
+        handler.headers = {"Content-Type": content_type, "Content-Length": str(len(body))}
+        handler.rfile = FakeRfile(body)
+        handler.wfile = FakeWfile()
+
+        handler.do_POST()
+
+        self.assertEqual(handler._response_code, HTTPStatus.OK)
+        return json.loads(handler.wfile.getvalue().decode("utf-8"))
+
+    def test_upload_persists_quarter_and_list_endpoint_returns_it(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "auditoria.sqlite")
+            self._post_quarter(db_path, "2025-T1")
+
+            handler = TestableAuditApiHandler(db_path=db_path)
+            handler.path = "/api/auditorias?cnpj=18.534.694/0001-02&ano=2025"
+            handler.headers = {}
+            handler.rfile = FakeRfile(b"")
+            handler.wfile = FakeWfile()
+
+            handler.do_GET()
+
+            self.assertEqual(handler._response_code, HTTPStatus.OK)
+            payload = json.loads(handler.wfile.getvalue().decode("utf-8"))
+            self.assertEqual(payload["total"], 1)
+            self.assertEqual(payload["items"][0]["empresa"], "BNF Tecnologia")
+            self.assertEqual(payload["items"][0]["trimestre"], "T1")
+            self.assertEqual(payload["items"][0]["ano"], 2025)
+
+    def test_saved_quarters_generate_annual_payload(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "auditoria.sqlite")
+            for quarter in range(1, 5):
+                self._post_quarter(db_path, f"2025-T{quarter}")
+
+            handler = TestableAuditApiHandler(db_path=db_path)
+            handler.path = "/api/auditorias/anual?cnpj=18.534.694/0001-02&ano=2025"
+            handler.headers = {"Content-Length": "0"}
+            handler.rfile = FakeRfile(b"")
+            handler.wfile = FakeWfile()
+
+            handler.do_POST()
+
+            self.assertEqual(handler._response_code, HTTPStatus.OK)
+            payload = json.loads(handler.wfile.getvalue().decode("utf-8"))
+            self.assertEqual(payload["_schema_version"], "annual-1.0.0")
+            self.assertEqual(payload["meta"]["total_trimestres_informados"], 4)
+            self.assertEqual(payload["identificacao"]["cliente"], "BNF Tecnologia")
+            self.assertEqual(payload["metricas_anual"]["receita_servicos_total"]["valor"], 400000.0)
+
+            lookup = TestableAuditApiHandler(db_path=db_path)
+            lookup.path = "/api/auditorias/anual?cnpj=18.534.694/0001-02&ano=2025"
+            lookup.headers = {}
+            lookup.rfile = FakeRfile(b"")
+            lookup.wfile = FakeWfile()
+
+            lookup.do_GET()
+
+            self.assertEqual(lookup._response_code, HTTPStatus.OK)
+            saved = json.loads(lookup.wfile.getvalue().decode("utf-8"))
+            self.assertEqual(saved["_schema_version"], "annual-1.0.0")
 
 
 class APICORSTest(unittest.TestCase):

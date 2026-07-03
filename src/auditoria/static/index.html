@@ -43,6 +43,20 @@
         <button class="primary-button" id="submit-button" type="submit">Gerar análise</button>
       </form>
 
+      <section class="annual-panel" aria-label="Análise anual">
+        <div class="annual-header">
+          <h2>Análise anual</h2>
+          <p>Os balancetes processados ficam salvos no backend local e também podem ser consolidados nesta sessão.</p>
+        </div>
+        <div id="annual-list" class="annual-list"></div>
+        <button class="primary-button" id="annual-generate-btn" type="button" disabled>Gerar JSON anual da sessão</button>
+        <div id="annual-saved-list" class="annual-list annual-list-saved"></div>
+        <button class="secondary-button" id="annual-load-saved-btn" type="button">Carregar trimestres salvos</button>
+        <button class="primary-button" id="annual-generate-saved-btn" type="button" disabled>Gerar JSON anual salvo</button>
+        <button class="secondary-button" id="annual-clear-btn" type="button">Limpar trimestres</button>
+        <p id="annual-status" class="file-meta">Nenhum trimestre armazenado.</p>
+      </section>
+
       <div class="sidebar-footer">
         <span>JSON trimestral</span>
         <strong>v3.0.0</strong>

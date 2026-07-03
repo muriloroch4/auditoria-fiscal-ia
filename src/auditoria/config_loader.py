@@ -44,7 +44,7 @@ def get_rule_config(codigo: str) -> dict[str, Any]:
 
 def _build_defaults() -> dict[str, Any]:
     return {
-        "version": "1.4.0",
+        "version": "1.4.1",
         "limites_gerais": {
             "simples_anual": 4800000,
             "limite_movimentacao_ativa": 10000,
@@ -54,18 +54,21 @@ def _build_defaults() -> dict[str, Any]:
             "simples_servicos": [
                 "SN-001", "SN-002", "SN-003", "SN-004", "SN-005", "SN-006", "SN-007",
                 "SN-008", "SN-009", "SN-010", "SN-011", "SN-012", "SN-013", "SN-014",
+                "SN-021", "SN-022", "SN-023",
                 "SN-COMP-01", "SN-COMP-02", "SN-COMP-03",
             ],
             "simples_comercio": [
                 "SN-001", "SN-002", "SN-004", "SN-005", "SN-006", "SN-007",
                 "SN-008", "SN-009", "SN-010", "SN-011", "SN-012", "SN-013", "SN-014",
                 "SN-015", "SN-016", "SN-017", "SN-018", "SN-019",
+                "SN-021", "SN-022", "SN-023",
                 "SN-COMP-01", "SN-COMP-02", "SN-COMP-03", "SN-COMP-04",
             ],
             "simples_comercio_servicos": [
                 "SN-001", "SN-002", "SN-003", "SN-004", "SN-005", "SN-006", "SN-007",
                 "SN-008", "SN-009", "SN-010", "SN-011", "SN-012", "SN-013", "SN-014",
                 "SN-015", "SN-016", "SN-017", "SN-018", "SN-019", "SN-020",
+                "SN-021", "SN-022", "SN-023",
                 "SN-COMP-01", "SN-COMP-02", "SN-COMP-03", "SN-COMP-04", "SN-COMP-05",
             ],
         },
@@ -169,6 +172,26 @@ def _build_defaults() -> dict[str, Any]:
         "SN-020": {
             "tolerancia_receita_nao_segregada": 0.20,
             "pontuacao_medio": 18,
+        },
+        "SN-021": {
+            "referencia_presuncao_servicos": 0.32,
+            "limite_baixo_ratio": 0.45,
+            "pontuacao_baixo": 6,
+            "limite_medio_ratio": 0.64,
+            "pontuacao_medio": 12,
+        },
+        "SN-022": {
+            "limite_servicos_absoluto": 3000,
+            "limite_servicos_ratio": 0.02,
+            "limite_comercio_absoluto": 10000,
+            "limite_comercio_ratio": 0.05,
+            "multiplicador_alto": 3,
+            "pontuacao_medio": 12,
+            "pontuacao_alto": 18,
+        },
+        "SN-023": {
+            "receita_minima": 200000,
+            "pontuacao_baixo": 6,
         },
         "SN-COMP-01": {
             "pontuacao": 15,

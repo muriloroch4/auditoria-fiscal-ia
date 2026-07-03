@@ -148,6 +148,94 @@ select {
   font-size: 12px;
 }
 
+.annual-panel {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.annual-header h2 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.annual-header p {
+  margin: 4px 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.annual-list {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.annual-list-saved {
+  margin-top: 14px;
+}
+
+.annual-saved-title {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.annual-item {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.annual-item.is-empty {
+  color: var(--muted);
+  border-style: dashed;
+}
+
+.annual-quarter {
+  display: grid;
+  place-items: center;
+  min-height: 30px;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--accent-strong);
+  font-weight: 800;
+}
+
+.annual-item.is-empty .annual-quarter {
+  color: var(--muted);
+}
+
+.annual-name {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.annual-meta {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.annual-panel .primary-button {
+  margin-top: 8px;
+}
+
+.annual-panel .secondary-button {
+  width: 100%;
+  margin-top: 8px;
+}
+
 .primary-button,
 .secondary-button,
 .filter-button,

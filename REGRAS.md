@@ -48,6 +48,11 @@ Motor para empresas enquadradas no Simples Nacional, com conjuntos para serviço
 | SN-018C | CMV muito elevado | CMV acima de 95% da receita | Alto | 24 |
 | SN-019 | Sublimite de ICMS | Receita trimestral anualizada acima de R$ 3.600.000 | Médio | 16 |
 | SN-020 | Receita mista sem segregação | Comércio e serviços sem contas de receita suficientemente segregadas | Médio | 18 |
+| SN-021A | Margem de lucro acima da referência | Lucro contábil acima de 45% da receita | Baixo | 6 |
+| SN-021B | Margem de lucro muito elevada | Lucro contábil acima de 64% da receita | Médio | 12 |
+| SN-022A | Caixa físico acima do parâmetro | Caixa físico acima do maior limite entre valor absoluto e percentual da receita | Médio | 12 |
+| SN-022B | Caixa físico muito elevado | Caixa físico acima de 3x o parâmetro esperado | Alto | 18 |
+| SN-023 | Clientes zerados com receita relevante | Receita >= R$ 200.000 sem saldo ou movimentação em clientes | Baixo | 6 |
 | SN-COMP-01 | Omissão de receita e despesas elevadas | SN-008 + SN-007 ambos acionados | Alto | 15 |
 | SN-COMP-02 | Prejuízo significativo e caixa negativo | SN-009B + SN-006A ambos acionados | Alto | 15 |
 | SN-COMP-03 | Recebíveis elevados e adiantamentos | SN-010B/C + SN-011A ambos acionados | Médio | 10 |
@@ -69,6 +74,9 @@ Motor para empresas enquadradas no Simples Nacional, com conjuntos para serviço
 - A regra `SN-020` é aplicada apenas no conjunto `simples_comercio_servicos` e procura ausência de segregação contábil entre receitas de comércio e receitas de serviços.
 - A regra `SN-017` é alerta documental: créditos fiscais podem existir em situações específicas, mas exigem suporte e validação de natureza/recuperabilidade.
 - A regra `SN-019` usa receita trimestral anualizada como alerta de sublimite; a conclusão legal depende da RBT12 e do sublimite estadual aplicável.
+- A regra `SN-021` usa a referência de 32% apenas como parâmetro gerencial de plausibilidade, não como presunção tributária definitiva para empresas do Simples.
+- A regra `SN-022` separa caixa físico de bancos; para serviços, o parâmetro é mais restritivo, pois caixa operacional relevante tende a exigir justificativa documental.
+- A regra `SN-023` não presume erro quando clientes está zerado; ela pede validação de recebimento à vista, baixa no mesmo mês ou controle de recebíveis.
 - `_active_movement` é calculado apenas com `bancos` e `caixa`, sem `clientes`.
 - `_operational_movement` inclui `bancos`, `caixa` e `clientes` para o cálculo do índice da `SN-008B`.
 - Regras compostas (`SN-COMP-*`) são acionadas quando as regras base correspondentes estão presentes.
