@@ -596,6 +596,16 @@ class APIStoredAuditTest(unittest.TestCase):
             saved = json.loads(lookup.wfile.getvalue().decode("utf-8"))
             self.assertEqual(saved["_schema_version"], "annual-1.0.0")
 
+    def test_fourth_saved_quarter_uses_rbt12_context(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "auditoria.sqlite")
+            payload = {}
+            for quarter in range(1, 5):
+                payload = self._post_quarter(db_path, f"2025-T{quarter}")
+
+            observations = payload["fundamentacao_tecnica_resumida"]["observacoes_tecnicas"]
+            self.assertTrue(any("RBT12 utilizado pelo motor" in item for item in observations))
+
 
 class APICORSTest(unittest.TestCase):
     def test_options_returns_no_content_with_cors(self):

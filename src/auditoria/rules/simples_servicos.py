@@ -81,14 +81,21 @@ def analyze_simples_nacional(
     balance: TrialBalance,
     conjunto_regras: str | None = None,
     profit_basis: ProfitBasis | None = None,
+    rbt12_context: dict | None = None,
 ) -> list[RuleFinding]:
-    return _analyze_simples_nacional(balance, normalize_ruleset(conjunto_regras), profit_basis=profit_basis)
+    return _analyze_simples_nacional(
+        balance,
+        normalize_ruleset(conjunto_regras),
+        profit_basis=profit_basis,
+        rbt12_context=rbt12_context,
+    )
 
 
 def _analyze_simples_nacional(
     balance: TrialBalance,
     ruleset: str,
     profit_basis: ProfitBasis | None = None,
+    rbt12_context: dict | None = None,
 ) -> list[RuleFinding]:
     revenue = calculate_revenue(balance)
     active_movement = _active_movement(balance)
@@ -106,6 +113,7 @@ def _analyze_simples_nacional(
     inventory = calculate_inventory(balance)
     tax_credits = calculate_tax_credits(balance)
     cogs = calculate_cost_of_goods(balance)
+    rbt12_revenue = _rbt12_decimal(rbt12_context, "receita")
 
     if profit_basis is None:
         profit_basis = calculate_profit_basis(balance, revenue, expenses)
@@ -113,7 +121,7 @@ def _analyze_simples_nacional(
 
     findings: list[RuleFinding] = []
     findings.extend(_check_low_or_missing_revenue(revenue, active_movement, _operational_movement(balance)))
-    findings.extend(_check_revenue_limit(revenue))
+    findings.extend(_check_revenue_limit(revenue, rbt12_revenue))
     findings.extend(_check_tax_ratio(revenue, tax_expense, ruleset))
     if ruleset in _SERVICE_RULESETS:
         findings.extend(_check_payroll_factor(revenue, payroll, ruleset))
@@ -134,7 +142,8 @@ def _analyze_simples_nacional(
         findings.extend(_check_supplier_position(revenue, suppliers, inventory))
         findings.extend(_check_tax_credits_simples(revenue, tax_credits))
         findings.extend(_check_cogs_for_commerce(revenue, inventory, suppliers, cogs))
-        findings.extend(_check_commerce_sublimit(revenue))
+        findings.extend(_check_commerce_sublimit(revenue, rbt12_revenue))
+        findings.extend(_check_icms_st_attention(revenue, inventory, suppliers, cogs, tax_credits))
     if ruleset == RULESET_COMERCIO_SERVICOS:
         findings.extend(_check_mixed_revenue_segregation(balance, revenue, payroll, inventory, suppliers))
     findings.extend(_apply_compound_rules(findings))
@@ -299,11 +308,13 @@ def _check_low_or_missing_revenue(revenue: Decimal, active_movement: Decimal, op
     return []
 
 
-def _check_revenue_limit(revenue: Decimal) -> list[RuleFinding]:
+def _check_revenue_limit(revenue: Decimal, rbt12_revenue: Decimal | None = None) -> list[RuleFinding]:
     cfg = get_rule_config("SN-001")
     anual = Decimal(str(load_config().get("limites_gerais", {}).get("simples_anual", 4800000)))
-    annualized_revenue = revenue * Decimal("4")
+    has_rbt12 = rbt12_revenue is not None and rbt12_revenue > 0
+    annualized_revenue = rbt12_revenue if has_rbt12 else revenue * Decimal("4")
     ratio = annualized_revenue / anual if anual > 0 else Decimal("0")
+    base_calculo_limite = "RBT12 consolidado pelo historico" if has_rbt12 else "receita trimestral anualizada (receita x 4)"
 
     lim_alto = Decimal(str(cfg.get("limite_alto", 0.90)))
     if ratio >= lim_alto:
@@ -319,6 +330,7 @@ def _check_revenue_limit(revenue: Decimal) -> list[RuleFinding]:
                     "receita_anualizada_estimativa": _money(annualized_revenue),
                     "limite_anual_simples": _money(anual),
                     "percentual_limite_anual": _percent(ratio),
+                    "base_calculo_limite": base_calculo_limite,
                 },
                 recomendacao="Validar a receita bruta acumulada dos últimos 12 meses (RBT12), projetar os próximos trimestres e avaliar risco de sublimite, desenquadramento ou excesso de receita.",
                 normas_aplicaveis=("LC 123/2006", "art. 3° LC 123/2006", "LC 155/2016"),
@@ -339,6 +351,7 @@ def _check_revenue_limit(revenue: Decimal) -> list[RuleFinding]:
                     "receita_anualizada_estimativa": _money(annualized_revenue),
                     "limite_anual_simples": _money(anual),
                     "percentual_limite_anual": _percent(ratio),
+                    "base_calculo_limite": base_calculo_limite,
                 },
                 recomendacao="Acompanhar receita acumulada dos últimos 12 meses (RBT12) e simular cenários de crescimento para os próximos trimestres.",
                 normas_aplicaveis=("LC 123/2006", "art. 3° LC 123/2006", "LC 155/2016"),
@@ -1220,12 +1233,14 @@ def _check_cogs_for_commerce(
     return []
 
 
-def _check_commerce_sublimit(revenue: Decimal) -> list[RuleFinding]:
+def _check_commerce_sublimit(revenue: Decimal, rbt12_revenue: Decimal | None = None) -> list[RuleFinding]:
     if revenue <= 0:
         return []
 
     cfg = get_rule_config("SN-019")
-    annualized_revenue = revenue * Decimal("4")
+    has_rbt12 = rbt12_revenue is not None and rbt12_revenue > 0
+    annualized_revenue = rbt12_revenue if has_rbt12 else revenue * Decimal("4")
+    base_calculo_limite = "RBT12 consolidado pelo historico" if has_rbt12 else "receita trimestral anualizada (receita x 4)"
     sublimite = Decimal(str(cfg.get("sublimite_anual", 3600000)))
     if annualized_revenue <= sublimite:
         return []
@@ -1241,9 +1256,53 @@ def _check_commerce_sublimit(revenue: Decimal) -> list[RuleFinding]:
                 "receita_trimestre": _money(revenue),
                 "receita_anualizada_estimativa": _money(annualized_revenue),
                 "sublimite_anual": _money(sublimite),
+                "base_calculo_limite": base_calculo_limite,
             },
             recomendacao="Validar a RBT12, sublimite estadual aplicavel, segregacao de receitas e eventual recolhimento de ICMS fora do DAS.",
             normas_aplicaveis=("LC 123/2006", "art. 20 LC 123/2006"),
+        )
+    ]
+
+
+def _check_icms_st_attention(
+    revenue: Decimal,
+    inventory: Decimal,
+    suppliers: Decimal,
+    cogs: Decimal,
+    tax_credits: Decimal,
+) -> list[RuleFinding]:
+    cfg = get_rule_config("SN-024")
+    min_revenue = Decimal(str(cfg.get("receita_minima", 10000)))
+    if revenue <= min_revenue:
+        return []
+
+    credit_ratio_limit = Decimal(str(cfg.get("limite_creditos_ratio", 0.01)))
+    credit_ratio = tax_credits / revenue if revenue > 0 else Decimal("0")
+    commercial_signal = inventory > 0 or suppliers > 0 or cogs > 0
+    has_relevant_tax_credits = tax_credits > 0 and credit_ratio >= credit_ratio_limit
+
+    if not commercial_signal or not has_relevant_tax_credits:
+        return []
+
+    return [
+        RuleFinding(
+            codigo="SN-024",
+            titulo="Validacao de ICMS-ST e creditos fiscais em operacao comercial",
+            nivel=RiskLevel.BAIXO,
+            pontuacao=cfg.get("pontuacao_baixo", 6),
+            descricao="Foram identificados creditos fiscais em contexto comercial, exigindo validacao documental de ICMS-ST, retencoes, ressarcimentos ou saldos recuperaveis.",
+            evidencia={
+                "receita": _money(revenue),
+                "creditos_fiscais": _money(tax_credits),
+                "percentual_sobre_receita": _percent(credit_ratio),
+                "estoques": _money(inventory),
+                "fornecedores": _money(suppliers),
+                "cmv_custos": _money(cogs),
+                "tipo_achado": "validacao_documental",
+                "limitacao_dados": "Balancete nao contem NCM, CFOP, CST ou item fiscal; exige confronto com notas fiscais e PGDAS-D.",
+            },
+            recomendacao="Validar NCM, CFOP, mercadorias sujeitas a substituicao tributaria, documentos de compra/venda, ressarcimentos e suporte dos creditos fiscais antes de concluir sobre margem e DAS.",
+            normas_aplicaveis=("LC 123/2006", "art. 20 LC 123/2006", "ITG 2000"),
         )
     ]
 
@@ -1381,6 +1440,18 @@ def _apply_compound_rules(findings: list[RuleFinding]) -> list[RuleFinding]:
 
 def _abs(value: Decimal) -> Decimal:
     return abs(value)
+
+
+def _rbt12_decimal(context: dict | None, key: str) -> Decimal | None:
+    if not context:
+        return None
+    value = context.get(key)
+    if value in (None, ""):
+        return None
+    try:
+        return Decimal(str(value))
+    except Exception:
+        return None
 
 
 def _active_movement(balance: TrialBalance) -> Decimal:

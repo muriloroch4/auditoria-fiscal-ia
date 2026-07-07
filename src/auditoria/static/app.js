@@ -444,8 +444,11 @@ function renderContext(context) {
 
   const items = [
     ["regime", "Regime"],
+    ["anexo_estimado", "Anexo estimado"],
     ["faixa_receita_estimada", "Faixa de receita"],
-    ["aliquota_efetiva_esperada", "Alíquota esperada"],
+    ["aliquota_efetiva_esperada", "Alíquota estimada"],
+    ["aliquota_nominal_estimada", "Alíquota nominal"],
+    ["parcela_deduzir_estimada", "Parcela a deduzir"],
   ].map(([key, label]) => {
     if (!context[key]) return "";
     return `<div class="context-item"><div class="label">${esc(label)}</div><div class="value">${esc(context[key])}</div></div>`;

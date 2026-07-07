@@ -63,6 +63,10 @@ Motor de regras fiscais para análise de balancetes trimestrais de empresas opta
 
 Conjuntos disponíveis em `metadados.conjunto_regras`: `simples_servicos`, `simples_comercio` e `simples_comercio_servicos`.
 
+As tabelas estruturadas dos anexos usados pelo contexto tributário ficam em `config/simples_anexos.json`. O motor estima Anexo I para comércio, Anexo III ou V para serviços conforme Fator R trimestral, e exige segregação para empresas mistas. A estimativa não substitui RBT12 oficial, CNAE, PGDAS-D e validação documental.
+
+Quando os quatro trimestres estão salvos no backend para o mesmo CNPJ/ano, o motor passa a usar o RBT12 consolidado pelo histórico para contexto tributário, regra de limite do Simples (`SN-001`) e sublimite de comércio (`SN-019`). Sem os quatro trimestres, ele mantém `receita x 4` apenas como alerta.
+
 ## Como rodar
 
 Requisitos: Python 3.11+
@@ -158,7 +162,8 @@ python -m src.auditoria.main --anual t1.json t2.json t3.json t4.json --markdown 
 ```
 
 O JSON anual (`annual-1.0.0`) consolida receita, deduções, tributos registrados,
-resultado, saldos finais relevantes, recorrência de achados e risco anual.
+resultado, estoques, fornecedores, CMV/custos, créditos fiscais, saldos finais relevantes,
+RBT12 consolidado, recorrência de achados, tendência de risco e risco anual.
 
 ### Testes
 
@@ -227,6 +232,7 @@ Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`.
 - `src/auditoria/ai_client.py` — cliente OpenRouter (stdlib, sem dependências)
 - `src/auditoria/main.py` — CLI para processamento em lote (JSON por padrão, Markdown com `--markdown`)
 - `config/rules.json` — configuração de pesos e limites das regras
+- `config/simples_anexos.json` — tabelas dos Anexos I, III e V usadas na estimativa tributária
 - `REGRAS.md` — tabela das regras fiscais configuradas
 - `docs/PROMPTS_IA.md` — prompts para chats externos de parecer trimestral e anual
 - `tests/` — suíte de testes unitários e de integração leve

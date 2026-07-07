@@ -17,7 +17,8 @@ def build_annual_comparison(quarterly_payloads: list[dict[str, Any]]) -> dict[st
         raise ValueError("Informe ao menos um JSON trimestral para consolidar o parecer anual.")
 
     quarters = sorted((_quarter_summary(payload) for payload in quarterly_payloads), key=lambda item: item["ordem"])
-    totals = _annual_totals(quarters)
+    rbt12_context = _rbt12_context(quarters)
+    totals = _annual_totals(quarters, rbt12_context)
     findings = _annual_findings(quarters, totals)
     risk = _annual_risk(quarters, findings)
     identificacao = _annual_identification(quarters)
@@ -38,6 +39,13 @@ def build_annual_comparison(quarterly_payloads: list[dict[str, Any]]) -> dict[st
         "achados_anuais": findings,
         "resumo_evolucao": _evolution_summary(quarters, totals, findings),
     }
+
+
+def build_rbt12_context(quarterly_payloads: list[dict[str, Any]]) -> dict[str, Any]:
+    if not quarterly_payloads:
+        return {}
+    quarters = sorted((_quarter_summary(payload) for payload in quarterly_payloads), key=lambda item: item["ordem"])
+    return _rbt12_context(quarters)
 
 
 def generate_annual_markdown_report(payload: dict[str, Any]) -> str:
@@ -104,6 +112,10 @@ def _quarter_summary(payload: dict[str, Any]) -> dict[str, Any]:
                 "clientes_recebiveis": _metric(metricas, "clientes_recebiveis"),
                 "adiantamentos": _metric(metricas, "adiantamentos"),
                 "emprestimos": _metric(metricas, "emprestimos"),
+                "fornecedores": _metric(metricas, "fornecedores"),
+                "estoques": _metric(metricas, "estoques"),
+                "cmv_custos": _metric(metricas, "cmv_custos"),
+                "creditos_fiscais": _metric(metricas, "creditos_fiscais"),
             },
             "achados": achados,
             "achados_codigos": [str(item.get("codigo", "")) for item in achados if item.get("codigo")],
@@ -139,13 +151,17 @@ def _quarter_summary(payload: dict[str, Any]) -> dict[str, Any]:
             "clientes_recebiveis": _metric(metricas, "clientes_recebiveis"),
             "adiantamentos": _metric(metricas, "adiantamentos"),
             "emprestimos": _metric(metricas, "emprestimos"),
+            "fornecedores": _metric(metricas, "fornecedores"),
+            "estoques": _metric(metricas, "estoques"),
+            "cmv_custos": _metric(metricas, "cmv_custos"),
+            "creditos_fiscais": _metric(metricas, "creditos_fiscais"),
         },
         "achados": achados,
         "achados_codigos": [str(item.get("codigo", "")) for item in achados if item.get("codigo")],
     }
 
 
-def _annual_totals(quarters: list[dict[str, Any]]) -> dict[str, Any]:
+def _annual_totals(quarters: list[dict[str, Any]], rbt12_context: dict[str, Any] | None = None) -> dict[str, Any]:
     last = quarters[-1]
 
     def sum_metric(key: str) -> Decimal:
@@ -158,8 +174,12 @@ def _annual_totals(quarters: list[dict[str, Any]]) -> dict[str, Any]:
     payroll = sum_metric("folha_pro_labore")
     profit = sum_metric("lucro_apurado_base")
     profit_distribution = sum_metric("lucros_distribuidos")
+    cogs = sum_metric("cmv_custos")
     debt = last["metricas"]["emprestimos"]
     tax_liability = last["metricas"]["tributos_a_recolher"]
+    suppliers = last["metricas"]["fornecedores"]
+    inventory = last["metricas"]["estoques"]
+    tax_credits = last["metricas"]["creditos_fiscais"]
 
     result = {
         "receita_servicos_total": _entry(revenue),
@@ -171,6 +191,19 @@ def _annual_totals(quarters: list[dict[str, Any]]) -> dict[str, Any]:
         "lucros_distribuidos_total": _entry(profit_distribution),
         "tributos_a_recolher_final": _entry(tax_liability),
         "emprestimos_final": _entry(debt),
+        "fornecedores_final": _entry(suppliers),
+        "estoques_final": _entry(inventory),
+        "cmv_custos_total": _entry(cogs),
+        "creditos_fiscais_final": _entry(tax_credits),
+        "rbt12_receita": _entry(Decimal(str((rbt12_context or {}).get("receita") or revenue))),
+        "rbt12_folha": _entry(Decimal(str((rbt12_context or {}).get("folha") or payroll))),
+        "contexto_rbt12": {
+            "dados_suficientes": bool((rbt12_context or {}).get("dados_suficientes")),
+            "origem": str((rbt12_context or {}).get("origem") or ""),
+            "base_calculo": str((rbt12_context or {}).get("base_calculo") or ""),
+            "trimestres_considerados": list((rbt12_context or {}).get("trimestres_considerados") or []),
+            "fator_r_rbt12": str((rbt12_context or {}).get("fator_r_formatado") or "0,0%"),
+        },
         "caixa_e_bancos_final": _entry(last["metricas"]["caixa_e_bancos"]),
         "clientes_recebiveis_final": _entry(last["metricas"]["clientes_recebiveis"]),
         "adiantamentos_final": _entry(last["metricas"]["adiantamentos"]),
@@ -180,12 +213,37 @@ def _annual_totals(quarters: list[dict[str, Any]]) -> dict[str, Any]:
             "despesas_sobre_receita_anual": _safe_percent(expenses, revenue),
             "folha_sobre_receita_anual": _safe_percent(payroll, revenue),
             "lucro_sobre_receita_anual": _safe_percent(profit, revenue),
+            "cmv_sobre_receita_anual": _safe_percent(cogs, revenue),
+            "estoques_finais_sobre_receita_anual": _safe_percent(inventory, revenue),
+            "fornecedores_finais_sobre_receita_anual": _safe_percent(suppliers, revenue),
+            "creditos_fiscais_finais_sobre_receita_anual": _safe_percent(tax_credits, revenue),
             "distribuicao_lucros_sobre_lucro": _safe_percent(profit_distribution, profit),
             "receita_sobre_limite_simples": _safe_percent(revenue, SIMPLES_ANNUAL_LIMIT),
             "endividamento_sobre_receita": _safe_percent(debt, revenue),
         },
     }
     return result
+
+
+def _rbt12_context(quarters: list[dict[str, Any]]) -> dict[str, Any]:
+    revenue = sum((q["metricas"]["receita_servicos"] for q in quarters), Decimal("0"))
+    payroll = sum((q["metricas"]["folha_pro_labore"] for q in quarters), Decimal("0"))
+    missing = _missing_quarters(quarters)
+    considered = [q["trimestre"] for q in quarters]
+    sufficient = len(quarters) >= 4 and not missing
+    fator_r = payroll / revenue if revenue > 0 else Decimal("0")
+
+    return {
+        "receita": float(revenue),
+        "folha": float(payroll),
+        "origem": "soma dos quatro trimestres informados" if sufficient else "soma parcial dos trimestres informados",
+        "base_calculo": "RBT12 anual consolidado pelos quatro trimestres" if sufficient else "base anual parcial; exige completar os quatro trimestres",
+        "trimestres_considerados": considered,
+        "trimestres_ausentes": missing,
+        "dados_suficientes": sufficient,
+        "fator_r": float(fator_r),
+        "fator_r_formatado": format_percent(fator_r),
+    }
 
 
 def _annual_findings(quarters: list[dict[str, Any]], totals: dict[str, Any]) -> list[dict[str, Any]]:
@@ -211,6 +269,11 @@ def _annual_findings(quarters: list[dict[str, Any]], totals: dict[str, Any]) -> 
     profit_distribution = _value(totals, "lucros_distribuidos_total")
     debt = _value(totals, "emprestimos_final")
     tax_liability = _value(totals, "tributos_a_recolher_final")
+    inventory = _value(totals, "estoques_final")
+    suppliers = _value(totals, "fornecedores_final")
+    cogs = _value(totals, "cmv_custos_total")
+    tax_credits = _value(totals, "creditos_fiscais_final")
+    clients = _value(totals, "clientes_recebiveis_final")
 
     if revenue >= SIMPLES_ANNUAL_LIMIT * Decimal("0.90"):
         findings.append(
@@ -250,6 +313,19 @@ def _annual_findings(quarters: list[dict[str, Any]], totals: dict[str, Any]) -> 
             )
         )
 
+    if revenue > 0 and profit > 0 and profit / revenue > Decimal("0.64"):
+        findings.append(
+            _finding(
+                "AN-MAR-001",
+                "Margem anual de lucro muito elevada",
+                "medio",
+                12,
+                "O lucro anual representa percentual elevado da receita consolidada, sugerindo possivel ausencia de despesas, custos ou apropriacoes de competencia.",
+                {"lucro_anual": format_brl(profit), "receita_anual": format_brl(revenue), "margem_lucro": format_percent(profit / revenue)},
+                "Revisar custos, despesas, folha, pro-labore, servicos tomados, competencia contabila e documentos de suporte antes de concluir sobre a margem anual.",
+            )
+        )
+
     if revenue > 0 and debt / revenue > Decimal("0.60"):
         findings.append(
             _finding(
@@ -263,7 +339,73 @@ def _annual_findings(quarters: list[dict[str, Any]], totals: dict[str, Any]) -> 
             )
         )
 
+    if revenue >= Decimal("800000") and clients <= 0:
+        findings.append(
+            _finding(
+                "AN-CLI-001",
+                "Clientes zerados no fechamento anual com receita relevante",
+                "baixo",
+                6,
+                "O saldo final de clientes/recebiveis esta zerado apesar de receita anual relevante, exigindo confirmacao do recebimento a vista ou no proprio periodo.",
+                {"clientes_recebiveis_final": format_brl(clients), "receita_anual": format_brl(revenue)},
+                "Conciliar notas fiscais, extratos bancarios, baixas de recebiveis e meios de pagamento para confirmar se nao ha saldo pendente.",
+            )
+        )
+
+    if revenue > 0 and inventory / revenue > Decimal("0.50"):
+        findings.append(
+            _finding(
+                "AN-COM-EST-001",
+                "Estoque final relevante em relacao a receita anual",
+                "medio",
+                12,
+                "O saldo final de estoques representa percentual relevante da receita anual consolidada.",
+                {"estoques_final": format_brl(inventory), "receita_anual": format_brl(revenue), "percentual": format_percent(inventory / revenue)},
+                "Conciliar inventario final, compras, notas fiscais de venda, perdas, devolucoes e baixas por CMV antes do parecer anual.",
+            )
+        )
+
+    if revenue > 0 and suppliers / revenue > Decimal("0.30"):
+        findings.append(
+            _finding(
+                "AN-COM-FOR-001",
+                "Fornecedores finais relevantes em relacao a receita anual",
+                "medio",
+                10,
+                "O saldo final de fornecedores e relevante frente a receita anual, exigindo conciliacao com compras e pagamentos posteriores.",
+                {"fornecedores_final": format_brl(suppliers), "receita_anual": format_brl(revenue), "percentual": format_percent(suppliers / revenue)},
+                "Validar aging de fornecedores, documentos fiscais de compra, duplicatas pagas, mercadorias recebidas e vinculo com estoque.",
+            )
+        )
+
+    if revenue > 0 and (inventory > 0 or suppliers > 0) and cogs <= 0:
+        findings.append(
+            _finding(
+                "AN-COM-CMV-001",
+                "Operacao comercial anual sem CMV consolidado",
+                "alto",
+                20,
+                "Ha sinais comerciais no fechamento anual, mas nao foi identificado CMV/custo de mercadorias consolidado.",
+                {"estoques_final": format_brl(inventory), "fornecedores_final": format_brl(suppliers), "cmv_custos_total": format_brl(cogs)},
+                "Verificar baixas de estoque, custo medio, classificacao de contas de custo e demonstracoes de resultado antes de concluir a margem anual.",
+            )
+        )
+
+    if tax_credits > 0 and revenue > 0 and tax_credits / revenue > Decimal("0.01"):
+        findings.append(
+            _finding(
+                "AN-COM-ST-001",
+                "Creditos fiscais finais exigem validacao de ICMS-ST e recuperabilidade",
+                "baixo",
+                6,
+                "Foram identificados creditos fiscais finais relevantes em empresa do Simples, com potencial relacao com ICMS-ST, retencoes ou ressarcimentos.",
+                {"creditos_fiscais_final": format_brl(tax_credits), "receita_anual": format_brl(revenue), "percentual": format_percent(tax_credits / revenue)},
+                "Validar NCM/CFOP, produtos sujeitos a substituicao tributaria, ressarcimentos, retencoes e documentacao de suporte dos creditos.",
+            )
+        )
+
     if len(quarters) >= 2:
+        findings.extend(_trend_findings(quarters))
         first_tax = quarters[0]["metricas"]["tributos_a_recolher"]
         last_tax = quarters[-1]["metricas"]["tributos_a_recolher"]
         if first_tax > 0 and last_tax > first_tax * Decimal("1.50"):
@@ -290,6 +432,59 @@ def _annual_findings(quarters: list[dict[str, Any]], totals: dict[str, Any]) -> 
                     "Validar composição do saldo e eventual necessidade de regularização ou parcelamento.",
                 )
             )
+
+    return findings
+
+
+def _trend_findings(quarters: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if len(quarters) < 2:
+        return []
+
+    findings: list[dict[str, Any]] = []
+    first = quarters[0]
+    last = quarters[-1]
+    first_score = Decimal(str(first.get("pontuacao") or 0))
+    last_score = Decimal(str(last.get("pontuacao") or 0))
+    first_revenue = first["metricas"]["receita_servicos"]
+    last_revenue = last["metricas"]["receita_servicos"]
+    risk_rank = {"baixo": 1, "medio": 2, "alto": 3}
+    first_risk = risk_rank.get(str(first.get("risco")).lower(), 1)
+    last_risk = risk_rank.get(str(last.get("risco")).lower(), 1)
+
+    if last_risk > first_risk or (first_score > 0 and last_score >= first_score * Decimal("1.50")):
+        findings.append(
+            _finding(
+                "AN-TEND-RIS-001",
+                "Tendencia de piora no risco ao longo do ano",
+                "medio",
+                10,
+                "O risco ou a pontuacao do ultimo trimestre piorou em relacao ao inicio do exercicio.",
+                {
+                    "risco_inicial": str(first.get("risco") or ""),
+                    "risco_final": str(last.get("risco") or ""),
+                    "pontuacao_inicial": str(int(first_score)),
+                    "pontuacao_final": str(int(last_score)),
+                },
+                "Investigar causas da piora, priorizar achados recorrentes e acompanhar plano de acao no trimestre seguinte.",
+            )
+        )
+
+    if first_revenue > 0 and last_revenue < first_revenue * Decimal("0.70"):
+        findings.append(
+            _finding(
+                "AN-TEND-REC-001",
+                "Queda relevante de receita entre o primeiro e o ultimo trimestre",
+                "medio",
+                10,
+                "A receita do ultimo trimestre caiu mais de 30% em relacao ao primeiro trimestre informado.",
+                {
+                    "receita_inicial": format_brl(first_revenue),
+                    "receita_final": format_brl(last_revenue),
+                    "variacao": format_percent((last_revenue - first_revenue) / first_revenue),
+                },
+                "Validar sazonalidade, contratos, notas fiscais, cancelamentos e continuidade operacional antes da conclusao anual.",
+            )
+        )
 
     return findings
 
@@ -343,6 +538,12 @@ def _evolution_summary(quarters: list[dict[str, Any]], totals: dict[str, Any], f
 
     return {
         "variacao_receita_primeiro_ultimo": _safe_percent(last_revenue - first_revenue, first_revenue),
+        "variacao_pontuacao_primeiro_ultimo": _safe_percent(
+            Decimal(str(quarters[-1]["pontuacao"] - quarters[0]["pontuacao"])),
+            Decimal(str(quarters[0]["pontuacao"] or 1)),
+        ),
+        "tendencia_risco": _risk_trend(quarters),
+        "recorrencia_por_severidade": _recurrence_by_severity(quarters),
         "melhor_trimestre_resultado": best["trimestre"],
         "pior_trimestre_resultado": worst["trimestre"],
         "achados_recorrentes": [{"codigo": code, "trimestres": count} for code, count in sorted(by_code.items()) if count >= 2],
@@ -350,6 +551,49 @@ def _evolution_summary(quarters: list[dict[str, Any]], totals: dict[str, Any], f
         "receita_anual_formatada": totals["receita_servicos_total"]["formatado"],
         "resultado_anual_formatado": totals["lucro_apurado_total"]["formatado"],
     }
+
+
+def _risk_trend(quarters: list[dict[str, Any]]) -> str:
+    if len(quarters) < 2:
+        return "insuficiente"
+    rank = {"baixo": 1, "medio": 2, "alto": 3}
+    first = rank.get(str(quarters[0].get("risco")).lower(), 1)
+    last = rank.get(str(quarters[-1].get("risco")).lower(), 1)
+    if last > first:
+        return "piora"
+    if last < first:
+        return "melhora"
+    return "estavel"
+
+
+def _recurrence_by_severity(quarters: list[dict[str, Any]]) -> dict[str, int]:
+    recurrent_codes = {
+        code
+        for code, count in Counter(code for q in quarters for code in q["achados_codigos"]).items()
+        if count >= 2
+    }
+    result = {"alta": 0, "media": 0, "baixa": 0}
+    for code in recurrent_codes:
+        severity = _severity_for_code(quarters, code)
+        if severity in result:
+            result[severity] += 1
+    return result
+
+
+def _severity_for_code(quarters: list[dict[str, Any]], code: str) -> str:
+    rank = {"alta": 3, "alto": 3, "media": 2, "medio": 2, "baixa": 1, "baixo": 1}
+    best_label = "baixa"
+    best_rank = 1
+    for quarter in quarters:
+        for finding in quarter.get("achados") or []:
+            if str(finding.get("codigo") or "") != code:
+                continue
+            raw = str(finding.get("severidade") or finding.get("nivel") or "baixa").lower()
+            current_rank = rank.get(raw, 1)
+            if current_rank > best_rank:
+                best_rank = current_rank
+                best_label = "alta" if current_rank == 3 else "media" if current_rank == 2 else "baixa"
+    return best_label
 
 
 def _render_annual_summary(payload: dict[str, Any]) -> str:
@@ -410,6 +654,13 @@ def _render_annual_metrics(metricas: dict[str, Any], evolution: dict[str, Any]) 
         f"({indicators['carga_tributaria_efetiva_anual']}). "
         f"Despesas operacionais: {metricas['despesas_operacionais_total']['formatado']} "
         f"({indicators['despesas_sobre_receita_anual']}). "
+        f"CMV/custos anual: {metricas['cmv_custos_total']['formatado']} "
+        f"({indicators['cmv_sobre_receita_anual']}). "
+        f"Estoques finais: {metricas['estoques_final']['formatado']}. "
+        f"Fornecedores finais: {metricas['fornecedores_final']['formatado']}. "
+        f"CrÃ©ditos fiscais finais: {metricas['creditos_fiscais_final']['formatado']}. "
+        f"RBT12 consolidado: {metricas['rbt12_receita']['formatado']} "
+        f"({metricas['contexto_rbt12']['base_calculo']}). "
         f"Resultado anual: {metricas['lucro_apurado_total']['formatado']}. "
         f"Melhor trimestre por resultado: {evolution['melhor_trimestre_resultado']}. "
         f"Pior trimestre por resultado: {evolution['pior_trimestre_resultado']}."

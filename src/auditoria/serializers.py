@@ -147,8 +147,18 @@ def _observacoes_tecnicas(result: AuditResult) -> list[str]:
         )
     if context.get("faixa_receita_estimada"):
         observations.append(f"Faixa estimada do Simples Nacional: {context['faixa_receita_estimada']}.")
+    if context.get("anexo_estimado"):
+        observations.append(f"Anexo tributário estimado pelo motor: {context['anexo_estimado']}.")
     if context.get("aliquota_efetiva_esperada"):
         observations.append(f"Alíquota efetiva esperada informada pelo contexto tributário: {context['aliquota_efetiva_esperada']}.")
+    if context.get("base_calculo_estimativa"):
+        observations.append(f"Base da estimativa tributária: {context['base_calculo_estimativa']}.")
+    if context.get("receita_rbt12_utilizada"):
+        observations.append(f"RBT12 utilizado pelo motor: {context['receita_rbt12_utilizada']}.")
+    if context.get("folha_rbt12_utilizada"):
+        observations.append(f"Folha/RBT12 utilizada para Fator R: {context['folha_rbt12_utilizada']}.")
+    if context.get("rbt12_disponivel") is False:
+        observations.append("RBT12 completo nao foi informado; estimativas de limite, faixa e aliquota devem ser tratadas como alerta.")
     if context.get("fator_r_calculado"):
         observations.append(
             f"Fator R trimestral estimado: {context['fator_r_calculado']}; validar o cálculo oficial com folha e receita acumuladas dos últimos 12 meses."
@@ -191,6 +201,7 @@ def _texto_conclusivo(result: AuditResult, opinion: str, findings: list[RuleFind
 
 def _impacto_tecnico(finding: RuleFinding) -> str:
     code = finding.codigo[:6]
+    prefix = _classificacao_tecnica(finding)
     impacts = {
         "SN-001": "Risco de extrapolação de limite, sublimite ou desenquadramento do Simples Nacional.",
         "SN-002": "Possível subapuração tributária ou divergência entre receita e tributos reconhecidos.",
@@ -215,13 +226,26 @@ def _impacto_tecnico(finding: RuleFinding) -> str:
         "SN-021": "Risco de resultado superestimado por despesas, custos ou apropriações de competência não reconhecidos.",
         "SN-022": "Risco de saldo de caixa físico sem suporte operacional, bancário ou documental compatível.",
         "SN-023": "Ponto de atenção sobre recebimento à vista, baixa de recebíveis ou ausência de controle de clientes.",
+        "SN-024": "Ponto de atencao documental sobre ICMS-ST, creditos fiscais, ressarcimentos ou saldos recuperaveis em operacao comercial.",
         "SN-COM": "Risco composto por combinação de achados, exigindo análise prioritária integrada.",
     }
-    return impacts.get(code, _shorten(finding.descricao or VERIFY, 220))
+    impact = impacts.get(code, _shorten(finding.descricao or VERIFY, 220))
+    return f"{prefix}: {impact}"
+
+
+def _classificacao_tecnica(finding: RuleFinding) -> str:
+    code = finding.codigo
+    if code.startswith(("SN-017", "SN-020", "SN-024")):
+        return "Validacao documental"
+    if code.startswith("SN-COMP") or finding.nivel == RiskLevel.ALTO:
+        return "Possivel inconsistencia material"
+    if finding.nivel == RiskLevel.MEDIO:
+        return "Alerta tecnico"
+    return "Ponto de atencao"
 
 
 def _area_relacionada(code: str) -> str:
-    if code.startswith(("SN-001", "SN-002", "SN-008", "SN-012", "SN-017", "SN-019", "SN-020")):
+    if code.startswith(("SN-001", "SN-002", "SN-008", "SN-012", "SN-017", "SN-019", "SN-020", "SN-024")):
         return "fiscal"
     if code.startswith(("SN-003", "SN-014")):
         return "trabalhista"
@@ -335,8 +359,10 @@ def _label(value: str) -> str:
         "saldo_atual_tributos": "Saldo atual de tributos",
         "receita_trimestre": "Receita do trimestre",
         "receita_anualizada_estimativa": "Receita anualizada estimada",
+        "receita_rbt12": "RBT12",
         "limite_anual_simples": "Limite anual do Simples Nacional",
         "percentual_limite_anual": "Percentual do limite anual",
+        "base_calculo_limite": "Base de calculo do limite",
         "fator_r_trimestral_estimado": "Fator R trimestral estimado",
         "caixa_bancos": "Caixa e bancos",
         "clientes_recebiveis": "Clientes e recebíveis",
@@ -362,6 +388,8 @@ def _label(value: str) -> str:
         "limite_caixa": "Limite de caixa",
         "limite_alto_caixa": "Limite alto de caixa",
         "receita_minima": "Receita mínima",
+        "tipo_achado": "Tipo do achado",
+        "limitacao_dados": "Limitacao dos dados",
     }
     return labels.get(value, value.replace("_", " ").capitalize())
 

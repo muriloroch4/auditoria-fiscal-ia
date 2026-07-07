@@ -1,0 +1,43 @@
+{
+  "version": "2026.1",
+  "fonte_normativa": "Lei Complementar n. 123/2006, anexos I, III e V, com redacao da Lei Complementar n. 155/2016",
+  "observacao": "Tabelas estruturadas para estimativa de contexto. A apuracao oficial deve usar RBT12, segregacao de receitas, atividade/CNAE, sublimites e PGDAS-D.",
+  "anexos": {
+    "anexo_i": {
+      "nome": "Anexo I",
+      "descricao": "Comercio",
+      "faixas": [
+        { "limite_superior": 180000, "aliquota": 0.04, "parcela_deduzir": 0 },
+        { "limite_superior": 360000, "aliquota": 0.073, "parcela_deduzir": 5940 },
+        { "limite_superior": 720000, "aliquota": 0.095, "parcela_deduzir": 13860 },
+        { "limite_superior": 1800000, "aliquota": 0.107, "parcela_deduzir": 22500 },
+        { "limite_superior": 3600000, "aliquota": 0.143, "parcela_deduzir": 87300 },
+        { "limite_superior": 4800000, "aliquota": 0.19, "parcela_deduzir": 378000 }
+      ]
+    },
+    "anexo_iii": {
+      "nome": "Anexo III",
+      "descricao": "Servicos tributados pelo Anexo III ou deslocados pelo Fator R",
+      "faixas": [
+        { "limite_superior": 180000, "aliquota": 0.06, "parcela_deduzir": 0 },
+        { "limite_superior": 360000, "aliquota": 0.112, "parcela_deduzir": 9360 },
+        { "limite_superior": 720000, "aliquota": 0.135, "parcela_deduzir": 17640 },
+        { "limite_superior": 1800000, "aliquota": 0.16, "parcela_deduzir": 35640 },
+        { "limite_superior": 3600000, "aliquota": 0.21, "parcela_deduzir": 125640 },
+        { "limite_superior": 4800000, "aliquota": 0.33, "parcela_deduzir": 648000 }
+      ]
+    },
+    "anexo_v": {
+      "nome": "Anexo V",
+      "descricao": "Servicos sujeitos ao Fator R quando o fator estimado fica abaixo de 28%",
+      "faixas": [
+        { "limite_superior": 180000, "aliquota": 0.155, "parcela_deduzir": 0 },
+        { "limite_superior": 360000, "aliquota": 0.18, "parcela_deduzir": 4500 },
+        { "limite_superior": 720000, "aliquota": 0.195, "parcela_deduzir": 9900 },
+        { "limite_superior": 1800000, "aliquota": 0.205, "parcela_deduzir": 17100 },
+        { "limite_superior": 3600000, "aliquota": 0.23, "parcela_deduzir": 62100 },
+        { "limite_superior": 4800000, "aliquota": 0.305, "parcela_deduzir": 540000 }
+      ]
+    }
+  }
+}

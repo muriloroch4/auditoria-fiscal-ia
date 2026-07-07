@@ -211,6 +211,109 @@ class AuditPrototypeTest(unittest.TestCase):
         self.assertIn("faixa_receita_estimada", result.contexto_regime)
         self.assertIn("aliquota_efetiva_esperada", result.contexto_regime)
 
+    def test_contexto_comercio_usa_anexo_i(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.5;Mercadorias;estoques;0;0;0;30000
+            3.1.1;Receita de Comercio;receita;0;0;100000;100000
+            4.1.1;CMV;custos;0;40000;0;-40000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Comercio", periodo="2026-T1")
+        result = run_quarterly_audit(balance, atividade="comercio")
+
+        self.assertIn("Anexo I", result.contexto_regime["anexo_estimado"])
+        self.assertEqual(result.contexto_regime["aliquota_nominal_estimada"], "9,50%")
+        self.assertIn("efetiva estimada 6,04%", result.contexto_regime["aliquota_efetiva_esperada"])
+
+    def test_contexto_servicos_fator_r_baixo_usa_anexo_v(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            3.1.1;Receita de Servicos;receita;0;0;100000;100000
+            4.1.1;Folha;folha;0;10000;0;-10000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Servicos", periodo="2026-T1")
+        result = run_quarterly_audit(balance, atividade="servicos")
+
+        self.assertIn("Anexo V", result.contexto_regime["anexo_estimado"])
+        self.assertEqual(result.contexto_regime["aliquota_nominal_estimada"], "19,50%")
+
+    def test_contexto_servicos_fator_r_alto_usa_anexo_iii(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            3.1.1;Receita de Servicos;receita;0;0;100000;100000
+            4.1.1;Folha;folha;0;40000;0;-40000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Servicos", periodo="2026-T1")
+        result = run_quarterly_audit(balance, atividade="servicos")
+
+        self.assertIn("Anexo III", result.contexto_regime["anexo_estimado"])
+        self.assertEqual(result.contexto_regime["aliquota_nominal_estimada"], "13,50%")
+
+    def test_contexto_rbt12_substitui_receita_anualizada(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.5;Mercadorias;estoques;0;0;0;30000
+            3.1.1;Receita de Comercio;receita;0;0;100000;100000
+            4.1.1;CMV;custos;0;40000;0;-40000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Comercio RBT12", periodo="2026-T4")
+        result = run_quarterly_audit(
+            balance,
+            atividade="comercio",
+            contexto_rbt12={
+                "receita": 1000000,
+                "origem": "teste",
+                "base_calculo": "RBT12 real informado",
+            },
+        )
+
+        self.assertTrue(result.contexto_regime["rbt12_disponivel"])
+        self.assertEqual(result.contexto_regime["receita_rbt12_utilizada"], "R$ 1.000.000,00")
+        self.assertEqual(result.contexto_regime["aliquota_nominal_estimada"], "10,70%")
+        self.assertEqual(result.contexto_regime["base_calculo_estimativa"], "RBT12 real informado")
+
+    def test_fator_r_usa_rbt12_quando_disponivel(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            3.1.1;Receita de Servicos;receita;0;0;100000;100000
+            4.1.1;Folha;folha;0;10000;0;-10000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Servico RBT12", periodo="2026-T4")
+        result = run_quarterly_audit(
+            balance,
+            atividade="servicos",
+            contexto_rbt12={"receita": 400000, "folha": 200000, "base_calculo": "RBT12 real informado"},
+        )
+
+        self.assertIn("Anexo III", result.contexto_regime["anexo_estimado"])
+        self.assertEqual(result.contexto_regime["fator_r_calculado"], "50,00%")
+        self.assertEqual(result.contexto_regime["fator_r_base"], "RBT12 consolidado")
+
+    def test_sn001_usa_rbt12_quando_disponivel(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            3.1.1;Receita de Servicos;receita;0;0;100000;100000
+            4.1.1;Folha;folha;0;40000;0;-40000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Limite RBT12", periodo="2026-T4")
+        result = run_quarterly_audit(balance, contexto_rbt12={"receita": 4400000, "folha": 1000000})
+        finding = next(f for f in result.achados if f.codigo == "SN-001B")
+
+        self.assertEqual(finding.evidencia["base_calculo_limite"], "RBT12 consolidado pelo historico")
+        self.assertEqual(finding.evidencia["receita_anualizada_estimativa"], "R$ 4.400.000,00")
+
     def test_metricas_valores_in_result(self):
         content = dedent(
             """\
@@ -639,6 +742,7 @@ class MelhoriasMotorFiscalTest(unittest.TestCase):
         self.assertIn("SN-016C", codes)
         self.assertIn("SN-017", codes)
         self.assertIn("SN-018A", codes)
+        self.assertIn("SN-024", codes)
         self.assertIn("SN-COMP-04", codes)
         self.assertNotIn("SN-003", codes)
 
@@ -821,6 +925,51 @@ class AnnualComparisonTest(unittest.TestCase):
         self.assertIn("AN-REC-SN-007", codes)
         self.assertEqual(len(annual["comparativo_trimestral"]), 4)
 
+    def test_build_annual_comparison_consolida_metricas_comerciais(self):
+        payloads = [
+            self._legacy_commerce_quarter("2026-T1", inventory=30000, suppliers=20000, cogs=45000, tax_credits=2000),
+            self._legacy_commerce_quarter("2026-T2", inventory=40000, suppliers=30000, cogs=50000, tax_credits=2500),
+            self._legacy_commerce_quarter("2026-T3", inventory=45000, suppliers=35000, cogs=52000, tax_credits=3000),
+            self._legacy_commerce_quarter("2026-T4", inventory=50000, suppliers=40000, cogs=55000, tax_credits=3500),
+        ]
+
+        annual = build_annual_comparison(payloads)
+
+        self.assertEqual(annual["metricas_anual"]["estoques_final"]["valor"], 50000.0)
+        self.assertEqual(annual["metricas_anual"]["fornecedores_final"]["valor"], 40000.0)
+        self.assertEqual(annual["metricas_anual"]["cmv_custos_total"]["valor"], 202000.0)
+        self.assertEqual(annual["metricas_anual"]["creditos_fiscais_final"]["valor"], 3500.0)
+        self.assertIn("cmv_sobre_receita_anual", annual["metricas_anual"]["indicadores_derivados"])
+
+    def test_build_annual_comparison_expoe_rbt12_consolidado(self):
+        payloads = [
+            self._legacy_commerce_quarter("2026-T1", inventory=30000, suppliers=20000, cogs=45000, tax_credits=2000),
+            self._legacy_commerce_quarter("2026-T2", inventory=40000, suppliers=30000, cogs=50000, tax_credits=2500),
+            self._legacy_commerce_quarter("2026-T3", inventory=45000, suppliers=35000, cogs=52000, tax_credits=3000),
+            self._legacy_commerce_quarter("2026-T4", inventory=50000, suppliers=40000, cogs=55000, tax_credits=3500),
+        ]
+
+        annual = build_annual_comparison(payloads)
+
+        self.assertEqual(annual["metricas_anual"]["rbt12_receita"]["valor"], 400000.0)
+        self.assertTrue(annual["metricas_anual"]["contexto_rbt12"]["dados_suficientes"])
+        self.assertEqual(annual["metricas_anual"]["contexto_rbt12"]["trimestres_considerados"], ["T1", "T2", "T3", "T4"])
+        self.assertIn("recorrencia_por_severidade", annual["resumo_evolucao"])
+
+    def test_build_annual_comparison_identifica_tendencia_de_piora(self):
+        payloads = [
+            self._legacy_quarter_with_risk("2026-T1", "baixo", 5),
+            self._legacy_quarter_with_risk("2026-T2", "baixo", 5),
+            self._legacy_quarter_with_risk("2026-T3", "medio", 20),
+            self._legacy_quarter_with_risk("2026-T4", "alto", 50),
+        ]
+
+        annual = build_annual_comparison(payloads)
+        codes = {finding["codigo"] for finding in annual["achados_anuais"]}
+
+        self.assertIn("AN-TEND-RIS-001", codes)
+        self.assertEqual(annual["resumo_evolucao"]["tendencia_risco"], "piora")
+
     def test_generate_annual_markdown_report(self):
         payloads = [
             self._quarter_payload("2026-T1", revenue=100000, expenses=80000),
@@ -850,6 +999,65 @@ class AnnualComparisonTest(unittest.TestCase):
         )
         balance = read_trial_balance_csv_text(content, cliente="Cliente Anual", periodo=periodo, cnpj="12.345.678/0001-90")
         return audit_result_to_dict(run_quarterly_audit(balance))
+
+    def _legacy_commerce_quarter(
+        self,
+        periodo: str,
+        inventory: int,
+        suppliers: int,
+        cogs: int,
+        tax_credits: int,
+    ) -> dict:
+        return {
+            "identificacao": {
+                "cliente": "Comercio Anual",
+                "cnpj": "12.345.678/0001-90",
+                "regime_tributario": "Simples Nacional",
+                "periodo": periodo,
+            },
+            "risco": {
+                "nivel_geral": "baixo",
+                "pontuacao_total": 0,
+                "modalidade_opiniao_sugerida": "sem_ressalva",
+            },
+            "metricas": {
+                "receita_servicos": {"valor": 100000, "formatado": "R$ 100.000,00"},
+                "deducoes_receita": {"valor": 0, "formatado": "R$ 0,00"},
+                "tributos_registrados": {"valor": 6000, "formatado": "R$ 6.000,00"},
+                "tributos_a_recolher": {"valor": 2000, "formatado": "R$ 2.000,00"},
+                "folha_pro_labore": {"valor": 0, "formatado": "R$ 0,00"},
+                "despesas_operacionais": {"valor": 20000, "formatado": "R$ 20.000,00"},
+                "lucros_distribuidos": {"valor": 0, "formatado": "R$ 0,00"},
+                "lucro_apurado_base": {"valor": 30000, "formatado": "R$ 30.000,00"},
+                "caixa_e_bancos": {"valor": 10000, "formatado": "R$ 10.000,00"},
+                "clientes_recebiveis": {"valor": 5000, "formatado": "R$ 5.000,00"},
+                "adiantamentos": {"valor": 0, "formatado": "R$ 0,00"},
+                "emprestimos": {"valor": 0, "formatado": "R$ 0,00"},
+                "fornecedores": {"valor": suppliers, "formatado": "R$ 0,00"},
+                "estoques": {"valor": inventory, "formatado": "R$ 0,00"},
+                "cmv_custos": {"valor": cogs, "formatado": "R$ 0,00"},
+                "creditos_fiscais": {"valor": tax_credits, "formatado": "R$ 0,00"},
+            },
+            "achados": [],
+        }
+
+    def _legacy_quarter_with_risk(self, periodo: str, risk: str, score: int) -> dict:
+        payload = self._legacy_commerce_quarter(periodo, inventory=10000, suppliers=5000, cogs=40000, tax_credits=0)
+        payload["risco"]["nivel_geral"] = risk
+        payload["risco"]["pontuacao_total"] = score
+        payload["achados"] = [
+            {
+                "codigo": "SN-007",
+                "titulo": "Despesas operacionais elevadas",
+                "nivel": "medio",
+                "pontuacao": 16,
+                "descricao": "Teste",
+                "evidencia": {},
+                "recomendacao": "Teste",
+                "normas_aplicaveis": [],
+            }
+        ]
+        return payload
 
 
 class APITest(unittest.TestCase):

@@ -15,12 +15,12 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
-from .annual import build_annual_comparison
+from .annual import build_annual_comparison, build_rbt12_context
 from .audit import run_quarterly_audit
 from .models import AuditResult
 from .parser import read_trial_balance_upload
 from .serializers import audit_result_to_dict
-from .storage import DB_SCHEMA_VERSION, AuditStorage, file_sha256
+from .storage import DB_SCHEMA_VERSION, AuditStorage, file_sha256, infer_year_quarter
 
 logger = logging.getLogger(__name__)
 _STATIC_DIR = Path(__file__).with_name("static")
@@ -159,7 +159,8 @@ class AuditApiHandler(BaseHTTPRequestHandler):
             )
             payload = audit_result_to_dict(result)
             annual_source = _audit_result_to_annual_source(result)
-            storage_id = self._storage().save_quarterly_audit(
+            storage = self._storage()
+            storage_id = storage.save_quarterly_audit(
                 result,
                 payload,
                 annual_source,
@@ -167,6 +168,25 @@ class AuditApiHandler(BaseHTTPRequestHandler):
                 file_hash=file_sha256(uploaded_file.content),
                 atividade=atividade,
             )
+
+            rbt12_context = _saved_rbt12_context(storage, result.cnpj, result.periodo)
+            if rbt12_context.get("dados_suficientes"):
+                result = run_quarterly_audit(
+                    balance,
+                    regime_tributario=self.regime_tributario or "Simples Nacional",
+                    atividade=atividade,
+                    contexto_rbt12=rbt12_context,
+                )
+                payload = audit_result_to_dict(result)
+                annual_source = _audit_result_to_annual_source(result)
+                storage_id = storage.save_quarterly_audit(
+                    result,
+                    payload,
+                    annual_source,
+                    filename=uploaded_file.filename,
+                    file_hash=file_sha256(uploaded_file.content),
+                    atividade=atividade,
+                )
             self._send_json(payload)
             logger.info(
                 "Auditoria concluida: id=%s nivel=%s score=%d achados=%d",
@@ -495,6 +515,14 @@ def _payload_int(payload: dict[str, Any], field: str) -> int | None:
         return int(value)
     except (TypeError, ValueError) as exc:
         raise ValueError(f"O campo '{field}' deve ser numérico.") from exc
+
+
+def _saved_rbt12_context(storage: AuditStorage, cnpj: str, periodo: str) -> dict[str, Any]:
+    if not cnpj:
+        return {}
+    ano, _ = infer_year_quarter(periodo)
+    sources = storage.annual_sources(cnpj=cnpj, ano=ano)
+    return build_rbt12_context(sources)
 
 
 def _json_default(value):
