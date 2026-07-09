@@ -1,0 +1,167 @@
+{
+  "conclusao_tecnica": {
+    "conclusao_sugerida": "adversa",
+    "necessita_validacao_documental": true,
+    "ressalva_base_json": true,
+    "risco_geral": "alto",
+    "texto_conclusivo": "Com base exclusivamente no JSON de auditoria trimestral, os achados indicam risco t\u00e9cnico elevado e requerem regulariza\u00e7\u00e3o priorit\u00e1ria. A conclus\u00e3o n\u00e3o representa auditoria independente definitiva e depende da valida\u00e7\u00e3o documental dos fatos identificados."
+  },
+  "fundamentacao_tecnica_resumida": {
+    "normas_aplicaveis": [
+      "Resolu\u00e7\u00e3o CFC n.\u00ba 1.244/2009",
+      "NBC PG 100 (R1) de 2018",
+      "NBC PG 200",
+      "NBC TA 700 (R1)",
+      "NBC TG 26 (R3) = CPC 26 R1",
+      "NBC TG 00 (R2)",
+      "Lei Complementar n\u00ba 123/2006",
+      "Lei Complementar n\u00ba 123/2006, art. 3\u00ba",
+      "Lei Complementar n\u00ba 155/2016",
+      "Lei Complementar n\u00ba 123/2006, art. 14",
+      "NBC TG 1000 (R1)",
+      "Lei Complementar n\u00ba 123/2006, Anexo III",
+      "Lei Complementar n\u00ba 123/2006, art. 18",
+      "ITG 2000 (R1)"
+    ],
+    "observacoes_tecnicas": [
+      "Regime tribut\u00e1rio informado: Simples Nacional. Validar enquadramento, anexo aplic\u00e1vel e eventuais sublimites com documenta\u00e7\u00e3o fiscal.",
+      "Faixa estimada do Simples Nacional: 6\u00aa faixa (R$ 3.600.000,01 a R$ 4.800.000,00/ano).",
+      "Anexo tribut\u00e1rio estimado pelo motor: Anexo V estimado (Fator R trimestral abaixo de 28%).",
+      "Al\u00edquota efetiva esperada informada pelo contexto tribut\u00e1rio: Anexo V estimado (Fator R trimestral abaixo de 28%): nominal 30,50%; efetiva estimada 18,76%; parcela a deduzir R$ 540.000,00.",
+      "Base da estimativa tribut\u00e1ria: receita trimestral anualizada (receita x 4).",
+      "RBT12 completo nao foi informado; estimativas de limite, faixa e aliquota devem ser tratadas como alerta.",
+      "Fator R trimestral estimado: 6,52%; validar o c\u00e1lculo oficial com folha e receita acumuladas dos \u00faltimos 12 meses.",
+      "Fator R trimestral estimado de 6,52% est\u00e1 abaixo da refer\u00eancia de 28%. Para servicos sujeitos ao Fator R, o contexto estimado aponta para Anexo V; validar o calculo oficial com folha e receita acumuladas dos ultimos 12 meses antes de concluir sobre o anexo ap\u2026",
+      "Receita trimestral anualizada supera R$ 3.600.000 \u2014 verificar receita acumulada dos \u00faltimos 12 meses, sublimite estadual para ICMS/ISS fora do DAS (art. 20 da LC 123/2006).",
+      "Sem RBT12 completo informado ao motor, a faixa e a aliquota usam receita trimestral anualizada apenas como alerta.",
+      "A escritura\u00e7\u00e3o e os saldos devem ser confrontados com documentos h\u00e1beis para confirmar representa\u00e7\u00e3o fidedigna."
+    ],
+    "texto_resumido": "A fundamenta\u00e7\u00e3o t\u00e9cnica considera as normas aplic\u00e1veis aos achados acionados pelo motor de regras, com foco em escritura\u00e7\u00e3o regular, representa\u00e7\u00e3o fidedigna das informa\u00e7\u00f5es cont\u00e1beis e ader\u00eancia ao regime tribut\u00e1rio Simples Nacional."
+  },
+  "identificacao_empresa": {
+    "cnpj": "12.345.678/0001-90",
+    "periodo_analisado": "2026-T1",
+    "regime_tributario": "Simples Nacional"
+  },
+  "metadados": {
+    "conjunto_regras": "simples_servicos",
+    "data_analise": "2000-01-01T00:00:00",
+    "versao_regras": "1.7.0",
+    "versao_schema": "3.0.0"
+  },
+  "principais_achados": [
+    {
+      "achado": "Receita trimestral anualizada acima de 90% do limite do Simples",
+      "codigo": "SN-001B",
+      "evidencia_identificada": "Receita do trimestre: R$ 1.150.000,00; Receita anualizada estimada: R$ 4.600.000,00; Limite anual do Simples Nacional: R$ 4.800.000,00; Percentual do limite anual: 95,83%; Base de calculo do limite: receita trimestral anualizada (receita x 4)",
+      "impacto_tecnico": "Possivel inconsistencia material: Risco de extrapola\u00e7\u00e3o de limite, sublimite ou desenquadramento do Simples Nacional.",
+      "norma_fundamento": [
+        "Lei Complementar n\u00ba 123/2006",
+        "Lei Complementar n\u00ba 123/2006, art. 3\u00ba",
+        "Lei Complementar n\u00ba 155/2016"
+      ],
+      "pontuacao": 35,
+      "severidade": "alta"
+    },
+    {
+      "achado": "Distribui\u00e7\u00e3o de lucros acima do lucro dispon\u00edvel identificado",
+      "codigo": "SN-004A",
+      "evidencia_identificada": "Lucro apurado: R$ 350.000,00; Origem do lucro: resultado informado no balancete; Lucro dispon\u00edvel identificado: R$ 350.000,00; Lucros distribu\u00eddos: R$ 500.000,00",
+      "impacto_tecnico": "Possivel inconsistencia material: Risco societ\u00e1rio e fiscal por distribui\u00e7\u00e3o sem lastro cont\u00e1bil suficiente.",
+      "norma_fundamento": [
+        "Lei Complementar n\u00ba 123/2006, art. 14",
+        "NBC TG 1000 (R1)"
+      ],
+      "pontuacao": 32,
+      "severidade": "alta"
+    },
+    {
+      "achado": "Carga tribut\u00e1ria abaixo de 3% da receita",
+      "codigo": "SN-002B",
+      "evidencia_identificada": "Receita: R$ 1.150.000,00; Tributos registrados: R$ 15.000,00; Percentual: 1,30%",
+      "impacto_tecnico": "Possivel inconsistencia material: Poss\u00edvel subapura\u00e7\u00e3o tribut\u00e1ria ou diverg\u00eancia entre receita e tributos reconhecidos.",
+      "norma_fundamento": [
+        "Lei Complementar n\u00ba 123/2006",
+        "Lei Complementar n\u00ba 123/2006, Anexo III"
+      ],
+      "pontuacao": 20,
+      "severidade": "alta"
+    },
+    {
+      "achado": "Folha e pr\u00f3-labore trimestrais baixos para empresa de servi\u00e7os",
+      "codigo": "SN-003",
+      "evidencia_identificada": "Receita do trimestre: R$ 1.150.000,00; Folha pro labore trimestre: R$ 75.000,00; Fator R trimestral estimado: 6,52%",
+      "impacto_tecnico": "Alerta tecnico: Risco de enquadramento incorreto do anexo e inconsist\u00eancia no Fator R.",
+      "norma_fundamento": [
+        "Lei Complementar n\u00ba 123/2006",
+        "Lei Complementar n\u00ba 123/2006, art. 18"
+      ],
+      "pontuacao": 14,
+      "severidade": "media"
+    },
+    {
+      "achado": "Servicos prestados por terceiros relevantes nas despesas",
+      "codigo": "SN-025",
+      "evidencia_identificada": "Conta de referencia: 325 - Servicos prestados por terceiros; Servicos de terceiros: R$ 420.000,00; Total de despesas: R$ 745.000,00; Percentual sobre despesas: 56,38%; Limite percentual sobre despesas: 20,00%; Limite absoluto: R$ 10.000,00; Quantidade de contas identificadas: 1; Contas identificadas: 4.2.2 - Servicos\u2026",
+      "impacto_tecnico": "Validacao documental: Ponto de atencao documental sobre pagamentos e servicos de terceiros lancados diretamente em despesas.",
+      "norma_fundamento": [
+        "ITG 2000 (R1)",
+        "NBC TG 1000 (R1)"
+      ],
+      "pontuacao": 12,
+      "severidade": "media"
+    }
+  ],
+  "recomendacoes_tecnicas": [
+    {
+      "area_relacionada": "fiscal",
+      "descricao": "Validar a receita bruta acumulada dos \u00faltimos 12 meses (RBT12), projetar os pr\u00f3ximos trimestres e avaliar risco de sublimite, desenquadramento ou excesso de receita.",
+      "ordem": 1,
+      "prioridade": "alta"
+    },
+    {
+      "area_relacionada": "societ\u00e1ria",
+      "descricao": "Validar escritura\u00e7\u00e3o completa, lucros acumulados, reservas, resultado do per\u00edodo e documenta\u00e7\u00e3o societ\u00e1ria antes de manter distribui\u00e7\u00e3o isenta.",
+      "ordem": 2,
+      "prioridade": "alta"
+    },
+    {
+      "area_relacionada": "fiscal",
+      "descricao": "Conferir apura\u00e7\u00e3o do DAS, anexo aplicado, reten\u00e7\u00f5es, compet\u00eancia e poss\u00edveis lan\u00e7amentos ausentes.",
+      "ordem": 3,
+      "prioridade": "alta"
+    },
+    {
+      "area_relacionada": "trabalhista",
+      "descricao": "Revisar folha, pr\u00f3-labore dos s\u00f3cios e apura\u00e7\u00e3o do Fator R com base acumulada de 12 meses antes de concluir sobre o anexo aplic\u00e1vel.",
+      "ordem": 4,
+      "prioridade": "media"
+    },
+    {
+      "area_relacionada": "documental",
+      "descricao": "Verificar e validar os lancamentos da conta 325, confrontando pagamentos, contratos, notas fiscais, comprovantes bancarios, retencoes aplicaveis e suporte documental antes de manter a despesa.",
+      "ordem": 5,
+      "prioridade": "media"
+    }
+  ],
+  "resumo_analise": {
+    "achados_por_severidade": {
+      "alta": 3,
+      "baixa": 0,
+      "media": 2
+    },
+    "base_analise": "JSON de auditoria trimestral",
+    "empresa": "Golden Todas Regras",
+    "pontuacao_total": 113,
+    "principais_pontos": [
+      "SN-001B: Receita trimestral anualizada acima de 90% do limite do Simples (alta, 35 ponto(s)).",
+      "SN-004A: Distribui\u00e7\u00e3o de lucros acima do lucro dispon\u00edvel identificado (alta, 32 ponto(s)).",
+      "SN-002B: Carga tribut\u00e1ria abaixo de 3% da receita (alta, 20 ponto(s)).",
+      "SN-003: Folha e pr\u00f3-labore trimestrais baixos para empresa de servi\u00e7os (m\u00e9dia, 14 ponto(s)).",
+      "SN-025: Servicos prestados por terceiros relevantes nas despesas (m\u00e9dia, 12 ponto(s))."
+    ],
+    "risco_geral": "alto",
+    "total_regras_acionadas": 5,
+    "total_regras_verificadas": 21
+  }
+}

@@ -396,6 +396,9 @@ def _label(value: str) -> str:
         "despesas_operacionais_total": "Despesas operacionais total",
         "percentual_sobre_despesas": "Percentual sobre despesas",
         "limite_percentual_despesas": "Limite percentual sobre despesas",
+        "quantidade_contas_identificadas": "Quantidade de contas identificadas",
+        "contas_identificadas": "Contas identificadas",
+        "criterio_rastreio": "Criterio de rastreio",
         "tipo_achado": "Tipo do achado",
         "limitacao_dados": "Limitacao dos dados",
     }

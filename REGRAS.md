@@ -70,6 +70,8 @@ Notas de versao 1.6.0:
 Notas de versao 1.7.0:
 
 - `SN-025` valida a conta 325/servicos prestados por terceiros quando ela representa percentual relevante das despesas do trimestre; o achado pede validacao de contratos, notas fiscais, comprovantes bancarios, retencoes e suporte documental.
+- A evidencia da `SN-025` inclui quantidade de contas identificadas, contas rastreadas e criterio de rastreio para facilitar a revisao documental.
+- O reconhecimento de contas pode ser ajustado em `config/plano_contas_map.json`, usado quando o grupo vem invalido ou como `outros`.
 
 ## Observações de cálculo trimestral
 
@@ -91,6 +93,7 @@ Notas de versao 1.7.0:
 - A regra `SN-023` não presume erro quando clientes está zerado; ela pede validação de recebimento à vista, baixa no mesmo mês ou controle de recebíveis.
 - A regra `SN-024` não recalcula ICMS-ST pelo balancete; ela aciona validação documental de NCM, CFOP, mercadorias sujeitas a substituição tributária, ressarcimentos e créditos fiscais.
 - A regra `SN-025` identifica a conta 325 por codigo ou por descricoes como `servicos prestados por terceiros` e compara o valor com o total de despesas operacionais do trimestre.
+- Para `SN-025`, a evidencia lista as contas encontradas com codigo, descricao, grupo, debito, credito e saldo.
 - O contexto tributário usa `config/simples_anexos.json` para estimar Anexo I, III ou V. Para empresas mistas, o motor informa que a alíquota depende da segregação entre receitas de comércio e serviços.
 - `_active_movement` é calculado apenas com `bancos` e `caixa`, sem `clientes`.
 - `_operational_movement` inclui `bancos`, `caixa` e `clientes` para o cálculo do índice da `SN-008B`.

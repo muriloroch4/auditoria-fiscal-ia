@@ -1,0 +1,4 @@
+# Runtime dependencies
+#
+# The application currently uses only the Python standard library.
+# Keep this file so onboarding and CI have a stable install step.

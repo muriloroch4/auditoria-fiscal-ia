@@ -12,6 +12,7 @@ from io import BytesIO, StringIO
 from pathlib import Path
 from xml.etree import ElementTree
 
+from .config_loader import load_account_map
 from .models import LedgerAccount, TrialBalance
 
 
@@ -176,7 +177,7 @@ def _detect_csv_delimiter(content: str) -> str:
     first_line = content.splitlines()[0] if content else ""
     candidates = [";", ",", "\t", "|"]
     counts = {d: first_line.count(d) for d in candidates}
-    best = max(counts, key=counts.get)
+    best = max(counts, key=lambda delimiter: counts[delimiter])
     return best if counts[best] > 0 else ";"
 
 
@@ -209,11 +210,15 @@ def _row_to_account(row: dict[str, str], line_number: int) -> LedgerAccount:
     codigo = _required_text(row, "codigo", line_number)
     conta = _required_text(row, "conta", line_number)
     grupo = _required_text(row, "grupo", line_number).lower()
+    mapped_by_code = _mapped_grupo_from_config(codigo, conta, allow_description=False)
+    inferred = _infer_grupo_from_conta(codigo, conta)
+    mapped_by_description = _mapped_grupo_from_config(codigo, conta, allow_description=True)
+    mapped_group = inferred or mapped_by_code or mapped_by_description
 
     if grupo not in VALID_GRUPOS:
-        inferred = _infer_grupo_from_conta(codigo, conta)
-        if inferred is not None:
-            grupo = inferred
+        grupo = mapped_group or "outros"
+    elif grupo == "outros" and mapped_group:
+        grupo = mapped_group
 
     return LedgerAccount(
         codigo=codigo,
@@ -522,6 +527,9 @@ def _has_child_account(classification: str, following_accounts: list[dict[str, s
 def _dominio_group(classification: str, description: str) -> str:
     c = (classification or "").strip()
     text = _normalize_key(description)
+    mapped_group = _mapped_grupo_from_config(c, description, allow_description=False)
+    if mapped_group:
+        return mapped_group
 
     if "lucros distribuidos" in text or "distribuicao antecipada de lucros" in text:
         return "lucros"
@@ -807,6 +815,48 @@ def _infer_grupo_from_conta(codigo: str, conta: str) -> str | None:
         return "tributos"
     if "despesa" in text:
         return "despesas"
+
+    return None
+
+
+def _mapped_grupo_from_config(codigo: str, conta: str, *, allow_description: bool = True) -> str | None:
+    try:
+        mappings = load_account_map().get("mapeamentos", [])
+    except Exception:
+        return None
+
+    code = str(codigo or "").strip()
+    text = _normalize_key(conta)
+    code_parts = "".join(char if char.isdigit() else " " for char in code).split()
+
+    for mapping in mappings:
+        if not isinstance(mapping, dict):
+            continue
+
+        group = str(mapping.get("grupo") or "").strip().lower()
+        if group not in VALID_GRUPOS:
+            continue
+
+        exact_codes = {str(value).strip() for value in mapping.get("codigos_exatos", [])}
+        if code and code in exact_codes:
+            return group
+
+        prefixes = [str(value).strip() for value in mapping.get("prefixos", []) if str(value).strip()]
+        if code and any(code.startswith(prefix) for prefix in prefixes):
+            return group
+
+        segments = {str(value).strip() for value in mapping.get("segmentos_codigo", []) if str(value).strip()}
+        if segments and any(segment in code_parts for segment in segments):
+            return group
+
+        if allow_description:
+            descriptions = [
+                _normalize_key(str(value))
+                for value in mapping.get("descricoes_contem", [])
+                if str(value).strip()
+            ]
+            if text and any(pattern and pattern in text for pattern in descriptions):
+                return group
 
     return None
 

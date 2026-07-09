@@ -71,6 +71,22 @@ Quando os quatro trimestres estão salvos no backend para o mesmo CNPJ/ano, o mo
 
 Requisitos: Python 3.11+
 
+Dependências:
+
+```powershell
+python -m pip install -r requirements.txt
+```
+
+O runtime atual usa apenas a biblioteca padrão do Python. O arquivo `requirements.txt` existe para deixar o onboarding e a CI explícitos. A leitura de `.xlsx` é feita por parser interno baseado em `zipfile`; `openpyxl`/`xlrd` não são obrigatórios no estado atual do projeto.
+
+Para desenvolvimento local:
+
+```powershell
+python -m pip install -r requirements-dev.txt
+python -m unittest discover -v
+python -m mypy src/auditoria --config-file pyproject.toml
+```
+
 ### Servidor web (recomendado)
 
 ```powershell
@@ -203,6 +219,12 @@ Modelos disponíveis em `samples/`.
 | `resultado` | Lucro ou prejuízo apurado |
 | `fornecedores`, `estoques`, `creditos_fiscais`, `emprestimos` | Métricas complementares e regras específicas de comércio |
 
+### Mapa contábil configurável
+
+O arquivo `config/plano_contas_map.json` permite ajustar o reconhecimento de contas por código exato, prefixo e descrição sem alterar o código Python. O parser usa esse mapa quando o grupo informado vem inválido ou como `outros`, mantendo os fallbacks internos para o layout Domínio e para CSVs simples.
+
+Esse mapa já inclui a conta `325`/`serviços prestados por terceiros`, bancos, caixa, clientes, estoques, fornecedores, tributos, folha, receitas, deduções e custos/CMV.
+
 ## Integração com IA
 
 O motor de regras entrega o JSON trimestral resumido v3.0.0 e o CLI também pode gerar parecer consultivo em Markdown com `--markdown`. O relatório em linguagem natural usa o system prompt consultivo em `src/auditoria/report_ai.py`, com fallback local quando `--no-ai` é usado ou quando a IA não está disponível.
@@ -235,6 +257,9 @@ Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`.
 - `src/auditoria/main.py` — CLI para processamento em lote (JSON por padrão, Markdown com `--markdown`)
 - `config/rules.json` — configuração de pesos e limites das regras
 - `config/simples_anexos.json` — tabelas dos Anexos I, III e V usadas na estimativa tributária
+- `config/plano_contas_map.json` — mapa configurável de reconhecimento de contas contábeis
+- `requirements.txt` / `requirements-dev.txt` — dependências de runtime e ferramentas de desenvolvimento
+- `.github/workflows/ci.yml` — pipeline de CI com validação de JSON, compile, testes e mypy
 - `REGRAS.md` — tabela das regras fiscais configuradas
 - `docs/PROMPTS_IA.md` — prompts para chats externos de parecer trimestral e anual
 - `tests/` — suíte de testes unitários e de integração leve

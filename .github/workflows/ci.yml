@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Validate JSON config files
+        run: |
+          python -m json.tool config/rules.json > /tmp/rules.json
+          python -m json.tool config/simples_anexos.json > /tmp/simples_anexos.json
+          python -m json.tool config/plano_contas_map.json > /tmp/plano_contas_map.json
+
+      - name: Compile Python files
+        run: python -m compileall src tests
+
+      - name: Run tests
+        run: python -m unittest discover -v
+
+      - name: Run mypy
+        run: python -m mypy src/auditoria --config-file pyproject.toml

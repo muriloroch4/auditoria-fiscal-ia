@@ -7,11 +7,14 @@ from typing import Any
 
 _DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[2] / "config" / "rules.json"
 _DEFAULT_ANEXOS_PATH = Path(__file__).resolve().parents[2] / "config" / "simples_anexos.json"
+_DEFAULT_ACCOUNT_MAP_PATH = Path(__file__).resolve().parents[2] / "config" / "plano_contas_map.json"
 
 _config_cache: dict[str, Any] | None = None
 _config_cache_path: Path | None = None
 _anexos_cache: dict[str, Any] | None = None
 _anexos_cache_path: Path | None = None
+_account_map_cache: dict[str, Any] | None = None
+_account_map_cache_path: Path | None = None
 
 
 def load_config(path: str | Path | None = None) -> dict[str, Any]:
@@ -62,6 +65,25 @@ def load_simples_anexos(path: str | Path | None = None) -> dict[str, Any]:
         _anexos_cache = json.load(f)
     _anexos_cache_path = anexos_path
     return _anexos_cache
+
+
+def load_account_map(path: str | Path | None = None) -> dict[str, Any]:
+    global _account_map_cache, _account_map_cache_path
+    account_map_path = Path(path) if path else _DEFAULT_ACCOUNT_MAP_PATH
+    account_map_path = account_map_path.resolve()
+
+    if _account_map_cache is not None and _account_map_cache_path == account_map_path:
+        return _account_map_cache
+
+    if not account_map_path.exists():
+        _account_map_cache = _build_account_map_defaults()
+        _account_map_cache_path = account_map_path
+        return _account_map_cache
+
+    with open(account_map_path, encoding="utf-8") as f:
+        _account_map_cache = json.load(f)
+    _account_map_cache_path = account_map_path
+    return _account_map_cache
 
 
 def _build_defaults() -> dict[str, Any]:
@@ -240,6 +262,88 @@ def _build_defaults() -> dict[str, Any]:
         "SN-COMP-05": {
             "pontuacao": 15,
         },
+    }
+
+
+def _build_account_map_defaults() -> dict[str, Any]:
+    return {
+        "version": "1.0.0",
+        "mapeamentos": [
+            {
+                "nome": "Servicos prestados por terceiros",
+                "grupo": "despesas",
+                "codigos_exatos": ["325"],
+                "prefixos": ["4.2.325", "4.2.20.325"],
+                "descricoes_contem": [
+                    "servicos prestados por terceiros",
+                    "servico prestado por terceiro",
+                    "servicos de terceiros",
+                    "servico de terceiro",
+                    "terceirizacao",
+                    "terceirizados",
+                ],
+            },
+            {
+                "nome": "Caixa fisico",
+                "grupo": "caixa",
+                "prefixos": ["1.1.10.100", "1.1.1.01"],
+                "descricoes_contem": ["caixa matriz", "fundo fixo", "pequena caixa"],
+            },
+            {
+                "nome": "Bancos e aplicacoes",
+                "grupo": "bancos",
+                "prefixos": ["1.1.10.200", "1.1.1.02", "1.1.1.03"],
+                "descricoes_contem": ["banco", "conta corrente", "aplicacao financeira"],
+            },
+            {
+                "nome": "Clientes e recebiveis",
+                "grupo": "clientes",
+                "prefixos": ["1.1.20", "1.1.2", "1.1.3.02"],
+                "descricoes_contem": ["cliente", "duplicata a receber", "cartao de credito"],
+            },
+            {
+                "nome": "Estoques",
+                "grupo": "estoques",
+                "prefixos": ["1.1.40", "1.1.5"],
+                "descricoes_contem": ["estoque", "mercadorias para revenda"],
+            },
+            {
+                "nome": "Fornecedores",
+                "grupo": "fornecedores",
+                "prefixos": ["2.1.10", "2.1.3"],
+                "descricoes_contem": ["fornecedor", "fornecedores"],
+            },
+            {
+                "nome": "Tributos a recolher",
+                "grupo": "tributos_a_recolher",
+                "prefixos": ["2.1.40", "2.1.50.200"],
+                "descricoes_contem": ["simples nacional a recolher", "icms a recolher", "iss a recolher", "inss a recolher"],
+            },
+            {
+                "nome": "Folha e pro-labore",
+                "grupo": "folha",
+                "prefixos": ["2.1.50.100", "4.2.20.100", "4.2.1.01"],
+                "descricoes_contem": ["salarios", "ordenados", "pro-labore", "folha de pagamento"],
+            },
+            {
+                "nome": "Receita operacional",
+                "grupo": "receita",
+                "prefixos": ["3.1.10", "3.1.1"],
+                "descricoes_contem": ["receita de venda", "receita de servicos", "servicos prestados"],
+            },
+            {
+                "nome": "Deducoes da receita",
+                "grupo": "tributos_sobre_receita",
+                "prefixos": ["3.1.20", "3.1.2"],
+                "descricoes_contem": ["simples nacional", "deducao da receita", "tributos sobre receita"],
+            },
+            {
+                "nome": "Custos e CMV",
+                "grupo": "custos",
+                "prefixos": ["4.1"],
+                "descricoes_contem": ["cmv", "custo das mercadorias", "custos dos servicos"],
+            },
+        ],
     }
 
 

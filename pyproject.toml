@@ -1,0 +1,8 @@
+[tool.mypy]
+python_version = "3.11"
+files = ["src/auditoria"]
+ignore_missing_imports = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+show_error_codes = true

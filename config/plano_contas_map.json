@@ -1,0 +1,80 @@
+{
+    "version": "1.0.0",
+    "descricao": "Mapa contabil configuravel para classificar contas por codigo, prefixo e descricao antes dos fallbacks do parser.",
+    "mapeamentos": [
+        {
+            "nome": "Servicos prestados por terceiros",
+            "grupo": "despesas",
+            "codigos_exatos": ["325"],
+            "prefixos": ["4.2.325", "4.2.20.325"],
+            "descricoes_contem": [
+                "servicos prestados por terceiros",
+                "servico prestado por terceiro",
+                "servicos de terceiros",
+                "servico de terceiro",
+                "terceirizacao",
+                "terceirizados"
+            ]
+        },
+        {
+            "nome": "Caixa fisico",
+            "grupo": "caixa",
+            "prefixos": ["1.1.10.100", "1.1.1.01"],
+            "descricoes_contem": ["caixa matriz", "fundo fixo", "pequena caixa"]
+        },
+        {
+            "nome": "Bancos e aplicacoes",
+            "grupo": "bancos",
+            "prefixos": ["1.1.10.200", "1.1.1.02", "1.1.1.03"],
+            "descricoes_contem": ["banco", "conta corrente", "aplicacao financeira"]
+        },
+        {
+            "nome": "Clientes e recebiveis",
+            "grupo": "clientes",
+            "prefixos": ["1.1.20", "1.1.2", "1.1.3.02"],
+            "descricoes_contem": ["cliente", "duplicata a receber", "cartao de credito"]
+        },
+        {
+            "nome": "Estoques",
+            "grupo": "estoques",
+            "prefixos": ["1.1.40", "1.1.5"],
+            "descricoes_contem": ["estoque", "mercadorias para revenda"]
+        },
+        {
+            "nome": "Fornecedores",
+            "grupo": "fornecedores",
+            "prefixos": ["2.1.10", "2.1.3"],
+            "descricoes_contem": ["fornecedor", "fornecedores"]
+        },
+        {
+            "nome": "Tributos a recolher",
+            "grupo": "tributos_a_recolher",
+            "prefixos": ["2.1.40", "2.1.50.200"],
+            "descricoes_contem": ["simples nacional a recolher", "icms a recolher", "iss a recolher", "inss a recolher"]
+        },
+        {
+            "nome": "Folha e pro-labore",
+            "grupo": "folha",
+            "prefixos": ["2.1.50.100", "4.2.20.100", "4.2.1.01"],
+            "descricoes_contem": ["salarios", "ordenados", "pro-labore", "folha de pagamento"]
+        },
+        {
+            "nome": "Receita operacional",
+            "grupo": "receita",
+            "prefixos": ["3.1.10", "3.1.1"],
+            "descricoes_contem": ["receita de venda", "receita de servicos", "servicos prestados"]
+        },
+        {
+            "nome": "Deducoes da receita",
+            "grupo": "tributos_sobre_receita",
+            "prefixos": ["3.1.20", "3.1.2"],
+            "descricoes_contem": ["simples nacional", "deducao da receita", "tributos sobre receita"]
+        },
+        {
+            "nome": "Custos e CMV",
+            "grupo": "custos",
+            "prefixos": ["4.1"],
+            "descricoes_contem": ["cmv", "custo das mercadorias", "custos dos servicos"]
+        }
+    ]
+}

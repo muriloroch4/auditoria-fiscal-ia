@@ -5,7 +5,7 @@ from decimal import Decimal
 from unicodedata import combining, normalize
 
 from ..config_loader import get_rule_config, load_config
-from ..models import RiskLevel, RuleFinding, TrialBalance
+from ..models import LedgerAccount, RiskLevel, RuleFinding, TrialBalance
 from ..utils import format_brl, format_percent
 
 _money = format_brl
@@ -102,7 +102,11 @@ def _analyze_simples_nacional(
     tax_expense = calculate_tax_expense(balance)
     payroll = _abs(balance.debito_por_grupo("folha"))
     expenses = calculate_operating_expenses(balance)
-    third_party_services = calculate_third_party_services_expense(balance)
+    third_party_service_accounts = third_party_services_accounts(balance)
+    third_party_services = sum(
+        (_third_party_services_amount(account) for account in third_party_service_accounts),
+        Decimal("0"),
+    )
     partners = _abs(balance.total_por_grupo("socios"))
     clients = _abs(balance.total_por_grupo("clientes"))
     client_movement = _group_movement(balance, "clientes")
@@ -134,7 +138,7 @@ def _analyze_simples_nacional(
     findings.extend(_check_cash_position(revenue, cash))
     findings.extend(_check_physical_cash_position(revenue, physical_cash, ruleset))
     findings.extend(_check_expense_ratio(revenue, expenses, balance, ruleset))
-    findings.extend(_check_third_party_services_expense(third_party_services, expenses))
+    findings.extend(_check_third_party_services_expense(third_party_services, expenses, third_party_service_accounts))
     findings.extend(_check_accounting_loss(revenue, profit_basis))
     findings.extend(_check_high_profit_margin(revenue, profit_basis))
     findings.extend(_check_tax_liability_growth(balance, revenue))
@@ -186,18 +190,24 @@ def calculate_operating_expenses(balance: TrialBalance) -> Decimal:
 
 
 def calculate_third_party_services_expense(balance: TrialBalance) -> Decimal:
-    total = Decimal("0")
-    for account in balance.contas:
-        if not _is_third_party_services_account(account.codigo, account.conta):
-            continue
+    return sum((_third_party_services_amount(account) for account in third_party_services_accounts(balance)), Decimal("0"))
 
-        amount = account.debito
-        if amount <= 0 and account.saldo_atual != 0:
-            amount = _abs(account.saldo_atual)
-        elif amount <= 0 and account.credito > 0:
-            amount = account.credito
-        total += _abs(amount)
-    return total
+
+def third_party_services_accounts(balance: TrialBalance) -> list[LedgerAccount]:
+    return [
+        account
+        for account in balance.contas
+        if _is_third_party_services_account(account.codigo, account.conta)
+    ]
+
+
+def _third_party_services_amount(account: LedgerAccount) -> Decimal:
+    amount = account.debito
+    if amount <= 0 and account.saldo_atual != 0:
+        amount = _abs(account.saldo_atual)
+    elif amount <= 0 and account.credito > 0:
+        amount = account.credito
+    return _abs(amount)
 
 
 def calculate_revenue_deductions(balance: TrialBalance) -> Decimal:
@@ -329,7 +339,7 @@ def _check_revenue_limit(revenue: Decimal, rbt12_revenue: Decimal | None = None)
     cfg = get_rule_config("SN-001")
     anual = Decimal(str(load_config().get("limites_gerais", {}).get("simples_anual", 4800000)))
     has_rbt12 = rbt12_revenue is not None and rbt12_revenue > 0
-    annualized_revenue = rbt12_revenue if has_rbt12 else revenue * Decimal("4")
+    annualized_revenue = (rbt12_revenue or Decimal("0")) if has_rbt12 else revenue * Decimal("4")
     ratio = annualized_revenue / anual if anual > 0 else Decimal("0")
     base_calculo_limite = "RBT12 consolidado pelo historico" if has_rbt12 else "receita trimestral anualizada (receita x 4)"
 
@@ -803,7 +813,11 @@ def _check_expense_ratio(
     return findings
 
 
-def _check_third_party_services_expense(third_party_services: Decimal, expenses: Decimal) -> list[RuleFinding]:
+def _check_third_party_services_expense(
+    third_party_services: Decimal,
+    expenses: Decimal,
+    accounts: list[LedgerAccount],
+) -> list[RuleFinding]:
     if third_party_services <= 0 or expenses <= 0:
         return []
 
@@ -829,6 +843,9 @@ def _check_third_party_services_expense(third_party_services: Decimal, expenses:
                 "percentual_sobre_despesas": _percent(ratio),
                 "limite_percentual_despesas": _percent(ratio_limit),
                 "limite_absoluto": _money(absolute_limit),
+                "quantidade_contas_identificadas": str(len(accounts)),
+                "contas_identificadas": _format_account_trace(accounts),
+                "criterio_rastreio": "codigo 325, prefixo configurado ou descricao de servicos prestados por terceiros",
                 "tipo_achado": "validacao_documental",
             },
             recomendacao="Verificar e validar os lancamentos da conta 325, confrontando pagamentos, contratos, notas fiscais, comprovantes bancarios, retencoes aplicaveis e suporte documental antes de manter a despesa.",
@@ -1290,7 +1307,7 @@ def _check_commerce_sublimit(revenue: Decimal, rbt12_revenue: Decimal | None = N
 
     cfg = get_rule_config("SN-019")
     has_rbt12 = rbt12_revenue is not None and rbt12_revenue > 0
-    annualized_revenue = rbt12_revenue if has_rbt12 else revenue * Decimal("4")
+    annualized_revenue = (rbt12_revenue or Decimal("0")) if has_rbt12 else revenue * Decimal("4")
     base_calculo_limite = "RBT12 consolidado pelo historico" if has_rbt12 else "receita trimestral anualizada (receita x 4)"
     sublimite = Decimal(str(cfg.get("sublimite_anual", 3600000)))
     if annualized_revenue <= sublimite:
@@ -1519,6 +1536,23 @@ def _is_third_party_services_account(code: str, name: str) -> bool:
         "terceirizados",
     )
     return code_matches or any(keyword in text for keyword in keywords)
+
+
+def _format_account_trace(accounts: list[LedgerAccount], limit: int = 6) -> str:
+    if not accounts:
+        return "Nenhuma conta individual identificada"
+
+    items = [
+        (
+            f"{account.codigo} - {account.conta} "
+            f"(grupo {account.grupo}; debito {_money(account.debito)}; "
+            f"credito {_money(account.credito)}; saldo {_money(account.saldo_atual)})"
+        )
+        for account in accounts[:limit]
+    ]
+    if len(accounts) > limit:
+        items.append(f"... mais {len(accounts) - limit} conta(s)")
+    return " | ".join(items)
 
 
 def _active_movement(balance: TrialBalance) -> Decimal:

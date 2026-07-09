@@ -84,31 +84,31 @@ class DominioParserTest(unittest.TestCase):
         cases = [
             ("1.1.1.01.00001", "CAIXA MATRIZ", "caixa"),
             ("1.1.1.02.00001", "BANCO DO BRASIL", "bancos"),
-            ("1.1.1.03.00001", "APLICAÇÃO BANCO BRASIL", "bancos"),
+            ("1.1.1.03.00001", "APLICACAO BANCO BRASIL", "bancos"),
             ("1.1.2.01.00001", "CLIENTES PULVERIZADOS", "clientes"),
             ("1.1.3.01.00001", "BANCOS CONTA VINCULADA", "bancos"),
-            ("1.1.3.02.00001", "OPERADORAS DE CARTÃO DE CREDITO", "clientes"),
-            ("1.1.3.05.00001", "ADIANTAMENTOS A FORNECEDORES NO PAÍS", "adiantamentos"),
+            ("1.1.3.02.00001", "OPERADORAS DE CARTAO DE CREDITO", "clientes"),
+            ("1.1.3.05.00001", "ADIANTAMENTOS A FORNECEDORES NO PAIS", "adiantamentos"),
             ("1.1.3.08.00006", "INSS A RECUPERAR", "creditos_fiscais"),
-            ("1.1.4.01.00001", "APLICAÇÃO BANCO DO BRASIL", "investimentos"),
-            ("1.1.4.02.00001", "DISTRIBUIÇÃO ANTECIPADA DE LUCROS", "lucros"),
+            ("1.1.4.01.00001", "APLICACAO BANCO DO BRASIL", "investimentos"),
+            ("1.1.4.02.00001", "DISTRIBUICAO ANTECIPADA DE LUCROS", "lucros"),
             ("1.1.5.01.00001", "MERCADORIAS PARA REVENDA", "estoques"),
             ("1.2.1.01.00001", "CLIENTES PULVERIZADOS", "clientes"),
             ("1.2.3.01.00001", "CONTROLADA A - VALOR PATRIMONIAL", "investimentos"),
-            ("1.2.4.04.00001", "VEÍCULOS", "imobilizado"),
-            ("2.1.1.01.00001", "EMPRÉSTIMO BANCO BRASIL", "emprestimos"),
+            ("1.2.4.04.00001", "VEICULOS", "imobilizado"),
+            ("2.1.1.01.00001", "EMPRESTIMO BANCO BRASIL", "emprestimos"),
             ("2.1.3.01.00001", "FORNECEDORES NACIONAIS", "fornecedores"),
             ("2.1.4.01.00008", "SIMPLES NACIONAL A RECOLHER", "tributos_a_recolher"),
-            ("2.1.5.03.00001", "PROVISÃO DE FÉRIAS", "provisoes"),
+            ("2.1.5.03.00001", "PROVISAO DE FERIAS", "provisoes"),
             ("2.1.6.01.00001", "ADIANTAMENTOS A CLIENTES", "adiantamentos_clientes"),
             ("2.1.7.01.00001", "LUCROS E DIVIDENDOS", "lucros"),
-            ("2.2.1.09.00001", "OBRIGAÇÕES TRIBUTÁRIAS", "tributos_a_recolher"),
-            ("3.1.1.02.00001", "SERVIÇOS PRESTADOS", "receita"),
+            ("2.2.1.09.00001", "OBRIGACOES TRIBUTARIAS", "tributos_a_recolher"),
+            ("3.1.1.02.00001", "SERVICOS PRESTADOS", "receita"),
             ("3.1.2.03.00008", "(-) SIMPLES NACIONAL", "tributos_sobre_receita"),
-            ("4.1.6.01.00001", "CUSTOS DOS SERVIÇOS PRESTADOS", "custos"),
-            ("4.2.1.01.00001", "SALÁRIOS", "folha"),
-            ("4.2.1.05.00001", "DESPESAS COM VIAGENS E REPRESENTAÇÕES", "despesas_representacao"),
-            ("4.2.1.11.00001", "DESPESAS TRIBUTÁRIAS", "despesas_tributarias"),
+            ("4.1.6.01.00001", "CUSTOS DOS SERVICOS PRESTADOS", "custos"),
+            ("4.2.1.01.00001", "SALARIOS", "folha"),
+            ("4.2.1.05.00001", "DESPESAS COM VIAGENS E REPRESENTACOES", "despesas_representacao"),
+            ("4.2.1.11.00001", "DESPESAS TRIBUTARIAS", "despesas_tributarias"),
             ("4.2.2.05.00001", "DESPESAS FINANCEIRAS", "despesas"),
             ("1.1.10.100.001", "CAIXA MATRIZ", "caixa"),
             ("1.1.10.200.006", "BANCO ITAU", "bancos"),
@@ -173,7 +173,7 @@ class DominioParserTest(unittest.TestCase):
         self.assertTrue(all(account.grupo in VALID_GRUPOS for account in balance.contas))
 
     def test_read_trial_balance_upload_reconhece_xlsx_real_ssa_telecom(self):
-        path = Path("samples/Balancete - SSA TELECOM 3º TRIM.xlsx")
+        path = Path("samples/Balancete - SSA TELECOM 3\u00ba TRIM.xlsx")
         if not path.exists():
             self.skipTest("Arquivo real SSA TELECOM nao encontrado em samples.")
 

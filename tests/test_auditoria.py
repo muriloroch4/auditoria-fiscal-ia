@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import unittest
 import unittest.mock
@@ -15,9 +16,27 @@ from src.auditoria.models import RiskLevel, RuleFinding
 from src.auditoria.parser import read_trial_balance_csv, read_trial_balance_csv_text, read_trial_balance_upload
 from src.auditoria.report_ai import generate_markdown_report
 from src.auditoria.serializers import audit_result_to_dict
+from src.auditoria.storage import infer_year_quarter
 from src.auditoria.risk import classify_total_risk, suggest_opinion_type
 from src.auditoria.utils import format_brl, format_percent, sanitize_for_latin1
-from src.auditoria.config_loader import _DEFAULT_CONFIG_PATH, load_config, get_rule_config, reload_config
+from src.auditoria.config_loader import (
+    _DEFAULT_ACCOUNT_MAP_PATH,
+    _DEFAULT_CONFIG_PATH,
+    get_rule_config,
+    load_account_map,
+    load_config,
+    reload_config,
+)
+
+
+def _iter_text_project_files(roots: list[Path], suffixes: set[str]):
+    for root in roots:
+        if not root.exists():
+            continue
+        candidates = [root] if root.is_file() else root.rglob("*")
+        for path in candidates:
+            if path.is_file() and path.suffix.lower() in suffixes:
+                yield path
 
 
 class AuditPrototypeTest(unittest.TestCase):
@@ -330,6 +349,86 @@ class AuditPrototypeTest(unittest.TestCase):
         self.assertIn("carga_tributaria_efetiva_percentual", result.metricas_valores["indicadores_derivados"])
 
 
+class GoldenPipelineTest(unittest.TestCase):
+    def _sample_result_and_payload(self):
+        sample = Path("samples/exemplo_balancete_todas_regras.csv")
+        balance = read_trial_balance_csv(
+            sample,
+            cliente="Golden Todas Regras",
+            periodo="2026-T1",
+            cnpj="12.345.678/0001-90",
+        )
+        result = run_quarterly_audit(balance)
+        payload = audit_result_to_dict(result)
+        payload["metadados"]["data_analise"] = "2000-01-01T00:00:00"
+        return result, payload
+
+    def test_exemplo_balancete_todas_regras_matches_golden_json(self):
+        _, payload = self._sample_result_and_payload()
+        expected = Path("tests/golden/exemplo_balancete_todas_regras.v3.json").read_text(encoding="utf-8").strip()
+        actual = json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True)
+
+        self.assertEqual(actual, expected)
+
+    def test_exemplo_balancete_todas_regras_markdown_outputs_sem_mojibake(self):
+        result, payload = self._sample_result_and_payload()
+        markdown = generate_markdown_report(result, use_ai=False, cnpj="12.345.678/0001-90")
+        annual_payload = build_annual_comparison([
+            self._payload_for_annual(result, payload, f"2026-T{quarter}")
+            for quarter in range(1, 5)
+        ])
+        annual_markdown = generate_annual_markdown_report(annual_payload)
+        combined = markdown + "\n" + annual_markdown
+
+        self.assertIn("Créditos fiscais finais", annual_markdown)
+        for token in ("\u00c3\u00a9", "\u00c3\u00a1", "\u00c3\u00a3", "\u00c3\u00a7", "\u00c3\u00aa", "\u00c3\u00ad", "\u00c3\u00b3", "\u00c3\u00ba", "\u00c3\u0192", "\ufffd"):
+            self.assertNotIn(token, combined)
+
+    def _payload_for_annual(self, result, payload, periodo: str) -> dict:
+        cloned = json.loads(json.dumps(payload))
+        cloned["identificacao_empresa"]["periodo_analisado"] = periodo
+        cloned["metricas"] = {
+            key: {
+                "valor": value,
+                "formatado": result.resumo_metricas.get(key, str(value)),
+            }
+            for key, value in result.metricas_valores.items()
+            if isinstance(value, (int, float))
+        }
+        return cloned
+
+
+class ProjectQualityTest(unittest.TestCase):
+    def test_text_files_do_not_contain_mojibake_markers(self):
+        roots = [
+            Path("src"),
+            Path("tests"),
+            Path("docs"),
+            Path("config"),
+            Path(".github"),
+            Path("README.md"),
+            Path("REGRAS.md"),
+            Path("pyproject.toml"),
+            Path("requirements.txt"),
+            Path("requirements-dev.txt"),
+        ]
+        suffixes = {".py", ".js", ".css", ".html", ".md", ".json", ".toml", ".txt", ".yml", ".yaml"}
+        bad_tokens = (
+            "\u00c3",
+            "\u00c2",
+            "\ufffd",
+        )
+        offenders: list[str] = []
+
+        for path in _iter_text_project_files(roots, suffixes):
+            text = path.read_text(encoding="utf-8", errors="replace")
+            for line_number, line in enumerate(text.splitlines(), start=1):
+                if any(token in line for token in bad_tokens):
+                    offenders.append(f"{path}:{line_number}: {line[:160]}")
+
+        self.assertEqual(offenders, [])
+
+
 class RiskClassificationTest(unittest.TestCase):
     def _make_finding(self, codigo="X", nivel=RiskLevel.BAIXO, pontuacao=5):
         return RuleFinding(
@@ -436,12 +535,20 @@ class ConfigTest(unittest.TestCase):
     def test_default_config_path_points_to_project_config_dir(self):
         self.assertEqual(_DEFAULT_CONFIG_PATH, Path("config/rules.json").resolve())
 
+    def test_default_account_map_path_points_to_project_config_dir(self):
+        self.assertEqual(_DEFAULT_ACCOUNT_MAP_PATH, Path("config/plano_contas_map.json").resolve())
+
     def test_load_config_returns_dict(self):
         cfg = reload_config()
         self.assertIsInstance(cfg, dict)
         self.assertIn("descricao", cfg)
         self.assertIn("limites_gerais", cfg)
         self.assertIn("SN-001", cfg)
+
+    def test_load_account_map_contains_conta_325(self):
+        account_map = load_account_map()
+        self.assertIsInstance(account_map, dict)
+        self.assertTrue(any("325" in item.get("codigos_exatos", []) for item in account_map.get("mapeamentos", [])))
 
     def test_get_rule_config(self):
         cfg = get_rule_config("SN-003")
@@ -450,6 +557,27 @@ class ConfigTest(unittest.TestCase):
     def test_get_rule_config_missing(self):
         cfg = get_rule_config("SN-999")
         self.assertEqual(cfg, {})
+
+
+class PeriodInferenceTest(unittest.TestCase):
+    def test_infer_year_quarter_accepts_common_quarter_formats(self):
+        cases = {
+            "2026-T1": (2026, 1),
+            "T2/2026": (2026, 2),
+            "2026 Q3": (2026, 3),
+            "1T2026": (2026, 1),
+            "1º Trimestre/2026": (2026, 1),
+            "Terceiro trimestre de 2026": (2026, 3),
+            "Jan-Mar 2026": (2026, 1),
+            "Out-Dez/2026": (2026, 4),
+            "01/04/2026 - 30/06/2026": (2026, 2),
+        }
+        for periodo, expected in cases.items():
+            with self.subTest(periodo=periodo):
+                self.assertEqual(infer_year_quarter(periodo), expected)
+
+    def test_infer_year_quarter_unknown_format_keeps_year_and_zero_quarter(self):
+        self.assertEqual(infer_year_quarter("Exercicio 2026"), (2026, 0))
 
 
 class SN009AccountingLossTest(unittest.TestCase):
@@ -833,7 +961,27 @@ class MelhoriasMotorFiscalTest(unittest.TestCase):
 
         self.assertEqual(result.metricas_valores["servicos_terceiros"], 60000.0)
         self.assertEqual(finding.evidencia["percentual_sobre_despesas"], "60,00%")
+        self.assertEqual(finding.evidencia["quantidade_contas_identificadas"], "1")
+        self.assertIn("4.2.325 - Servicos Prestados por Terceiros", finding.evidencia["contas_identificadas"])
         self.assertIn("Validacao documental", serialized["impacto_tecnico"])
+
+    def test_mapa_contabil_classifica_conta_325_com_grupo_custom(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;80000;50000;30000
+            3.1.1;Receita de Servicos;receita;0;0;100000;100000
+            4.2.325;Servicos Prestados por Terceiros;custom;0;25000;0;-25000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Mapa Conta 325", periodo="2026-T1")
+        account = next(conta for conta in balance.contas if conta.codigo == "4.2.325")
+        result = run_quarterly_audit(balance)
+        codes = {finding.codigo for finding in result.achados}
+
+        self.assertEqual(account.grupo, "despesas")
+        self.assertEqual(result.metricas_valores["despesas_operacionais"], 25000.0)
+        self.assertIn("SN-025", codes)
 
 
 class SchemaV3ResumoTest(unittest.TestCase):

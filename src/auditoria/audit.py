@@ -231,12 +231,12 @@ def _build_contexto_regime_simples(
     rbt12_revenue = _context_decimal(rbt12_context, "receita")
     rbt12_payroll = _context_decimal(rbt12_context, "folha")
     has_rbt12_revenue = rbt12_revenue is not None and rbt12_revenue > 0
-    base_revenue = rbt12_revenue if has_rbt12_revenue else annual_proxy
-    base_description = (
-        str((rbt12_context or {}).get("base_calculo") or "RBT12 consolidado a partir do historico salvo")
-        if has_rbt12_revenue
-        else "receita trimestral anualizada (receita x 4)"
-    )
+    if has_rbt12_revenue:
+        base_revenue = rbt12_revenue or Decimal("0")
+        base_description = str((rbt12_context or {}).get("base_calculo") or "RBT12 consolidado a partir do historico salvo")
+    else:
+        base_revenue = annual_proxy
+        base_description = "receita trimestral anualizada (receita x 4)"
 
     faixa = _simples_faixa(base_revenue)
     fator_r: str | None = None

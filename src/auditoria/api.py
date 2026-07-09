@@ -355,11 +355,13 @@ class AuditApiHandler(BaseHTTPRequestHandler):
         form: dict[str, str | UploadedFile] = {}
 
         for part in message.iter_parts():
-            name = part.get_param("name", header="content-disposition")
-            if not name:
+            raw_name = part.get_param("name", header="content-disposition")
+            if not isinstance(raw_name, str) or not raw_name:
                 continue
+            name = raw_name
 
-            payload = part.get_payload(decode=True) or b""
+            raw_payload = part.get_payload(decode=True)
+            payload = raw_payload if isinstance(raw_payload, bytes) else b""
             filename = part.get_filename()
             if filename:
                 form[name] = UploadedFile(filename=filename, content=payload)
@@ -512,7 +514,7 @@ def _payload_int(payload: dict[str, Any], field: str) -> int | None:
     if value in (None, ""):
         return None
     try:
-        return int(value)
+        return int(str(value))
     except (TypeError, ValueError) as exc:
         raise ValueError(f"O campo '{field}' deve ser numérico.") from exc
 

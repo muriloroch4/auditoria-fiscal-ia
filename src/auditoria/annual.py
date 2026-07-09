@@ -346,6 +346,7 @@ def _annual_findings(quarters: list[dict[str, Any]], totals: dict[str, Any]) -> 
                     "servicos_terceiros_total": format_brl(third_party_services),
                     "despesas_operacionais_total": format_brl(expenses),
                     "percentual_sobre_despesas": format_percent(third_party_services / expenses),
+                    "criterio_rastreio": "consolidacao anual da metrica servicos_terceiros dos JSONs trimestrais",
                 },
                 "Validar contratos, notas fiscais, comprovantes bancarios, retencoes aplicaveis e a correta apropriacao dos pagamentos lancados diretamente em despesas.",
             )
@@ -685,7 +686,7 @@ def _render_annual_metrics(metricas: dict[str, Any], evolution: dict[str, Any]) 
         f"({indicators['cmv_sobre_receita_anual']}). "
         f"Estoques finais: {metricas['estoques_final']['formatado']}. "
         f"Fornecedores finais: {metricas['fornecedores_final']['formatado']}. "
-        f"CrÃ©ditos fiscais finais: {metricas['creditos_fiscais_final']['formatado']}. "
+        f"Créditos fiscais finais: {metricas['creditos_fiscais_final']['formatado']}. "
         f"RBT12 consolidado: {metricas['rbt12_receita']['formatado']} "
         f"({metricas['contexto_rbt12']['base_calculo']}). "
         f"Resultado anual: {metricas['lucro_apurado_total']['formatado']}. "
