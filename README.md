@@ -162,8 +162,9 @@ python -m src.auditoria.main --anual t1.json t2.json t3.json t4.json --markdown 
 ```
 
 O JSON anual (`annual-1.0.0`) consolida receita, deduções, tributos registrados,
-resultado, estoques, fornecedores, CMV/custos, créditos fiscais, saldos finais relevantes,
-RBT12 consolidado, recorrência de achados, tendência de risco e risco anual.
+resultado, estoques, fornecedores, CMV/custos, serviços de terceiros/conta 325,
+créditos fiscais, saldos finais relevantes, RBT12 consolidado, recorrência de achados,
+tendência de risco e risco anual.
 
 ### Testes
 
@@ -194,6 +195,7 @@ Modelos disponíveis em `samples/`.
 | `despesas_tributarias` | Despesas tributárias operacionais |
 | `folha` | Pró-labore, salários e encargos |
 | `despesas` / `custos` | Despesas operacionais, custos dos serviços ou CMV |
+| Conta `325` ou descrição `serviços prestados por terceiros` | Monitorada pela regra `SN-025` quando relevante nas despesas |
 | `socios` | Empréstimos, mútuos e contas correntes |
 | `adiantamentos` / `adiantamentos_clientes` | Adiantamentos a fornecedores, clientes, empregados e terceiros |
 | `caixa` / `bancos` | Disponibilidades |

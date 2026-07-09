@@ -102,6 +102,7 @@ def _analyze_simples_nacional(
     tax_expense = calculate_tax_expense(balance)
     payroll = _abs(balance.debito_por_grupo("folha"))
     expenses = calculate_operating_expenses(balance)
+    third_party_services = calculate_third_party_services_expense(balance)
     partners = _abs(balance.total_por_grupo("socios"))
     clients = _abs(balance.total_por_grupo("clientes"))
     client_movement = _group_movement(balance, "clientes")
@@ -133,6 +134,7 @@ def _analyze_simples_nacional(
     findings.extend(_check_cash_position(revenue, cash))
     findings.extend(_check_physical_cash_position(revenue, physical_cash, ruleset))
     findings.extend(_check_expense_ratio(revenue, expenses, balance, ruleset))
+    findings.extend(_check_third_party_services_expense(third_party_services, expenses))
     findings.extend(_check_accounting_loss(revenue, profit_basis))
     findings.extend(_check_high_profit_margin(revenue, profit_basis))
     findings.extend(_check_tax_liability_growth(balance, revenue))
@@ -181,6 +183,21 @@ def calculate_revenue(balance: TrialBalance) -> Decimal:
 
 def calculate_operating_expenses(balance: TrialBalance) -> Decimal:
     return _abs(_debitos_por_grupos(balance, OPERATING_EXPENSE_GROUPS))
+
+
+def calculate_third_party_services_expense(balance: TrialBalance) -> Decimal:
+    total = Decimal("0")
+    for account in balance.contas:
+        if not _is_third_party_services_account(account.codigo, account.conta):
+            continue
+
+        amount = account.debito
+        if amount <= 0 and account.saldo_atual != 0:
+            amount = _abs(account.saldo_atual)
+        elif amount <= 0 and account.credito > 0:
+            amount = account.credito
+        total += _abs(amount)
+    return total
 
 
 def calculate_revenue_deductions(balance: TrialBalance) -> Decimal:
@@ -784,6 +801,40 @@ def _check_expense_ratio(
             )
 
     return findings
+
+
+def _check_third_party_services_expense(third_party_services: Decimal, expenses: Decimal) -> list[RuleFinding]:
+    if third_party_services <= 0 or expenses <= 0:
+        return []
+
+    cfg = get_rule_config("SN-025")
+    absolute_limit = Decimal(str(cfg.get("limite_absoluto", 10000)))
+    ratio_limit = Decimal(str(cfg.get("limite_ratio_despesas", 0.20)))
+    ratio = third_party_services / expenses
+
+    if third_party_services < absolute_limit or ratio < ratio_limit:
+        return []
+
+    return [
+        RuleFinding(
+            codigo="SN-025",
+            titulo="Servicos prestados por terceiros relevantes nas despesas",
+            nivel=RiskLevel.MEDIO,
+            pontuacao=cfg.get("pontuacao_medio", 12),
+            descricao="A conta 325/servicos prestados por terceiros representa percentual relevante das despesas do trimestre, indicando necessidade de validacao documental dos lancamentos.",
+            evidencia={
+                "conta_referencia": "325 - Servicos prestados por terceiros",
+                "servicos_terceiros": _money(third_party_services),
+                "total_despesas": _money(expenses),
+                "percentual_sobre_despesas": _percent(ratio),
+                "limite_percentual_despesas": _percent(ratio_limit),
+                "limite_absoluto": _money(absolute_limit),
+                "tipo_achado": "validacao_documental",
+            },
+            recomendacao="Verificar e validar os lancamentos da conta 325, confrontando pagamentos, contratos, notas fiscais, comprovantes bancarios, retencoes aplicaveis e suporte documental antes de manter a despesa.",
+            normas_aplicaveis=("ITG 2000", "NBC TG 1000"),
+        )
+    ]
 
 
 def _check_accounting_loss(revenue: Decimal, profit_basis: ProfitBasis) -> list[RuleFinding]:
@@ -1452,6 +1503,22 @@ def _rbt12_decimal(context: dict | None, key: str) -> Decimal | None:
         return Decimal(str(value))
     except Exception:
         return None
+
+
+def _is_third_party_services_account(code: str, name: str) -> bool:
+    text = _normalize_text(name)
+    code_parts = "".join(char if char.isdigit() else " " for char in str(code or "")).split()
+    code_matches = "325" in code_parts or str(code or "").strip() == "325"
+    keywords = (
+        "servicos prestados por terceiros",
+        "servico prestado por terceiro",
+        "servicos de terceiros",
+        "servico de terceiro",
+        "servicos terceiros",
+        "terceirizacao",
+        "terceirizados",
+    )
+    return code_matches or any(keyword in text for keyword in keywords)
 
 
 def _active_movement(balance: TrialBalance) -> Decimal:

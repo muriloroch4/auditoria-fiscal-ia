@@ -106,6 +106,7 @@ def _quarter_summary(payload: dict[str, Any]) -> dict[str, Any]:
                 "tributos_a_recolher": _metric(metricas, "tributos_a_recolher"),
                 "folha_pro_labore": _metric(metricas, "folha_pro_labore"),
                 "despesas_operacionais": _metric(metricas, "despesas_operacionais"),
+                "servicos_terceiros": _metric(metricas, "servicos_terceiros"),
                 "lucros_distribuidos": _metric(metricas, "lucros_distribuidos"),
                 "lucro_apurado_base": _metric(metricas, "lucro_apurado_base"),
                 "caixa_e_bancos": _metric(metricas, "caixa_e_bancos"),
@@ -145,6 +146,7 @@ def _quarter_summary(payload: dict[str, Any]) -> dict[str, Any]:
             "tributos_a_recolher": _metric(metricas, "tributos_a_recolher"),
             "folha_pro_labore": _metric(metricas, "folha_pro_labore"),
             "despesas_operacionais": _metric(metricas, "despesas_operacionais"),
+            "servicos_terceiros": _metric(metricas, "servicos_terceiros"),
             "lucros_distribuidos": _metric(metricas, "lucros_distribuidos"),
             "lucro_apurado_base": _metric(metricas, "lucro_apurado_base"),
             "caixa_e_bancos": _metric(metricas, "caixa_e_bancos"),
@@ -171,6 +173,7 @@ def _annual_totals(quarters: list[dict[str, Any]], rbt12_context: dict[str, Any]
     deductions = sum_metric("deducoes_receita")
     taxes = sum_metric("tributos_registrados")
     expenses = sum_metric("despesas_operacionais")
+    third_party_services = sum_metric("servicos_terceiros")
     payroll = sum_metric("folha_pro_labore")
     profit = sum_metric("lucro_apurado_base")
     profit_distribution = sum_metric("lucros_distribuidos")
@@ -187,6 +190,7 @@ def _annual_totals(quarters: list[dict[str, Any]], rbt12_context: dict[str, Any]
         "tributos_registrados_total": _entry(taxes),
         "folha_pro_labore_total": _entry(payroll),
         "despesas_operacionais_total": _entry(expenses),
+        "servicos_terceiros_total": _entry(third_party_services),
         "lucro_apurado_total": _entry(profit),
         "lucros_distribuidos_total": _entry(profit_distribution),
         "tributos_a_recolher_final": _entry(tax_liability),
@@ -211,6 +215,7 @@ def _annual_totals(quarters: list[dict[str, Any]], rbt12_context: dict[str, Any]
             "carga_tributaria_efetiva_anual": _safe_percent(taxes, revenue),
             "deducoes_sobre_receita_anual": _safe_percent(deductions, revenue),
             "despesas_sobre_receita_anual": _safe_percent(expenses, revenue),
+            "servicos_terceiros_sobre_despesas_anual": _safe_percent(third_party_services, expenses),
             "folha_sobre_receita_anual": _safe_percent(payroll, revenue),
             "lucro_sobre_receita_anual": _safe_percent(profit, revenue),
             "cmv_sobre_receita_anual": _safe_percent(cogs, revenue),
@@ -265,6 +270,8 @@ def _annual_findings(quarters: list[dict[str, Any]], totals: dict[str, Any]) -> 
             )
 
     revenue = _value(totals, "receita_servicos_total")
+    expenses = _value(totals, "despesas_operacionais_total")
+    third_party_services = _value(totals, "servicos_terceiros_total")
     profit = _value(totals, "lucro_apurado_total")
     profit_distribution = _value(totals, "lucros_distribuidos_total")
     debt = _value(totals, "emprestimos_final")
@@ -323,6 +330,24 @@ def _annual_findings(quarters: list[dict[str, Any]], totals: dict[str, Any]) -> 
                 "O lucro anual representa percentual elevado da receita consolidada, sugerindo possivel ausencia de despesas, custos ou apropriacoes de competencia.",
                 {"lucro_anual": format_brl(profit), "receita_anual": format_brl(revenue), "margem_lucro": format_percent(profit / revenue)},
                 "Revisar custos, despesas, folha, pro-labore, servicos tomados, competencia contabila e documentos de suporte antes de concluir sobre a margem anual.",
+            )
+        )
+
+    if expenses > 0 and third_party_services >= Decimal("10000") and third_party_services / expenses >= Decimal("0.20"):
+        findings.append(
+            _finding(
+                "AN-DOC-325-001",
+                "Servicos prestados por terceiros relevantes no ano",
+                "medio",
+                12,
+                "A conta 325/servicos prestados por terceiros representa percentual relevante das despesas anuais, exigindo validacao documental dos lancamentos.",
+                {
+                    "conta_referencia": "325 - Servicos prestados por terceiros",
+                    "servicos_terceiros_total": format_brl(third_party_services),
+                    "despesas_operacionais_total": format_brl(expenses),
+                    "percentual_sobre_despesas": format_percent(third_party_services / expenses),
+                },
+                "Validar contratos, notas fiscais, comprovantes bancarios, retencoes aplicaveis e a correta apropriacao dos pagamentos lancados diretamente em despesas.",
             )
         )
 
@@ -654,6 +679,8 @@ def _render_annual_metrics(metricas: dict[str, Any], evolution: dict[str, Any]) 
         f"({indicators['carga_tributaria_efetiva_anual']}). "
         f"Despesas operacionais: {metricas['despesas_operacionais_total']['formatado']} "
         f"({indicators['despesas_sobre_receita_anual']}). "
+        f"Servicos de terceiros: {metricas['servicos_terceiros_total']['formatado']} "
+        f"({indicators['servicos_terceiros_sobre_despesas_anual']} das despesas). "
         f"CMV/custos anual: {metricas['cmv_custos_total']['formatado']} "
         f"({indicators['cmv_sobre_receita_anual']}). "
         f"Estoques finais: {metricas['estoques_final']['formatado']}. "

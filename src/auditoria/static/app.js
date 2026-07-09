@@ -332,6 +332,7 @@ function renderMetricGroups(metrics) {
         ["receita_servicos", "Receita de serviços"],
         ["deducoes_receita", "Deduções da receita"],
         ["despesas_operacionais", "Despesas operacionais"],
+        ["servicos_terceiros", "Serviços de terceiros"],
         ["lucro_apurado_base", "Lucro apurado"],
       ],
     },
@@ -416,6 +417,7 @@ function renderIndicators(indicators) {
     ["percentual_deducoes_sobre_receita", "Deduções sobre receita"],
     ["percentual_folha_sobre_receita", "Folha sobre receita"],
     ["percentual_despesas_sobre_receita", "Despesas sobre receita"],
+    ["percentual_servicos_terceiros_sobre_despesas", "Serviços terceiros/despesas"],
     ["endividamento_bancario_sobre_receita", "Empréstimos sobre receita"],
   ];
 

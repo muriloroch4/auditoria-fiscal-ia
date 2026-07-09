@@ -54,6 +54,7 @@ Motor para empresas enquadradas no Simples Nacional, com conjuntos para serviço
 | SN-022B | Caixa físico muito elevado | Caixa físico acima de 3x o parâmetro esperado | Alto | 18 |
 | SN-023 | Clientes zerados com receita relevante | Receita >= R$ 200.000 sem saldo ou movimentação em clientes | Baixo | 6 |
 | SN-024 | Validação de ICMS-ST | Créditos fiscais relevantes em contexto comercial com estoque/fornecedores/CMV | Baixo | 6 |
+| SN-025 | Serviços prestados por terceiros | Conta 325/serviços de terceiros >= 20% das despesas e acima de R$ 10.000 | Médio | 12 |
 | SN-COMP-01 | Omissão de receita e despesas elevadas | SN-008 + SN-007 ambos acionados | Alto | 15 |
 | SN-COMP-02 | Prejuízo significativo e caixa negativo | SN-009B + SN-006A ambos acionados | Alto | 15 |
 | SN-COMP-03 | Recebíveis elevados e adiantamentos | SN-010B/C + SN-011A ambos acionados | Médio | 10 |
@@ -65,6 +66,10 @@ Notas de versao 1.6.0:
 - `SN-001` e `SN-019` priorizam RBT12 consolidado quando o backend possui os quatro trimestres salvos; sem esse historico, mantem `receita x 4` apenas como alerta.
 - `SN-024` permanece documental: o balancete nao contem NCM, CFOP, CST ou item fiscal, entao a validacao de ICMS-ST depende de notas fiscais, PGDAS-D e apuracoes fiscais.
 - O JSON resumido diferencia a natureza do achado no texto de impacto: possivel inconsistencia material, alerta tecnico, validacao documental ou ponto de atencao.
+
+Notas de versao 1.7.0:
+
+- `SN-025` valida a conta 325/servicos prestados por terceiros quando ela representa percentual relevante das despesas do trimestre; o achado pede validacao de contratos, notas fiscais, comprovantes bancarios, retencoes e suporte documental.
 
 ## Observações de cálculo trimestral
 
@@ -85,6 +90,7 @@ Notas de versao 1.6.0:
 - A regra `SN-022` separa caixa físico de bancos; para serviços, o parâmetro é mais restritivo, pois caixa operacional relevante tende a exigir justificativa documental.
 - A regra `SN-023` não presume erro quando clientes está zerado; ela pede validação de recebimento à vista, baixa no mesmo mês ou controle de recebíveis.
 - A regra `SN-024` não recalcula ICMS-ST pelo balancete; ela aciona validação documental de NCM, CFOP, mercadorias sujeitas a substituição tributária, ressarcimentos e créditos fiscais.
+- A regra `SN-025` identifica a conta 325 por codigo ou por descricoes como `servicos prestados por terceiros` e compara o valor com o total de despesas operacionais do trimestre.
 - O contexto tributário usa `config/simples_anexos.json` para estimar Anexo I, III ou V. Para empresas mistas, o motor informa que a alíquota depende da segregação entre receitas de comércio e serviços.
 - `_active_movement` é calculado apenas com `bancos` e `caixa`, sem `clientes`.
 - `_operational_movement` inclui `bancos`, `caixa` e `clientes` para o cálculo do índice da `SN-008B`.
@@ -104,6 +110,7 @@ e materialidade no exercício.
 | AN-SN-001B | Receita anual próxima ao limite | Receita anual >= 90% do limite do Simples Nacional | Alto |
 | AN-LUC-001 | Lucros distribuídos acima do resultado anual | Distribuição anual > lucro anual apurado | Alto |
 | AN-MAR-001 | Margem anual muito elevada | Lucro anual > 64% da receita anual | Médio |
+| AN-DOC-325-001 | Serviços de terceiros relevantes no ano | Conta 325/serviços de terceiros >= 20% das despesas anuais | Médio |
 | AN-END-001 | Endividamento final elevado | Empréstimos finais > 60% da receita anual | Médio |
 | AN-CLI-001 | Clientes zerados no fechamento anual | Receita anual relevante com clientes finais zerados | Baixo |
 | AN-COM-EST-001 | Estoque final relevante | Estoques finais > 50% da receita anual | Médio |

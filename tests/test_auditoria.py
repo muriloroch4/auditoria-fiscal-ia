@@ -815,6 +815,26 @@ class MelhoriasMotorFiscalTest(unittest.TestCase):
 
         self.assertIn("SN-023", codes)
 
+    def test_servicos_terceiros_relevantes_triggers_sn025(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;150000;120000;30000
+            3.1.1;Receita de Servicos;receita;0;0;200000;200000
+            4.2.325;Servicos Prestados por Terceiros;despesas;0;60000;0;-60000
+            4.2.1;Despesas Gerais;despesas;0;40000;0;-40000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Servicos Terceiros", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        payload = audit_result_to_dict(result)
+        finding = next(f for f in result.achados if f.codigo == "SN-025")
+        serialized = next(achado for achado in payload["principais_achados"] if achado["codigo"] == "SN-025")
+
+        self.assertEqual(result.metricas_valores["servicos_terceiros"], 60000.0)
+        self.assertEqual(finding.evidencia["percentual_sobre_despesas"], "60,00%")
+        self.assertIn("Validacao documental", serialized["impacto_tecnico"])
+
 
 class SchemaV3ResumoTest(unittest.TestCase):
     def test_audit_result_dict_has_summary_schema(self):
@@ -970,6 +990,20 @@ class AnnualComparisonTest(unittest.TestCase):
         self.assertIn("AN-TEND-RIS-001", codes)
         self.assertEqual(annual["resumo_evolucao"]["tendencia_risco"], "piora")
 
+    def test_build_annual_comparison_identifica_servicos_terceiros_relevantes(self):
+        payloads = [
+            self._legacy_commerce_quarter("2026-T1", inventory=10000, suppliers=5000, cogs=40000, tax_credits=0, third_party_services=12000),
+            self._legacy_commerce_quarter("2026-T2", inventory=10000, suppliers=5000, cogs=40000, tax_credits=0, third_party_services=13000),
+            self._legacy_commerce_quarter("2026-T3", inventory=10000, suppliers=5000, cogs=40000, tax_credits=0, third_party_services=14000),
+            self._legacy_commerce_quarter("2026-T4", inventory=10000, suppliers=5000, cogs=40000, tax_credits=0, third_party_services=15000),
+        ]
+
+        annual = build_annual_comparison(payloads)
+        codes = {finding["codigo"] for finding in annual["achados_anuais"]}
+
+        self.assertEqual(annual["metricas_anual"]["servicos_terceiros_total"]["valor"], 54000.0)
+        self.assertIn("AN-DOC-325-001", codes)
+
     def test_generate_annual_markdown_report(self):
         payloads = [
             self._quarter_payload("2026-T1", revenue=100000, expenses=80000),
@@ -1007,6 +1041,7 @@ class AnnualComparisonTest(unittest.TestCase):
         suppliers: int,
         cogs: int,
         tax_credits: int,
+        third_party_services: int = 0,
     ) -> dict:
         return {
             "identificacao": {
@@ -1027,6 +1062,7 @@ class AnnualComparisonTest(unittest.TestCase):
                 "tributos_a_recolher": {"valor": 2000, "formatado": "R$ 2.000,00"},
                 "folha_pro_labore": {"valor": 0, "formatado": "R$ 0,00"},
                 "despesas_operacionais": {"valor": 20000, "formatado": "R$ 20.000,00"},
+                "servicos_terceiros": {"valor": third_party_services, "formatado": "R$ 0,00"},
                 "lucros_distribuidos": {"valor": 0, "formatado": "R$ 0,00"},
                 "lucro_apurado_base": {"valor": 30000, "formatado": "R$ 30.000,00"},
                 "caixa_e_bancos": {"valor": 10000, "formatado": "R$ 10.000,00"},

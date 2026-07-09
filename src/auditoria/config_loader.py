@@ -66,7 +66,7 @@ def load_simples_anexos(path: str | Path | None = None) -> dict[str, Any]:
 
 def _build_defaults() -> dict[str, Any]:
     return {
-        "version": "1.6.0",
+        "version": "1.7.0",
         "limites_gerais": {
             "simples_anual": 4800000,
             "limite_movimentacao_ativa": 10000,
@@ -76,21 +76,21 @@ def _build_defaults() -> dict[str, Any]:
             "simples_servicos": [
                 "SN-001", "SN-002", "SN-003", "SN-004", "SN-005", "SN-006", "SN-007",
                 "SN-008", "SN-009", "SN-010", "SN-011", "SN-012", "SN-013", "SN-014",
-                "SN-021", "SN-022", "SN-023",
+                "SN-021", "SN-022", "SN-023", "SN-025",
                 "SN-COMP-01", "SN-COMP-02", "SN-COMP-03",
             ],
             "simples_comercio": [
                 "SN-001", "SN-002", "SN-004", "SN-005", "SN-006", "SN-007",
                 "SN-008", "SN-009", "SN-010", "SN-011", "SN-012", "SN-013", "SN-014",
                 "SN-015", "SN-016", "SN-017", "SN-018", "SN-019",
-                "SN-021", "SN-022", "SN-023", "SN-024",
+                "SN-021", "SN-022", "SN-023", "SN-024", "SN-025",
                 "SN-COMP-01", "SN-COMP-02", "SN-COMP-03", "SN-COMP-04",
             ],
             "simples_comercio_servicos": [
                 "SN-001", "SN-002", "SN-003", "SN-004", "SN-005", "SN-006", "SN-007",
                 "SN-008", "SN-009", "SN-010", "SN-011", "SN-012", "SN-013", "SN-014",
                 "SN-015", "SN-016", "SN-017", "SN-018", "SN-019", "SN-020",
-                "SN-021", "SN-022", "SN-023", "SN-024",
+                "SN-021", "SN-022", "SN-023", "SN-024", "SN-025",
                 "SN-COMP-01", "SN-COMP-02", "SN-COMP-03", "SN-COMP-04", "SN-COMP-05",
             ],
         },
@@ -219,6 +219,11 @@ def _build_defaults() -> dict[str, Any]:
             "receita_minima": 10000,
             "limite_creditos_ratio": 0.01,
             "pontuacao_baixo": 6,
+        },
+        "SN-025": {
+            "limite_absoluto": 10000,
+            "limite_ratio_despesas": 0.20,
+            "pontuacao_medio": 12,
         },
         "SN-COMP-01": {
             "pontuacao": 15,

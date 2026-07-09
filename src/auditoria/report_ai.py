@@ -423,7 +423,7 @@ def _risk_area_map() -> dict[str, tuple[str, ...]]:
         "Obrigações tributárias": ("SN-001", "SN-002", "SN-012", "SN-017", "SN-019", "SN-020", "SN-COMP-05"),
         "Obrigações trabalhistas": ("SN-003", "SN-014"),
         "Movimentação com sócios": ("SN-004", "SN-005"),
-        "Resultado": ("SN-007", "SN-008", "SN-009", "SN-013", "SN-021", "SN-COMP-01"),
+        "Resultado": ("SN-007", "SN-008", "SN-009", "SN-013", "SN-021", "SN-025", "SN-COMP-01"),
         "Patrimônio líquido": ("SN-004", "SN-009", "SN-COMP-02"),
     }
 
@@ -458,7 +458,7 @@ def _first_available_conta(evidencia: dict) -> str:
         (
             "conta", "conta_relacionada", "grupo", "grupo_contabil",
             "saldo_anterior_tributos", "despesas_representacao",
-            "despesas_veiculos", "receita", "folha_pro_labore",
+            "despesas_veiculos", "servicos_terceiros", "receita", "folha_pro_labore",
         ),
         "[VERIFICAR: conta contábil relacionada]",
     )
@@ -471,7 +471,7 @@ def _first_available_saldo(evidencia: dict) -> str:
             "saldo", "saldo_atual", "saldo_atual_tributos",
             "saldo_anterior_tributos", "valor", "valor_total",
             "receita", "tributos", "despesas_representacao",
-            "despesas_veiculos", "total_despesas",
+            "despesas_veiculos", "servicos_terceiros", "total_despesas",
             "clientes_recebiveis", "adiantamentos",
             "lucro_apurado", "lucros_distribuidos",
             "folha_pro_labore", "provisoes",
@@ -497,6 +497,7 @@ def _get_risco_identificado_operational_template(finding) -> str:
         "SN-012": "Risco de acúmulo de passivo tributário, parcelamentos em aberto ou falta de provisionamento de tributos.",
         "SN-013": "Risco de despesas particulares lançadas na empresa, falta de comprovação fiscal ou indício de distribuição disfarçada de lucros.",
         "SN-014": "Risco trabalhista e previdenciário por ausência de provisões obrigatórias (férias, 13º, FGTS, INSS).",
+        "SN-025": "Risco documental por serviços de terceiros relevantes lançados diretamente em despesas sem validação suficiente.",
     }
     return riscos.get(
         code,

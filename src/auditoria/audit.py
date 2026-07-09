@@ -20,6 +20,7 @@ from .rules.simples_servicos import (
     calculate_tax_credits,
     calculate_tax_expense,
     calculate_tax_liability,
+    calculate_third_party_services_expense,
 )
 from .utils import format_brl, format_percent
 
@@ -35,6 +36,7 @@ def run_quarterly_audit(
     revenue = calculate_revenue(balance)
     revenue_deductions = calculate_revenue_deductions(balance)
     expenses = calculate_operating_expenses(balance)
+    third_party_services = calculate_third_party_services_expense(balance)
     payroll = abs(balance.debito_por_grupo("folha"))
     tax_expense = calculate_tax_expense(balance)
     tax_liability = calculate_tax_liability(balance)
@@ -62,7 +64,7 @@ def run_quarterly_audit(
 
     metricas_valores = _build_metricas_valores(
         revenue, revenue_deductions, tax_expense, tax_liability, payroll, expenses,
-        profit_dist, profit_basis, cash, clients, advances, suppliers, inventory,
+        third_party_services, profit_dist, profit_basis, cash, clients, advances, suppliers, inventory,
         tax_credits, cogs, debt, equity,
     )
 
@@ -80,7 +82,7 @@ def run_quarterly_audit(
         achados=findings,
         resumo_metricas=_build_resumo_metricas(
             revenue, revenue_deductions, tax_expense, tax_liability, payroll, expenses,
-            profit_dist, profit_basis, cash, clients, advances, suppliers, inventory,
+            third_party_services, profit_dist, profit_basis, cash, clients, advances, suppliers, inventory,
             tax_credits, cogs, debt, equity,
         ),
         metricas_valores=metricas_valores,
@@ -99,6 +101,7 @@ def _build_resumo_metricas(
     tax_liability: Decimal,
     payroll: Decimal,
     expenses: Decimal,
+    third_party_services: Decimal,
     profit_dist: Decimal,
     profit_basis: Any,
     cash: Decimal,
@@ -120,6 +123,7 @@ def _build_resumo_metricas(
         "tributos_registrados": format_brl(tax_expense),
         "folha_pro_labore": format_brl(payroll),
         "despesas": format_brl(expenses),
+        "servicos_terceiros": format_brl(third_party_services),
         "lucros_distribuidos": format_brl(profit_dist),
         "lucro_apurado_base": format_brl(profit_basis.value),
         "origem_lucro_apurado": profit_basis.source,
@@ -150,6 +154,7 @@ def _build_metricas_valores(
     tax_liability: Decimal,
     payroll: Decimal,
     expenses: Decimal,
+    third_party_services: Decimal,
     profit_dist: Decimal,
     profit_basis: Any,
     cash: Decimal,
@@ -173,6 +178,7 @@ def _build_metricas_valores(
         "tributos_registrados": _f(tax_expense),
         "folha_pro_labore": _f(payroll),
         "despesas_operacionais": _f(expenses),
+        "servicos_terceiros": _f(third_party_services),
         "lucros_distribuidos": _f(profit_dist),
         "lucro_apurado_base": _f(profit_basis.value),
         "origem_lucro_apurado": profit_basis.source,
@@ -193,6 +199,7 @@ def _build_metricas_valores(
             "percentual_deducoes_sobre_receita": format_percent(revenue_deductions / revenue),
             "percentual_folha_sobre_receita": format_percent(payroll / revenue),
             "percentual_despesas_sobre_receita": format_percent(expenses / revenue),
+            "percentual_servicos_terceiros_sobre_despesas": format_percent(third_party_services / expenses) if expenses > 0 else "0,0%",
             "percentual_cmv_sobre_receita": format_percent(cogs / revenue),
             "endividamento_bancario_sobre_receita": format_percent(debt / revenue),
             "resultado_positivo": profit_basis.value >= 0,
@@ -203,6 +210,7 @@ def _build_metricas_valores(
             "percentual_deducoes_sobre_receita": "0,0%",
             "percentual_folha_sobre_receita": "0,0%",
             "percentual_despesas_sobre_receita": "0,0%",
+            "percentual_servicos_terceiros_sobre_despesas": format_percent(third_party_services / expenses) if expenses > 0 else "0,0%",
             "percentual_cmv_sobre_receita": "0,0%",
             "endividamento_bancario_sobre_receita": "0,0%",
             "resultado_positivo": profit_basis.value >= 0,

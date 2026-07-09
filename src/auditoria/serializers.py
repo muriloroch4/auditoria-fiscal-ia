@@ -229,13 +229,14 @@ def _impacto_tecnico(finding: RuleFinding) -> str:
         "SN-024": "Ponto de atencao documental sobre ICMS-ST, creditos fiscais, ressarcimentos ou saldos recuperaveis em operacao comercial.",
         "SN-COM": "Risco composto por combinação de achados, exigindo análise prioritária integrada.",
     }
+    impacts["SN-025"] = "Ponto de atencao documental sobre pagamentos e servicos de terceiros lancados diretamente em despesas."
     impact = impacts.get(code, _shorten(finding.descricao or VERIFY, 220))
     return f"{prefix}: {impact}"
 
 
 def _classificacao_tecnica(finding: RuleFinding) -> str:
     code = finding.codigo
-    if code.startswith(("SN-017", "SN-020", "SN-024")):
+    if code.startswith(("SN-017", "SN-020", "SN-024", "SN-025")):
         return "Validacao documental"
     if code.startswith("SN-COMP") or finding.nivel == RiskLevel.ALTO:
         return "Possivel inconsistencia material"
@@ -388,6 +389,13 @@ def _label(value: str) -> str:
         "limite_caixa": "Limite de caixa",
         "limite_alto_caixa": "Limite alto de caixa",
         "receita_minima": "Receita mínima",
+        "conta_referencia": "Conta de referencia",
+        "servicos_terceiros": "Servicos de terceiros",
+        "servicos_terceiros_total": "Servicos de terceiros total",
+        "total_despesas": "Total de despesas",
+        "despesas_operacionais_total": "Despesas operacionais total",
+        "percentual_sobre_despesas": "Percentual sobre despesas",
+        "limite_percentual_despesas": "Limite percentual sobre despesas",
         "tipo_achado": "Tipo do achado",
         "limitacao_dados": "Limitacao dos dados",
     }
