@@ -405,6 +405,7 @@ class ProjectQualityTest(unittest.TestCase):
             Path("tests"),
             Path("docs"),
             Path("config"),
+            Path("schemas"),
             Path(".github"),
             Path("README.md"),
             Path("REGRAS.md"),
@@ -427,6 +428,16 @@ class ProjectQualityTest(unittest.TestCase):
                     offenders.append(f"{path}:{line_number}: {line[:160]}")
 
         self.assertEqual(offenders, [])
+
+    def test_formal_json_schemas_are_valid_json_files(self):
+        quarterly = json.loads(Path("schemas/auditoria_trimestral.v3.schema.json").read_text(encoding="utf-8"))
+        annual = json.loads(Path("schemas/auditoria_anual.v1.schema.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(quarterly["$schema"], "https://json-schema.org/draft/2020-12/schema")
+        self.assertIn("identificacao_empresa", quarterly["properties"])
+        self.assertEqual(quarterly["properties"]["metadados"]["properties"]["versao_schema"]["const"], "3.0.0")
+        self.assertEqual(annual["properties"]["_schema_version"]["const"], "annual-1.0.0")
+        self.assertIn("achados_anuais", annual["properties"])
 
 
 class RiskClassificationTest(unittest.TestCase):

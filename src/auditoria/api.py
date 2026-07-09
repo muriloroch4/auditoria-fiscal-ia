@@ -19,6 +19,7 @@ from .annual import build_annual_comparison, build_rbt12_context
 from .audit import run_quarterly_audit
 from .models import AuditResult
 from .parser import read_trial_balance_upload
+from .schema_loader import load_json_schema
 from .serializers import audit_result_to_dict
 from .storage import DB_SCHEMA_VERSION, AuditStorage, file_sha256, infer_year_quarter
 
@@ -58,8 +59,12 @@ class AuditApiHandler(BaseHTTPRequestHandler):
             self._send_json({"status": "ok"})
             return
 
-        if path == "/api/auditorias/schema":
-            self._send_json(_schema_summary_definition())
+        if path in ("/api/auditorias/schema", "/api/auditorias/schema/trimestral"):
+            self._send_json(load_json_schema("trimestral"))
+            return
+
+        if path == "/api/auditorias/schema/anual":
+            self._send_json(load_json_schema("anual"))
             return
 
         if path == "/api/auditorias":
@@ -576,64 +581,7 @@ def _annual_metric_entries(result: AuditResult) -> dict:
 
 
 def _schema_summary_definition() -> dict:
-    return {
-        "identificacao_empresa": {
-            "cnpj": "str",
-            "regime_tributario": "str",
-            "periodo_analisado": "str",
-        },
-        "resumo_analise": {
-            "empresa": "str",
-            "base_analise": "JSON de auditoria trimestral",
-            "total_regras_verificadas": "int",
-            "total_regras_acionadas": "int",
-            "risco_geral": "str (alto | medio | baixo)",
-            "pontuacao_total": "int",
-            "achados_por_severidade": {
-                "alta": "int",
-                "media": "int",
-                "baixa": "int",
-            },
-            "principais_pontos": ["str"],
-        },
-        "principais_achados": [
-            {
-                "codigo": "str",
-                "severidade": "str (alta | media | baixa)",
-                "achado": "str",
-                "evidencia_identificada": "str | null",
-                "impacto_tecnico": "str",
-                "pontuacao": "int",
-                "norma_fundamento": ["str"],
-            }
-        ],
-        "fundamentacao_tecnica_resumida": {
-            "normas_aplicaveis": ["str"],
-            "texto_resumido": "str",
-            "observacoes_tecnicas": ["str"],
-        },
-        "conclusao_tecnica": {
-            "risco_geral": "str (alto | medio | baixo)",
-            "conclusao_sugerida": "str",
-            "ressalva_base_json": "bool",
-            "necessita_validacao_documental": "bool",
-            "texto_conclusivo": "str",
-        },
-        "recomendacoes_tecnicas": [
-            {
-                "ordem": "int",
-                "descricao": "str",
-                "area_relacionada": "str (fiscal | contábil | trabalhista | societária | financeira | documental)",
-                "prioridade": "str (alta | media | baixa)",
-            }
-        ],
-        "metadados": {
-            "data_analise": "str (ISO 8601)",
-            "versao_schema": "str",
-            "versao_regras": "str",
-            "conjunto_regras": "str (simples_servicos | simples_comercio | simples_comercio_servicos)",
-        },
-    }
+    return load_json_schema("trimestral")
 
 
 def _index_html() -> str:

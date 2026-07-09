@@ -282,7 +282,7 @@ function buildDashboardHtml(data, options = {}) {
       ${renderClassification(classification)}
       ${renderMetricGroups(metrics)}
       ${renderIndicators(metrics.indicadores_derivados)}
-      ${renderAnalysisGrid(context, findings, meta, filter)}
+      ${renderAnalysisGrid(context, findings, meta, filter, printMode)}
       ${renderScoreExplanation(risk.explicacao_pontuacao || [], printMode)}
       ${printMode ? "" : renderRawJson(rawData)}
     </div>
@@ -479,14 +479,14 @@ function renderContext(context) {
   `;
 }
 
-function renderAnalysisGrid(context, findings, meta, filter) {
+function renderAnalysisGrid(context, findings, meta, filter, printMode = false) {
   const contextHtml = renderContext(context);
-  const findingsHtml = renderFindingsSection(findings, meta, filter);
+  const findingsHtml = renderFindingsSection(findings, meta, filter, printMode);
   if (!contextHtml) return findingsHtml;
   return `<div class="analysis-grid">${contextHtml}${findingsHtml}</div>`;
 }
 
-function renderFindingsSection(findings, meta, filter) {
+function renderFindingsSection(findings, meta, filter, printMode = false) {
   const counts = countFindings(findings);
   const visibleFindings = filteredFindings(findings, filter);
   const filterButtons = [
@@ -499,7 +499,7 @@ function renderFindingsSection(findings, meta, filter) {
     `<button class="filter-button ${filter === key ? "is-active" : ""}" type="button" data-finding-filter="${key}">${label} (${count})</button>`
   )).join("");
 
-  const rows = visibleFindings.map(renderFindingRow).join("");
+  const rows = visibleFindings.map((finding, index) => renderFindingRow(finding, index, "finding-detail", printMode)).join("");
   const body = rows || `<tr><td colspan="5"><div class="finding-empty">Nenhum achado nesta seleção.</div></td></tr>`;
 
   return `
@@ -520,8 +520,8 @@ function renderFindingsSection(findings, meta, filter) {
               <th>Código</th>
               <th>Achado</th>
               <th>Nível</th>
-              <th>Evidência</th>
-              <th>Recomendação</th>
+              <th>Pontuação</th>
+              <th>Detalhes</th>
             </tr>
           </thead>
           <tbody>${body}</tbody>
@@ -531,20 +531,60 @@ function renderFindingsSection(findings, meta, filter) {
   `;
 }
 
-function renderFindingRow(finding) {
+function renderFindingRow(finding, index, prefix = "finding-detail", expanded = false) {
   const composite = isCompositeFinding(finding);
-  const norms = Array.isArray(finding.normas_aplicaveis) && finding.normas_aplicaveis.length
-    ? `<span class="finding-norms">${finding.normas_aplicaveis.map(esc).join("; ")}</span>`
-    : "";
+  const detailId = findingDetailId(finding, index, prefix);
+  const detailClass = expanded ? "finding-detail-row" : "finding-detail-row is-hidden";
 
   return `
     <tr class="${composite ? "finding-composite" : ""}">
       <td class="finding-code">${esc(finding.codigo)}</td>
-      <td><span class="finding-title">${esc(finding.titulo)}</span>${norms}</td>
+      <td>
+        <span class="finding-title">${esc(finding.titulo)}</span>
+        <span class="finding-impact-summary">${esc(finding.descricao || "Impacto técnico não informado.")}</span>
+      </td>
       <td><span class="chip ${normalizeLevel(finding.nivel)}">${levelLabel(finding.nivel)}</span></td>
-      <td>${esc(finding.descricao)}${renderEvidence(finding.evidencia)}</td>
-      <td>${esc(finding.recomendacao || "[VERIFICAR: recomendação]")}</td>
+      <td><strong>${esc(finding.pontuacao ?? 0)}</strong></td>
+      <td><button class="toggle-button finding-detail-button" type="button" data-toggle-target="${detailId}">Abrir</button></td>
     </tr>
+    <tr id="${detailId}" class="${detailClass}">
+      <td colspan="5">${renderFindingDetail(finding)}</td>
+    </tr>
+  `;
+}
+
+function findingDetailId(finding, index, prefix) {
+  const code = String(finding.codigo || "achado")
+    .toLowerCase()
+    .replace(/[^\w-]+/g, "-");
+  return `${prefix}-${index}-${code}`;
+}
+
+function renderFindingDetail(finding) {
+  const norms = Array.isArray(finding.normas_aplicaveis) && finding.normas_aplicaveis.length
+    ? finding.normas_aplicaveis.map((item) => `<li>${esc(item)}</li>`).join("")
+    : `<li>[VERIFICAR: fundamento normativo]</li>`;
+  const evidence = renderEvidenceList(finding.evidencia);
+
+  return `
+    <div class="finding-detail-panel">
+      <div>
+        <span class="detail-label">Evidência identificada</span>
+        ${evidence}
+      </div>
+      <div>
+        <span class="detail-label">Impacto técnico</span>
+        <p>${esc(finding.descricao || "[VERIFICAR: impacto técnico]")}</p>
+      </div>
+      <div>
+        <span class="detail-label">Normas e fundamentos</span>
+        <ul>${norms}</ul>
+      </div>
+      <div>
+        <span class="detail-label">Recomendação técnica</span>
+        <p>${esc(finding.recomendacao || "[VERIFICAR: recomendação]")}</p>
+      </div>
+    </div>
   `;
 }
 
@@ -554,6 +594,16 @@ function renderEvidence(evidence) {
     .map(([key, value]) => `${key}: ${evidenceValue(value)}`)
     .join(" | ");
   return `<span class="finding-evidence">${esc(text)}</span>`;
+}
+
+function renderEvidenceList(evidence) {
+  if (!evidence || !Object.keys(evidence).length) {
+    return `<p>[VERIFICAR: evidência]</p>`;
+  }
+  const items = Object.entries(evidence)
+    .map(([key, value]) => `<li><strong>${esc(key)}:</strong> ${esc(evidenceValue(value))}</li>`)
+    .join("");
+  return `<ul>${items}</ul>`;
 }
 
 function renderScoreExplanation(lines, expanded = false) {
@@ -819,9 +869,63 @@ function renderAnnualResult(data) {
           <span class="indicator-badge"><strong>Trimestres:</strong>&nbsp;${esc(data.meta?.total_trimestres_informados || 0)}</span>
         </div>
         <p class="context-observation">O arquivo anual foi baixado automaticamente. O JSON completo também está abaixo para conferência.</p>
-        <pre class="raw-json">${esc(JSON.stringify(data, null, 2))}</pre>
+      </section>
+      ${renderAnnualFindingsSection(findings)}
+      <section class="section">
+        <div class="section-header">
+          <h3 class="section-title">JSON completo</h3>
+          <button class="toggle-button" type="button" data-toggle-target="annual-raw-json">Mostrar ou ocultar</button>
+        </div>
+        <pre id="annual-raw-json" class="raw-json is-hidden">${esc(JSON.stringify(data, null, 2))}</pre>
       </section>
     </div>
+  `;
+  bindDynamicControls();
+}
+
+function renderAnnualFindingsSection(findings) {
+  if (!findings.length) {
+    return `
+      <section class="section">
+        <div class="section-header">
+          <h3 class="section-title">Achados anuais</h3>
+        </div>
+        <div class="finding-empty">Nenhum achado anual adicional foi identificado.</div>
+      </section>
+    `;
+  }
+
+  const rows = findings.map((finding, index) => renderFindingRow({
+    codigo: finding.codigo,
+    titulo: finding.titulo,
+    nivel: finding.nivel,
+    pontuacao: finding.pontuacao,
+    descricao: finding.descricao,
+    evidencia: finding.evidencia,
+    recomendacao: finding.recomendacao,
+    normas_aplicaveis: finding.normas_aplicaveis,
+  }, index, "annual-finding-detail")).join("");
+
+  return `
+    <section class="section findings-section">
+      <div class="section-header">
+        <h3 class="section-title">Achados anuais (${esc(findings.length)})</h3>
+      </div>
+      <div class="table-wrap">
+        <table class="findings-table">
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Achado</th>
+              <th>Nível</th>
+              <th>Pontuação</th>
+              <th>Detalhes</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </section>
   `;
 }
 

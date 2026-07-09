@@ -738,6 +738,14 @@ select {
   font-weight: 800;
 }
 
+.finding-impact-summary {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .finding-norms,
 .finding-evidence {
   display: block;
@@ -749,6 +757,52 @@ select {
 .finding-empty {
   padding: 14px;
   color: var(--muted);
+}
+
+.finding-detail-row td {
+  padding: 0;
+  background: #f8fafc;
+}
+
+.finding-detail-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.finding-detail-panel > div {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.finding-detail-panel p,
+.finding-detail-panel ul {
+  margin: 6px 0 0;
+}
+
+.finding-detail-panel ul {
+  padding-left: 18px;
+}
+
+.finding-detail-panel li {
+  margin: 3px 0;
+  overflow-wrap: anywhere;
+}
+
+.detail-label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.finding-detail-button {
+  min-width: 66px;
 }
 
 .toggle-button {
@@ -880,6 +934,10 @@ select {
   .secondary-button,
   .filter-button {
     white-space: normal;
+  }
+
+  .finding-detail-panel {
+    grid-template-columns: 1fr;
   }
 }
 

@@ -1,0 +1,199 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auditoria-fiscal-ia.local/schemas/auditoria_anual.v1.schema.json",
+  "title": "JSON de auditoria contabil anual comparativa",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "_schema_version",
+    "meta",
+    "identificacao",
+    "risco_anual",
+    "metricas_anual",
+    "comparativo_trimestral",
+    "achados_anuais",
+    "resumo_evolucao"
+  ],
+  "properties": {
+    "_schema_version": { "const": "annual-1.0.0" },
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "versao_schema",
+        "data_analise",
+        "total_trimestres_informados",
+        "trimestres_ausentes",
+        "fontes"
+      ],
+      "properties": {
+        "versao_schema": { "const": "annual-1.0.0" },
+        "data_analise": { "type": "string" },
+        "total_trimestres_informados": { "type": "integer", "minimum": 1, "maximum": 4 },
+        "trimestres_ausentes": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "fontes": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "identificacao": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cliente", "cnpj", "regime_tributario", "exercicio", "periodos_analisados"],
+      "properties": {
+        "cliente": { "type": "string" },
+        "cnpj": { "type": "string" },
+        "regime_tributario": { "type": "string" },
+        "exercicio": { "type": "string" },
+        "periodos_analisados": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "risco_anual": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nivel_geral", "pontuacao_total", "modalidade_opiniao_sugerida", "explicacao_pontuacao", "classificacao"],
+      "properties": {
+        "nivel_geral": { "$ref": "#/$defs/risco" },
+        "pontuacao_total": { "type": "integer", "minimum": 0 },
+        "modalidade_opiniao_sugerida": {
+          "type": "string",
+          "enum": ["sem_ressalva", "com_ressalva", "adversa", "abstencao_opiniao"]
+        },
+        "explicacao_pontuacao": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "classificacao": { "$ref": "#/$defs/classificacao_achados" }
+      }
+    },
+    "metricas_anual": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "receita_servicos_total",
+        "deducoes_receita_total",
+        "tributos_registrados_total",
+        "despesas_operacionais_total",
+        "lucro_apurado_total",
+        "indicadores_derivados"
+      ],
+      "properties": {
+        "receita_servicos_total": { "$ref": "#/$defs/metrica" },
+        "deducoes_receita_total": { "$ref": "#/$defs/metrica" },
+        "tributos_registrados_total": { "$ref": "#/$defs/metrica" },
+        "despesas_operacionais_total": { "$ref": "#/$defs/metrica" },
+        "lucro_apurado_total": { "$ref": "#/$defs/metrica" },
+        "indicadores_derivados": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "boolean", "number", "integer", "null"] }
+        }
+      }
+    },
+    "comparativo_trimestral": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/trimestre" }
+    },
+    "achados_anuais": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/achado_anual" }
+    },
+    "resumo_evolucao": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["tendencia_risco", "achados_recorrentes", "total_achados_anuais"],
+      "properties": {
+        "tendencia_risco": { "type": "string" },
+        "achados_recorrentes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["codigo", "trimestres"],
+            "properties": {
+              "codigo": { "type": "string" },
+              "trimestres": { "type": "integer", "minimum": 2 }
+            }
+          }
+        },
+        "total_achados_anuais": { "type": "integer", "minimum": 0 }
+      }
+    }
+  },
+  "$defs": {
+    "risco": {
+      "type": "string",
+      "enum": ["alto", "medio", "baixo"]
+    },
+    "classificacao_achados": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["achados_alto", "achados_medio", "achados_baixo"],
+      "properties": {
+        "achados_alto": { "type": "integer", "minimum": 0 },
+        "achados_medio": { "type": "integer", "minimum": 0 },
+        "achados_baixo": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "metrica": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["valor", "formatado"],
+      "properties": {
+        "valor": { "type": "number" },
+        "formatado": { "type": "string" }
+      }
+    },
+    "trimestre": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["trimestre", "ordem", "periodo", "risco", "pontuacao", "metricas", "achados", "achados_codigos"],
+      "properties": {
+        "trimestre": { "type": "string" },
+        "ordem": { "type": "integer", "minimum": 1 },
+        "periodo": { "type": "string" },
+        "risco": { "$ref": "#/$defs/risco" },
+        "pontuacao": { "type": "integer", "minimum": 0 },
+        "metricas": {
+          "type": "object",
+          "additionalProperties": { "type": ["number", "integer", "string", "null"] }
+        },
+        "achados": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "achados_codigos": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "achado_anual": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["codigo", "titulo", "nivel", "pontuacao", "descricao", "evidencia", "recomendacao", "normas_aplicaveis"],
+      "properties": {
+        "codigo": { "type": "string" },
+        "titulo": { "type": "string" },
+        "nivel": { "$ref": "#/$defs/risco" },
+        "pontuacao": { "type": "integer", "minimum": 0 },
+        "descricao": { "type": "string" },
+        "evidencia": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "number", "integer", "boolean", "null"] }
+        },
+        "recomendacao": { "type": "string" },
+        "normas_aplicaveis": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

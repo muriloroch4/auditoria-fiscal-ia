@@ -230,6 +230,30 @@ class APIHealthTest(unittest.TestCase):
         content = handler.wfile.getvalue().decode("utf-8")
         self.assertIn("<svg", content)
 
+    def test_quarterly_schema_endpoint_returns_json_schema(self):
+        handler = TestableAuditApiHandler()
+        handler.path = "/api/auditorias/schema"
+
+        with unittest.mock.patch.object(handler, "_send_json") as mock_send:
+            handler.do_GET()
+
+        schema = mock_send.call_args.args[0]
+        self.assertEqual(schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
+        self.assertEqual(schema["properties"]["metadados"]["properties"]["versao_schema"]["const"], "3.0.0")
+        self.assertIn("principais_achados", schema["required"])
+
+    def test_annual_schema_endpoint_returns_json_schema(self):
+        handler = TestableAuditApiHandler()
+        handler.path = "/api/auditorias/schema/anual"
+
+        with unittest.mock.patch.object(handler, "_send_json") as mock_send:
+            handler.do_GET()
+
+        schema = mock_send.call_args.args[0]
+        self.assertEqual(schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
+        self.assertEqual(schema["properties"]["_schema_version"]["const"], "annual-1.0.0")
+        self.assertIn("comparativo_trimestral", schema["required"])
+
     def test_static_javascript_returns_asset(self):
         handler = TestableAuditApiHandler()
         handler.path = "/static/app.js"

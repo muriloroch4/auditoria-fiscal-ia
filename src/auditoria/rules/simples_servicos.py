@@ -58,6 +58,30 @@ class ProfitBasis:
     source: str
 
 
+@dataclass(frozen=True)
+class SimplesMetrics:
+    revenue: Decimal
+    active_movement: Decimal
+    operational_movement: Decimal
+    tax_expense: Decimal
+    payroll: Decimal
+    expenses: Decimal
+    third_party_service_accounts: list[LedgerAccount]
+    third_party_services: Decimal
+    partners: Decimal
+    clients: Decimal
+    client_movement: Decimal
+    advances: Decimal
+    profit_distribution: Decimal
+    cash: Decimal
+    physical_cash: Decimal
+    suppliers: Decimal
+    inventory: Decimal
+    tax_credits: Decimal
+    cogs: Decimal
+    rbt12_revenue: Decimal | None
+
+
 def normalize_ruleset(value: str | None = None) -> str:
     normalized = _normalize_text(value or RULESET_SERVICOS).replace("-", "_").replace("/", " ")
     normalized = " ".join(normalized.replace("_", " ").split())
@@ -97,64 +121,103 @@ def _analyze_simples_nacional(
     profit_basis: ProfitBasis | None = None,
     rbt12_context: dict | None = None,
 ) -> list[RuleFinding]:
-    revenue = calculate_revenue(balance)
-    active_movement = _active_movement(balance)
-    tax_expense = calculate_tax_expense(balance)
-    payroll = _abs(balance.debito_por_grupo("folha"))
-    expenses = calculate_operating_expenses(balance)
+    metrics = _collect_simples_metrics(balance, rbt12_context)
+
+    if profit_basis is None:
+        profit_basis = calculate_profit_basis(balance, metrics.revenue, metrics.expenses)
+    profit_distribution_capacity = calculate_profit_distribution_capacity(balance, profit_basis)
+
+    findings: list[RuleFinding] = []
+    findings.extend(_check_low_or_missing_revenue(metrics.revenue, metrics.active_movement, metrics.operational_movement))
+    findings.extend(_check_revenue_limit(metrics.revenue, metrics.rbt12_revenue))
+    findings.extend(_check_tax_ratio(metrics.revenue, metrics.tax_expense, ruleset))
+    if ruleset in _SERVICE_RULESETS:
+        findings.extend(_check_payroll_factor(metrics.revenue, metrics.payroll, ruleset))
+    findings.extend(
+        _check_profit_distribution(
+            metrics.revenue,
+            metrics.profit_distribution,
+            profit_basis,
+            profit_distribution_capacity,
+        )
+    )
+    findings.extend(_check_partner_accounts(metrics.revenue, metrics.partners))
+    findings.extend(_check_receivables(metrics.revenue, metrics.clients, metrics.client_movement))
+    findings.extend(_check_zero_receivables(metrics.revenue, metrics.clients, metrics.client_movement))
+    findings.extend(_check_advances(metrics.revenue, metrics.advances))
+    findings.extend(_check_cash_position(metrics.revenue, metrics.cash))
+    findings.extend(_check_physical_cash_position(metrics.revenue, metrics.physical_cash, ruleset))
+    findings.extend(_check_expense_ratio(metrics.revenue, metrics.expenses, balance, ruleset))
+    findings.extend(
+        _check_third_party_services_expense(
+            metrics.third_party_services,
+            metrics.expenses,
+            metrics.third_party_service_accounts,
+        )
+    )
+    findings.extend(_check_accounting_loss(metrics.revenue, profit_basis))
+    findings.extend(_check_high_profit_margin(metrics.revenue, profit_basis))
+    findings.extend(_check_tax_liability_growth(balance, metrics.revenue))
+    findings.extend(_check_missing_provisions(metrics.revenue, metrics.payroll, balance))
+    if ruleset in _COMMERCE_RULESETS:
+        findings.extend(_check_inventory_position(metrics.revenue, metrics.inventory, metrics.cogs))
+        findings.extend(_check_supplier_position(metrics.revenue, metrics.suppliers, metrics.inventory))
+        findings.extend(_check_tax_credits_simples(metrics.revenue, metrics.tax_credits))
+        findings.extend(_check_cogs_for_commerce(metrics.revenue, metrics.inventory, metrics.suppliers, metrics.cogs))
+        findings.extend(_check_commerce_sublimit(metrics.revenue, metrics.rbt12_revenue))
+        findings.extend(
+            _check_icms_st_attention(
+                metrics.revenue,
+                metrics.inventory,
+                metrics.suppliers,
+                metrics.cogs,
+                metrics.tax_credits,
+            )
+        )
+    if ruleset == RULESET_COMERCIO_SERVICOS:
+        findings.extend(
+            _check_mixed_revenue_segregation(
+                balance,
+                metrics.revenue,
+                metrics.payroll,
+                metrics.inventory,
+                metrics.suppliers,
+            )
+        )
+    findings.extend(_apply_compound_rules(findings))
+
+    return findings
+
+
+def _collect_simples_metrics(balance: TrialBalance, rbt12_context: dict | None = None) -> SimplesMetrics:
     third_party_service_accounts = third_party_services_accounts(balance)
     third_party_services = sum(
         (_third_party_services_amount(account) for account in third_party_service_accounts),
         Decimal("0"),
     )
-    partners = _abs(balance.total_por_grupo("socios"))
-    clients = _abs(balance.total_por_grupo("clientes"))
-    client_movement = _group_movement(balance, "clientes")
-    advances = calculate_advances(balance)
-    profit_distribution = calculate_profit_distribution(balance)
-    cash = balance.total_por_grupo("caixa") + balance.total_por_grupo("bancos")
-    physical_cash = _abs(balance.total_por_grupo("caixa"))
-    suppliers = calculate_suppliers(balance)
-    inventory = calculate_inventory(balance)
-    tax_credits = calculate_tax_credits(balance)
-    cogs = calculate_cost_of_goods(balance)
-    rbt12_revenue = _rbt12_decimal(rbt12_context, "receita")
 
-    if profit_basis is None:
-        profit_basis = calculate_profit_basis(balance, revenue, expenses)
-    profit_distribution_capacity = calculate_profit_distribution_capacity(balance, profit_basis)
-
-    findings: list[RuleFinding] = []
-    findings.extend(_check_low_or_missing_revenue(revenue, active_movement, _operational_movement(balance)))
-    findings.extend(_check_revenue_limit(revenue, rbt12_revenue))
-    findings.extend(_check_tax_ratio(revenue, tax_expense, ruleset))
-    if ruleset in _SERVICE_RULESETS:
-        findings.extend(_check_payroll_factor(revenue, payroll, ruleset))
-    findings.extend(_check_profit_distribution(revenue, profit_distribution, profit_basis, profit_distribution_capacity))
-    findings.extend(_check_partner_accounts(revenue, partners))
-    findings.extend(_check_receivables(revenue, clients, client_movement))
-    findings.extend(_check_zero_receivables(revenue, clients, client_movement))
-    findings.extend(_check_advances(revenue, advances))
-    findings.extend(_check_cash_position(revenue, cash))
-    findings.extend(_check_physical_cash_position(revenue, physical_cash, ruleset))
-    findings.extend(_check_expense_ratio(revenue, expenses, balance, ruleset))
-    findings.extend(_check_third_party_services_expense(third_party_services, expenses, third_party_service_accounts))
-    findings.extend(_check_accounting_loss(revenue, profit_basis))
-    findings.extend(_check_high_profit_margin(revenue, profit_basis))
-    findings.extend(_check_tax_liability_growth(balance, revenue))
-    findings.extend(_check_missing_provisions(revenue, payroll, balance))
-    if ruleset in _COMMERCE_RULESETS:
-        findings.extend(_check_inventory_position(revenue, inventory, cogs))
-        findings.extend(_check_supplier_position(revenue, suppliers, inventory))
-        findings.extend(_check_tax_credits_simples(revenue, tax_credits))
-        findings.extend(_check_cogs_for_commerce(revenue, inventory, suppliers, cogs))
-        findings.extend(_check_commerce_sublimit(revenue, rbt12_revenue))
-        findings.extend(_check_icms_st_attention(revenue, inventory, suppliers, cogs, tax_credits))
-    if ruleset == RULESET_COMERCIO_SERVICOS:
-        findings.extend(_check_mixed_revenue_segregation(balance, revenue, payroll, inventory, suppliers))
-    findings.extend(_apply_compound_rules(findings))
-
-    return findings
+    return SimplesMetrics(
+        revenue=calculate_revenue(balance),
+        active_movement=_active_movement(balance),
+        operational_movement=_operational_movement(balance),
+        tax_expense=calculate_tax_expense(balance),
+        payroll=_abs(balance.debito_por_grupo("folha")),
+        expenses=calculate_operating_expenses(balance),
+        third_party_service_accounts=third_party_service_accounts,
+        third_party_services=third_party_services,
+        partners=_abs(balance.total_por_grupo("socios")),
+        clients=_abs(balance.total_por_grupo("clientes")),
+        client_movement=_group_movement(balance, "clientes"),
+        advances=calculate_advances(balance),
+        profit_distribution=calculate_profit_distribution(balance),
+        cash=balance.total_por_grupo("caixa") + balance.total_por_grupo("bancos"),
+        physical_cash=_abs(balance.total_por_grupo("caixa")),
+        suppliers=calculate_suppliers(balance),
+        inventory=calculate_inventory(balance),
+        tax_credits=calculate_tax_credits(balance),
+        cogs=calculate_cost_of_goods(balance),
+        rbt12_revenue=_rbt12_decimal(rbt12_context, "receita"),
+    )
 
 
 def calculate_profit_basis(

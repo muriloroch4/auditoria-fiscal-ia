@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auditoria-fiscal-ia.local/schemas/auditoria_trimestral.v3.schema.json",
+  "title": "JSON de auditoria contabil trimestral",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "identificacao_empresa",
+    "resumo_analise",
+    "principais_achados",
+    "fundamentacao_tecnica_resumida",
+    "conclusao_tecnica",
+    "recomendacoes_tecnicas",
+    "metadados"
+  ],
+  "properties": {
+    "identificacao_empresa": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cnpj", "regime_tributario", "periodo_analisado"],
+      "properties": {
+        "cnpj": { "$ref": "#/$defs/texto_ou_verificar" },
+        "regime_tributario": { "$ref": "#/$defs/texto_ou_verificar" },
+        "periodo_analisado": { "$ref": "#/$defs/texto_ou_verificar" }
+      }
+    },
+    "resumo_analise": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "empresa",
+        "base_analise",
+        "total_regras_verificadas",
+        "total_regras_acionadas",
+        "risco_geral",
+        "pontuacao_total",
+        "achados_por_severidade",
+        "principais_pontos"
+      ],
+      "properties": {
+        "empresa": { "$ref": "#/$defs/texto_ou_verificar" },
+        "base_analise": { "const": "JSON de auditoria trimestral" },
+        "total_regras_verificadas": { "type": "integer", "minimum": 0 },
+        "total_regras_acionadas": { "type": "integer", "minimum": 0 },
+        "risco_geral": { "$ref": "#/$defs/risco" },
+        "pontuacao_total": { "type": "integer", "minimum": 0 },
+        "achados_por_severidade": { "$ref": "#/$defs/contagem_severidade" },
+        "principais_pontos": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "principais_achados": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/achado_trimestral" }
+    },
+    "fundamentacao_tecnica_resumida": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["normas_aplicaveis", "texto_resumido", "observacoes_tecnicas"],
+      "properties": {
+        "normas_aplicaveis": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "texto_resumido": { "type": "string" },
+        "observacoes_tecnicas": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "conclusao_tecnica": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "risco_geral",
+        "conclusao_sugerida",
+        "ressalva_base_json",
+        "necessita_validacao_documental",
+        "texto_conclusivo"
+      ],
+      "properties": {
+        "risco_geral": { "$ref": "#/$defs/risco" },
+        "conclusao_sugerida": {
+          "type": "string",
+          "enum": ["sem ressalva", "com ressalva", "adversa", "abstencao de opiniao", "abstenção de opinião"]
+        },
+        "ressalva_base_json": { "type": "boolean" },
+        "necessita_validacao_documental": { "type": "boolean" },
+        "texto_conclusivo": { "type": "string" }
+      }
+    },
+    "recomendacoes_tecnicas": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/recomendacao" }
+    },
+    "metadados": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data_analise", "versao_schema", "versao_regras", "conjunto_regras"],
+      "properties": {
+        "data_analise": { "type": "string" },
+        "versao_schema": { "const": "3.0.0" },
+        "versao_regras": { "type": "string" },
+        "conjunto_regras": {
+          "type": "string",
+          "enum": ["simples_servicos", "simples_comercio", "simples_comercio_servicos"]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "texto_ou_verificar": {
+      "type": ["string", "null"]
+    },
+    "risco": {
+      "type": "string",
+      "enum": ["alto", "medio", "baixo"]
+    },
+    "severidade": {
+      "type": "string",
+      "enum": ["alta", "media", "baixa"]
+    },
+    "contagem_severidade": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["alta", "media", "baixa"],
+      "properties": {
+        "alta": { "type": "integer", "minimum": 0 },
+        "media": { "type": "integer", "minimum": 0 },
+        "baixa": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "achado_trimestral": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "codigo",
+        "severidade",
+        "achado",
+        "evidencia_identificada",
+        "impacto_tecnico",
+        "pontuacao",
+        "norma_fundamento"
+      ],
+      "properties": {
+        "codigo": { "$ref": "#/$defs/texto_ou_verificar" },
+        "severidade": { "$ref": "#/$defs/severidade" },
+        "achado": { "$ref": "#/$defs/texto_ou_verificar" },
+        "evidencia_identificada": { "$ref": "#/$defs/texto_ou_verificar" },
+        "impacto_tecnico": { "$ref": "#/$defs/texto_ou_verificar" },
+        "pontuacao": { "type": "integer", "minimum": 0 },
+        "norma_fundamento": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "recomendacao": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ordem", "descricao", "area_relacionada", "prioridade"],
+      "properties": {
+        "ordem": { "type": "integer", "minimum": 1 },
+        "descricao": { "$ref": "#/$defs/texto_ou_verificar" },
+        "area_relacionada": {
+          "type": "string",
+          "enum": ["fiscal", "contabil", "contábil", "trabalhista", "societaria", "societária", "financeira", "documental"]
+        },
+        "prioridade": { "$ref": "#/$defs/severidade" }
+      }
+    }
+  }
+}

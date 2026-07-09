@@ -105,8 +105,14 @@ campo opcional: atividade = servicos | comercio | comercio_servicos
 
 Schema de saída:
 ```text
-GET /api/auditorias/schema
+GET /api/auditorias/schema            # JSON Schema trimestral v3.0.0
+GET /api/auditorias/schema/trimestral # alias explícito do trimestral
+GET /api/auditorias/schema/anual      # JSON Schema anual annual-1.0.0
 ```
+
+Os schemas formais versionados ficam em `schemas/auditoria_trimestral.v3.schema.json`
+e `schemas/auditoria_anual.v1.schema.json`. A CI valida esses arquivos com
+`python -m json.tool` junto com as configurações do motor.
 
 Persistência local:
 ```text
@@ -250,7 +256,8 @@ Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`.
 - `src/auditoria/annual.py` — consolidação anual dos JSONs trimestrais e parecer anual comparativo
 - `src/auditoria/serializers.py` — serialização para JSON trimestral resumido v3.0.0
 - `src/auditoria/storage.py` — persistência SQLite dos trimestres e consolidações anuais
-- `src/auditoria/api.py` — servidor HTTP com upload, schema e rotas estáticas do dashboard
+- `src/auditoria/schema_loader.py` — carregamento dos JSON Schemas formais trimestral/anual
+- `src/auditoria/api.py` — servidor HTTP com upload, schemas e rotas estáticas do dashboard
 - `src/auditoria/static/` — frontend do dashboard, download JSON, filtros de achados e impressão em PDF
 - `src/auditoria/report_ai.py` — system prompt para geração de parecer via IA
 - `src/auditoria/ai_client.py` — cliente OpenRouter (stdlib, sem dependências)
@@ -258,6 +265,7 @@ Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`.
 - `config/rules.json` — configuração de pesos e limites das regras
 - `config/simples_anexos.json` — tabelas dos Anexos I, III e V usadas na estimativa tributária
 - `config/plano_contas_map.json` — mapa configurável de reconhecimento de contas contábeis
+- `schemas/` — contratos JSON Schema versionados para integrações com chats/IA
 - `requirements.txt` / `requirements-dev.txt` — dependências de runtime e ferramentas de desenvolvimento
 - `.github/workflows/ci.yml` — pipeline de CI com validação de JSON, compile, testes e mypy
 - `REGRAS.md` — tabela das regras fiscais configuradas
