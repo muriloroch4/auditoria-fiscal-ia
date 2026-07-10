@@ -1,4 +1,301 @@
 {
+  "classificacao_contas": {
+    "amostra_classificacoes": [
+      {
+        "codigo": "1.1.1",
+        "confianca": "alta",
+        "conta": "Caixa",
+        "grupo_atribuido": "caixa",
+        "grupo_original": "caixa",
+        "observacao": "Grupo informado no arquivo de entrada.",
+        "origem_classificacao": "arquivo"
+      },
+      {
+        "codigo": "1.1.2",
+        "confianca": "alta",
+        "conta": "Banco Conta Movimento",
+        "grupo_atribuido": "bancos",
+        "grupo_original": "bancos",
+        "observacao": "Grupo informado no arquivo; mapa/inferencia sugeriu 'clientes'.",
+        "origem_classificacao": "arquivo"
+      },
+      {
+        "codigo": "1.1.3",
+        "confianca": "alta",
+        "conta": "Aplicacoes Financeiras",
+        "grupo_atribuido": "bancos",
+        "grupo_original": "bancos",
+        "observacao": "Grupo informado no arquivo de entrada.",
+        "origem_classificacao": "arquivo"
+      },
+      {
+        "codigo": "1.2.1",
+        "confianca": "alta",
+        "conta": "Clientes a Receber",
+        "grupo_atribuido": "clientes",
+        "grupo_original": "clientes",
+        "observacao": "Grupo informado no arquivo de entrada.",
+        "origem_classificacao": "arquivo"
+      },
+      {
+        "codigo": "1.2.2",
+        "confianca": "alta",
+        "conta": "Adiantamento a Socios",
+        "grupo_atribuido": "socios",
+        "grupo_original": "socios",
+        "observacao": "Grupo informado no arquivo de entrada.",
+        "origem_classificacao": "arquivo"
+      },
+      {
+        "codigo": "2.1.1",
+        "confianca": "alta",
+        "conta": "Simples Nacional a Recolher",
+        "grupo_atribuido": "tributos",
+        "grupo_original": "tributos",
+        "observacao": "Grupo informado no arquivo; mapa/inferencia sugeriu 'tributos_a_recolher'.",
+        "origem_classificacao": "arquivo"
+      },
+      {
+        "codigo": "2.1.2",
+        "confianca": "alta",
+        "conta": "INSS a Recolher",
+        "grupo_atribuido": "tributos",
+        "grupo_original": "tributos",
+        "observacao": "Grupo informado no arquivo; mapa/inferencia sugeriu 'tributos_a_recolher'.",
+        "origem_classificacao": "arquivo"
+      },
+      {
+        "codigo": "2.1.3",
+        "confianca": "alta",
+        "conta": "ISS Retido ou a Recolher",
+        "grupo_atribuido": "tributos",
+        "grupo_original": "tributos",
+        "observacao": "Grupo informado no arquivo; mapa/inferencia sugeriu 'fornecedores'.",
+        "origem_classificacao": "arquivo"
+      },
+      {
+        "codigo": "2.2.1",
+        "confianca": "alta",
+        "conta": "Emprestimos de Socios",
+        "grupo_atribuido": "socios",
+        "grupo_original": "socios",
+        "observacao": "Grupo informado no arquivo de entrada.",
+        "origem_classificacao": "arquivo"
+      },
+      {
+        "codigo": "3.1.1",
+        "confianca": "alta",
+        "conta": "Receita de Servicos",
+        "grupo_atribuido": "receita",
+        "grupo_original": "receita",
+        "observacao": "Grupo informado no arquivo de entrada.",
+        "origem_classificacao": "arquivo"
+      },
+      {
+        "codigo": "3.1.2",
+        "confianca": "alta",
+        "conta": "Receita de Servicos com Retencao",
+        "grupo_atribuido": "receita",
+        "grupo_original": "receita",
+        "observacao": "Grupo informado no arquivo; mapa/inferencia sugeriu 'tributos_sobre_receita'.",
+        "origem_classificacao": "arquivo"
+      },
+      {
+        "codigo": "4.1.1",
+        "confianca": "alta",
+        "conta": "Pro Labore",
+        "grupo_atribuido": "folha",
+        "grupo_original": "folha",
+        "observacao": "Grupo informado no arquivo; mapa/inferencia sugeriu 'custos'.",
+        "origem_classificacao": "arquivo"
+      },
+      {
+        "codigo": "4.1.2",
+        "confianca": "alta",
+        "conta": "Salarios",
+        "grupo_atribuido": "folha",
+        "grupo_original": "folha",
+        "observacao": "Grupo informado no arquivo; mapa/inferencia sugeriu 'custos'.",
+        "origem_classificacao": "arquivo"
+      },
+      {
+        "codigo": "4.1.3",
+        "confianca": "alta",
+        "conta": "Encargos sobre Folha",
+        "grupo_atribuido": "folha",
+        "grupo_original": "folha",
+        "observacao": "Grupo informado no arquivo; mapa/inferencia sugeriu 'custos'.",
+        "origem_classificacao": "arquivo"
+      },
+      {
+        "codigo": "4.2.1",
+        "confianca": "alta",
+        "conta": "Aluguel",
+        "grupo_atribuido": "despesas",
+        "grupo_original": "despesas",
+        "observacao": "Grupo informado no arquivo de entrada.",
+        "origem_classificacao": "arquivo"
+      },
+      {
+        "codigo": "4.2.2",
+        "confianca": "alta",
+        "conta": "Servicos de Terceiros",
+        "grupo_atribuido": "despesas",
+        "grupo_original": "despesas",
+        "observacao": "Grupo informado no arquivo de entrada.",
+        "origem_classificacao": "arquivo"
+      },
+      {
+        "codigo": "4.2.3",
+        "confianca": "alta",
+        "conta": "Telefonia e Internet",
+        "grupo_atribuido": "despesas",
+        "grupo_original": "despesas",
+        "observacao": "Grupo informado no arquivo de entrada.",
+        "origem_classificacao": "arquivo"
+      },
+      {
+        "codigo": "4.2.4",
+        "confianca": "alta",
+        "conta": "Viagens e Representacao",
+        "grupo_atribuido": "despesas",
+        "grupo_original": "despesas",
+        "observacao": "Grupo informado no arquivo; mapa/inferencia sugeriu 'despesas_representacao'.",
+        "origem_classificacao": "arquivo"
+      },
+      {
+        "codigo": "4.2.5",
+        "confianca": "alta",
+        "conta": "Material de Escritorio",
+        "grupo_atribuido": "despesas",
+        "grupo_original": "despesas",
+        "observacao": "Grupo informado no arquivo de entrada.",
+        "origem_classificacao": "arquivo"
+      },
+      {
+        "codigo": "5.1.1",
+        "confianca": "alta",
+        "conta": "Distribuicao de Lucros",
+        "grupo_atribuido": "lucros",
+        "grupo_original": "lucros",
+        "observacao": "Grupo informado no arquivo de entrada.",
+        "origem_classificacao": "arquivo"
+      },
+      {
+        "codigo": "6.1.1",
+        "confianca": "alta",
+        "conta": "Resultado do Periodo",
+        "grupo_atribuido": "resultado",
+        "grupo_original": "resultado",
+        "observacao": "Grupo informado no arquivo de entrada.",
+        "origem_classificacao": "arquivo"
+      }
+    ],
+    "classificacoes_por_confianca": {
+      "alta": 21
+    },
+    "classificacoes_por_origem": {
+      "arquivo": 21
+    },
+    "contas_revisao": [
+      {
+        "codigo": "1.1.2",
+        "confianca": "alta",
+        "conta": "Banco Conta Movimento",
+        "grupo_atribuido": "bancos",
+        "grupo_original": "bancos",
+        "observacao": "Grupo informado no arquivo; mapa/inferencia sugeriu 'clientes'.",
+        "origem_classificacao": "arquivo"
+      },
+      {
+        "codigo": "2.1.1",
+        "confianca": "alta",
+        "conta": "Simples Nacional a Recolher",
+        "grupo_atribuido": "tributos",
+        "grupo_original": "tributos",
+        "observacao": "Grupo informado no arquivo; mapa/inferencia sugeriu 'tributos_a_recolher'.",
+        "origem_classificacao": "arquivo"
+      },
+      {
+        "codigo": "2.1.2",
+        "confianca": "alta",
+        "conta": "INSS a Recolher",
+        "grupo_atribuido": "tributos",
+        "grupo_original": "tributos",
+        "observacao": "Grupo informado no arquivo; mapa/inferencia sugeriu 'tributos_a_recolher'.",
+        "origem_classificacao": "arquivo"
+      },
+      {
+        "codigo": "2.1.3",
+        "confianca": "alta",
+        "conta": "ISS Retido ou a Recolher",
+        "grupo_atribuido": "tributos",
+        "grupo_original": "tributos",
+        "observacao": "Grupo informado no arquivo; mapa/inferencia sugeriu 'fornecedores'.",
+        "origem_classificacao": "arquivo"
+      },
+      {
+        "codigo": "3.1.2",
+        "confianca": "alta",
+        "conta": "Receita de Servicos com Retencao",
+        "grupo_atribuido": "receita",
+        "grupo_original": "receita",
+        "observacao": "Grupo informado no arquivo; mapa/inferencia sugeriu 'tributos_sobre_receita'.",
+        "origem_classificacao": "arquivo"
+      },
+      {
+        "codigo": "4.1.1",
+        "confianca": "alta",
+        "conta": "Pro Labore",
+        "grupo_atribuido": "folha",
+        "grupo_original": "folha",
+        "observacao": "Grupo informado no arquivo; mapa/inferencia sugeriu 'custos'.",
+        "origem_classificacao": "arquivo"
+      },
+      {
+        "codigo": "4.1.2",
+        "confianca": "alta",
+        "conta": "Salarios",
+        "grupo_atribuido": "folha",
+        "grupo_original": "folha",
+        "observacao": "Grupo informado no arquivo; mapa/inferencia sugeriu 'custos'.",
+        "origem_classificacao": "arquivo"
+      },
+      {
+        "codigo": "4.1.3",
+        "confianca": "alta",
+        "conta": "Encargos sobre Folha",
+        "grupo_atribuido": "folha",
+        "grupo_original": "folha",
+        "observacao": "Grupo informado no arquivo; mapa/inferencia sugeriu 'custos'.",
+        "origem_classificacao": "arquivo"
+      },
+      {
+        "codigo": "4.2.4",
+        "confianca": "alta",
+        "conta": "Viagens e Representacao",
+        "grupo_atribuido": "despesas",
+        "grupo_original": "despesas",
+        "observacao": "Grupo informado no arquivo; mapa/inferencia sugeriu 'despesas_representacao'.",
+        "origem_classificacao": "arquivo"
+      }
+    ],
+    "grupos_identificados": {
+      "bancos": 2,
+      "caixa": 1,
+      "clientes": 1,
+      "despesas": 5,
+      "folha": 3,
+      "lucros": 1,
+      "receita": 2,
+      "resultado": 1,
+      "socios": 2,
+      "tributos": 3
+    },
+    "limite_exibicao_contas": 50,
+    "total_contas": 21,
+    "total_contas_revisao": 9
+  },
   "conclusao_tecnica": {
     "conclusao_sugerida": "adversa",
     "necessita_validacao_documental": true,
@@ -20,8 +317,10 @@
       "Lei Complementar n\u00ba 123/2006, art. 14",
       "NBC TG 1000 (R1)",
       "Lei Complementar n\u00ba 123/2006, Anexo III",
-      "Lei Complementar n\u00ba 123/2006, art. 18",
-      "ITG 2000 (R1)"
+      "ITG 2000 (R1)",
+      "RIR/2018",
+      "Decreto n\u00ba 6.306/2007 (Regulamento do IOF)",
+      "Lei Complementar n\u00ba 123/2006, art. 18"
     ],
     "observacoes_tecnicas": [
       "Regime tribut\u00e1rio informado: Simples Nacional. Validar enquadramento, anexo aplic\u00e1vel e eventuais sublimites com documenta\u00e7\u00e3o fiscal.",
@@ -46,7 +345,7 @@
   "metadados": {
     "conjunto_regras": "simples_servicos",
     "data_analise": "2000-01-01T00:00:00",
-    "versao_regras": "1.7.0",
+    "versao_regras": "1.9.0",
     "versao_schema": "3.0.0"
   },
   "principais_achados": [
@@ -136,6 +435,48 @@
       "severidade": "alta"
     },
     {
+      "achado": "Saldos em contas de socios exigem validacao de mutuo e IOF",
+      "codigo": "SN-005",
+      "evidencia": {
+        "campos_extraidos": {
+          "classificacao_materialidade": "material",
+          "codigos_monitorados": "616 e 627 no ativo; 770 no passivo; demais contas com socio, administrador, pessoa ligada ou mutuo na descricao",
+          "contas_identificadas": "1.2.2 - Adiantamento a Socios (grupo socios; debito R$ 70.000,00; credito R$ 5.000,00; saldo R$ 65.000,00) | 2.2.1 - Emprestimos de Socios (grupo socios; debito R$ 0,00; credito R$ 50.000,00; saldo R$ 50.000,00)",
+          "contrato_mutuo": "[VERIFICAR: existencia, valor, prazo, juros, partes e assinatura do contrato de mutuo ou instrumento equivalente]",
+          "criterio_rastreio": "saldo final em contas de socios ou codigos 616/627/770",
+          "iof_recolhido": "[VERIFICAR: calculo, guia e comprovante de recolhimento do IOF quando a operacao caracterizar mutuo/credito]",
+          "limite_absoluto_relevancia": "R$ 10.000,00",
+          "limite_baixa_materialidade": "R$ 1.000,00",
+          "limite_percentual_relevancia": "5,00%",
+          "percentual_receita": "10,00%",
+          "quantidade_contas_identificadas": "2",
+          "receita": "R$ 1.150.000,00",
+          "saldo_contas_socios": "R$ 115.000,00",
+          "tipo_achado": "validacao_documental"
+        },
+        "confianca": "media",
+        "documentos_recomendados": [
+          "razao das contas de socios",
+          "extratos bancarios",
+          "contrato de mutuo ou instrumento equivalente",
+          "memoria de calculo do IOF",
+          "guia e comprovante de recolhimento do IOF"
+        ],
+        "fonte_dado": "balancete_contabil",
+        "necessita_documento": true
+      },
+      "evidencia_identificada": "Receita: R$ 1.150.000,00; Saldo de contas de s\u00f3cios: R$ 115.000,00; Percentual sobre a receita: 10,00%; Limite percentual de relev\u00e2ncia: 5,00%; Limite absoluto de relev\u00e2ncia: R$ 10.000,00; Limite de baixa materialidade: R$ 1.000,00; Classifica\u00e7\u00e3o de materialidade: material; Quantidade de contas identificadas: 2; Conta\u2026",
+      "impacto_tecnico": "Validacao documental: Ind\u00edcio de saldo com s\u00f3cios, administradores ou m\u00fatuo sem valida\u00e7\u00e3o documental de contrato e IOF.",
+      "norma_fundamento": [
+        "ITG 2000 (R1)",
+        "NBC TG 1000 (R1)",
+        "RIR/2018",
+        "Decreto n\u00ba 6.306/2007 (Regulamento do IOF)"
+      ],
+      "pontuacao": 18,
+      "severidade": "media"
+    },
+    {
       "achado": "Folha e pr\u00f3-labore trimestrais baixos para empresa de servi\u00e7os",
       "codigo": "SN-003",
       "evidencia": {
@@ -219,15 +560,21 @@
       "prioridade": "alta"
     },
     {
+      "area_relacionada": "societ\u00e1ria",
+      "descricao": "Revisar o razao contabil e os extratos das contas de socios, validar contrato de mutuo ou instrumento equivalente, conferir prazo, juros, movimentacao financeira e comprovar o IOF recolhido quando aplicavel; reclassificar valores que representem adiantamento,\u2026",
+      "ordem": 4,
+      "prioridade": "media"
+    },
+    {
       "area_relacionada": "trabalhista",
       "descricao": "Revisar folha, pr\u00f3-labore dos s\u00f3cios e apura\u00e7\u00e3o do Fator R com base acumulada de 12 meses antes de concluir sobre o anexo aplic\u00e1vel.",
-      "ordem": 4,
+      "ordem": 5,
       "prioridade": "media"
     },
     {
       "area_relacionada": "documental",
       "descricao": "Verificar e validar os lancamentos da conta 325, confrontando pagamentos, contratos, notas fiscais, comprovantes bancarios, retencoes aplicaveis e suporte documental antes de manter a despesa.",
-      "ordem": 5,
+      "ordem": 6,
       "prioridade": "media"
     }
   ],
@@ -235,20 +582,21 @@
     "achados_por_severidade": {
       "alta": 3,
       "baixa": 0,
-      "media": 2
+      "media": 3
     },
     "base_analise": "JSON de auditoria trimestral",
     "empresa": "Golden Todas Regras",
-    "pontuacao_total": 113,
+    "pontuacao_total": 131,
     "principais_pontos": [
       "SN-001B: Receita trimestral anualizada acima de 90% do limite do Simples (alta, 35 ponto(s)).",
       "SN-004A: Distribui\u00e7\u00e3o de lucros acima do lucro dispon\u00edvel identificado (alta, 32 ponto(s)).",
       "SN-002B: Carga tribut\u00e1ria abaixo de 3% da receita (alta, 20 ponto(s)).",
+      "SN-005: Saldos em contas de socios exigem validacao de mutuo e IOF (m\u00e9dia, 18 ponto(s)).",
       "SN-003: Folha e pr\u00f3-labore trimestrais baixos para empresa de servi\u00e7os (m\u00e9dia, 14 ponto(s)).",
-      "SN-025: Servicos prestados por terceiros relevantes nas despesas (m\u00e9dia, 12 ponto(s))."
+      "H\u00e1 mais 1 achado(s) t\u00e9cnico(s) no per\u00edodo."
     ],
     "risco_geral": "alto",
-    "total_regras_acionadas": 5,
+    "total_regras_acionadas": 6,
     "total_regras_verificadas": 21
   }
 }

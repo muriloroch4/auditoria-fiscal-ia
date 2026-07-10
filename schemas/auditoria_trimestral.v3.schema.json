@@ -7,6 +7,7 @@
   "required": [
     "identificacao_empresa",
     "resumo_analise",
+    "classificacao_contas",
     "principais_achados",
     "fundamentacao_tecnica_resumida",
     "conclusao_tecnica",
@@ -55,6 +56,7 @@
       "type": "array",
       "items": { "$ref": "#/$defs/achado_trimestral" }
     },
+    "classificacao_contas": { "$ref": "#/$defs/classificacao_contas" },
     "fundamentacao_tecnica_resumida": {
       "type": "object",
       "additionalProperties": false,
@@ -158,6 +160,70 @@
           "type": "array",
           "items": { "type": "string" }
         }
+      }
+    },
+    "classificacao_contas": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_contas",
+        "grupos_identificados",
+        "classificacoes_por_origem",
+        "classificacoes_por_confianca",
+        "total_contas_revisao",
+        "limite_exibicao_contas",
+        "contas_revisao",
+        "amostra_classificacoes"
+      ],
+      "properties": {
+        "total_contas": { "type": "integer", "minimum": 0 },
+        "grupos_identificados": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "classificacoes_por_origem": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "classificacoes_por_confianca": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "total_contas_revisao": { "type": "integer", "minimum": 0 },
+        "limite_exibicao_contas": { "type": "integer", "minimum": 1 },
+        "contas_revisao": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/conta_classificada" }
+        },
+        "amostra_classificacoes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/conta_classificada" }
+        }
+      }
+    },
+    "conta_classificada": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "codigo",
+        "conta",
+        "grupo_atribuido",
+        "grupo_original",
+        "origem_classificacao",
+        "confianca",
+        "observacao"
+      ],
+      "properties": {
+        "codigo": { "type": "string" },
+        "conta": { "type": "string" },
+        "grupo_atribuido": { "type": "string" },
+        "grupo_original": { "type": "string" },
+        "origem_classificacao": { "type": "string" },
+        "confianca": {
+          "type": "string",
+          "enum": ["alta", "media", "baixa", "nao_informada"]
+        },
+        "observacao": { "type": "string" }
       }
     },
     "evidencia_estruturada": {

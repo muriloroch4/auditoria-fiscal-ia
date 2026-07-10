@@ -19,7 +19,7 @@ Motor para empresas enquadradas no Simples Nacional, com conjuntos para serviço
 | SN-003 | Folha e pró-labore trimestrais baixos | Folha + pró-labore abaixo de 8% da receita trimestral | Médio | 14 |
 | SN-004A | Distribuição de lucros | Distribuição maior que lucro do período e lucros/reservas identificados | Alto | 32 |
 | SN-004B | Distribuição de lucros | Distribuição maior que 30% da receita | Médio | 16 |
-| SN-005 | Movimentações com sócios | Contas de sócios acima de 20% da receita | Médio | 18 |
+| SN-005 | Saldos em contas de sócios | Saldo em contas 616/627 no ativo, 770 no passivo ou demais contas relacionadas a sócios/mútuo; baixo se imaterial, médio se >= R$ 10.000 ou >= 5% da receita | Baixo/Médio | 6/18 |
 | SN-006A | Caixa e bancos | Saldo menor que zero | Alto | 28 |
 | SN-006B | Caixa e bancos | Saldo acima de 60% da receita | Médio | 12 |
 | SN-007 | Despesas operacionais elevadas | Custos e despesas operacionais acima de 70% da receita | Médio | 16 |
@@ -73,6 +73,17 @@ Notas de versao 1.7.0:
 - A evidencia da `SN-025` inclui quantidade de contas identificadas, contas rastreadas e criterio de rastreio para facilitar a revisao documental.
 - O reconhecimento de contas pode ser ajustado em `config/plano_contas_map.json`, usado quando o grupo vem invalido ou como `outros`.
 
+Notas de versao 1.8.0:
+
+- `SN-005` passou a acionar revisao documental sempre que houver saldo em contas de socios, administradores, pessoas ligadas ou codigos monitorados `616`, `627` e `770`, solicitando contrato de mutuo e comprovacao de IOF quando aplicavel.
+- O consolidado anual inclui `AN-DOC-MUTUO-001` quando o ultimo trimestre apresenta saldo final em contas de socios/mutuos.
+
+Notas de versao 1.9.0:
+
+- `SN-005` e `AN-DOC-MUTUO-001` passaram a usar materialidade configuravel: saldos abaixo dos parametros ficam como ponto de atencao baixo; saldos acima de R$ 10.000 ou 5% da receita ficam como risco medio.
+- A API de upload mantem o JSON trimestral formal `v3.0.0` e adiciona um bloco auxiliar `dashboard` somente para a interface web, com metricas, contexto do regime e totais operacionais.
+- O SQLite local foi versionado como schema `1.1.0` com migracao automatica via `PRAGMA user_version`.
+
 ## Observações de cálculo trimestral
 
 - A regra `SN-001` usa a receita do trimestre anualizada (`receita x 4`) como alerta de ritmo; a conclusão legal deve validar a RBT12.
@@ -80,6 +91,9 @@ Notas de versao 1.7.0:
 - A regra `SN-004A` usa o grupo `resultado` quando ele existir no CSV.
 - Se o grupo `resultado` não existir, o protótipo usa a estimativa `receita - deduções - custos/despesas`.
 - A regra `SN-004A` deixa de acionar quando houver lucros, reservas ou resultado acumulado identificados no patrimônio/resultado em montante suficiente para suportar a distribuição.
+- A regra `SN-005` rastreia saldos nas contas `616` e `627` no ativo, `770` no passivo e outras contas cuja descrição indique sócio, administrador, pessoa ligada ou mútuo.
+- Para `SN-005`, a evidência pede validação de contrato de mútuo ou instrumento equivalente, extratos, razão contábil, memória de cálculo e comprovante de recolhimento de IOF quando a operação caracterizar crédito/mútuo.
+- Para `SN-005`, a materialidade padrao é: risco médio quando o saldo for maior ou igual a R$ 10.000 ou 5% da receita trimestral; abaixo disso, o achado permanece como risco baixo para revisão documental.
 - A carga tributária efetiva usa `tributos_sobre_receita` e `despesas_tributarias`; para CSVs antigos, cai para o grupo legado `tributos`.
 - A regra `SN-012` usa `tributos_a_recolher`; para CSVs antigos, cai para o grupo legado `tributos`.
 - A regra `SN-011` considera `adiantamentos` e `adiantamentos_clientes`, usando a maior referência entre R$ 10.000 e 10% da receita trimestral.
@@ -114,6 +128,7 @@ e materialidade no exercício.
 | AN-LUC-001 | Lucros distribuídos acima do resultado anual | Distribuição anual > lucro anual apurado | Alto |
 | AN-MAR-001 | Margem anual muito elevada | Lucro anual > 64% da receita anual | Médio |
 | AN-DOC-325-001 | Serviços de terceiros relevantes no ano | Conta 325/serviços de terceiros >= 20% das despesas anuais | Médio |
+| AN-DOC-MUTUO-001 | Saldo final em contas de sócios | Saldo final anual em contas de sócios/mútuos; baixo se imaterial, médio se >= R$ 10.000 ou >= 5% da receita anual | Baixo/Médio |
 | AN-END-001 | Endividamento final elevado | Empréstimos finais > 60% da receita anual | Médio |
 | AN-CLI-001 | Clientes zerados no fechamento anual | Receita anual relevante com clientes finais zerados | Baixo |
 | AN-COM-EST-001 | Estoque final relevante | Estoques finais > 50% da receita anual | Médio |

@@ -88,7 +88,7 @@ def load_account_map(path: str | Path | None = None) -> dict[str, Any]:
 
 def _build_defaults() -> dict[str, Any]:
     return {
-        "version": "1.7.0",
+        "version": "1.9.0",
         "limites_gerais": {
             "simples_anual": 4800000,
             "limite_movimentacao_ativa": 10000,
@@ -138,7 +138,11 @@ def _build_defaults() -> dict[str, Any]:
             "pontuacao_medio": 16,
         },
         "SN-005": {
-            "limite_medio": 0.20,
+            "descricao": "Saldos em contas de socios, mutuos e IOF",
+            "limite_medio_receita": 0.05,
+            "limite_medio_absoluto": 10000,
+            "limite_baixo_absoluto": 1000,
+            "pontuacao_baixo": 6,
             "pontuacao_medio": 18,
         },
         "SN-006": {
@@ -267,7 +271,7 @@ def _build_defaults() -> dict[str, Any]:
 
 def _build_account_map_defaults() -> dict[str, Any]:
     return {
-        "version": "1.0.0",
+        "version": "1.1.0",
         "mapeamentos": [
             {
                 "nome": "Servicos prestados por terceiros",
@@ -281,6 +285,23 @@ def _build_account_map_defaults() -> dict[str, Any]:
                     "servico de terceiro",
                     "terceirizacao",
                     "terceirizados",
+                ],
+            },
+            {
+                "nome": "Socios, administradores e mutuos",
+                "grupo": "socios",
+                "codigos_exatos": ["616", "627", "770"],
+                "prefixos": ["1.1.616", "1.1.627", "2.1.770"],
+                "descricoes_contem": [
+                    "socio",
+                    "socios",
+                    "administrador",
+                    "administradores",
+                    "pessoa ligada",
+                    "mutuo",
+                    "conta corrente socio",
+                    "emprestimo de socio",
+                    "adiantamento a socio",
                 ],
             },
             {

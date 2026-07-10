@@ -26,6 +26,7 @@ _NORMA_LABELS = {
     "CPC 16 R1": "NBC TG 16 (R2) = CPC 16 R1",
     "NBC TG 1000": "NBC TG 1000 (R1)",
     "ITG 2000": "ITG 2000 (R1)",
+    "Decreto 6.306/2007": "Decreto nº 6.306/2007 (Regulamento do IOF)",
 }
 
 _BASE_NORMAS = (
@@ -61,6 +62,7 @@ def audit_result_to_dict(result: AuditResult) -> dict[str, Any]:
             "achados_por_severidade": severity_counts,
             "principais_pontos": _principais_pontos(result, findings),
         },
+        "classificacao_contas": result.classificacao_contas or {},
         "principais_achados": [_finding_to_summary_dict(finding) for finding in findings],
         "fundamentacao_tecnica_resumida": {
             "normas_aplicaveis": normas,
@@ -212,7 +214,7 @@ def _impacto_tecnico(finding: RuleFinding) -> str:
         "SN-002": "Possível subapuração tributária ou divergência entre receita e tributos reconhecidos.",
         "SN-003": "Risco de enquadramento incorreto do anexo e inconsistência no Fator R.",
         "SN-004": "Risco societário e fiscal por distribuição sem lastro contábil suficiente.",
-        "SN-005": "Indício de confusão patrimonial ou movimentação com sócios sem formalização adequada.",
+        "SN-005": "Indício de saldo com sócios, administradores ou mútuo sem validação documental de contrato e IOF.",
         "SN-006": "Possível inconsistência de conciliação financeira ou saldo contábil sem suporte.",
         "SN-007": "Possível distorção de resultado por despesas elevadas ou sem aderência operacional.",
         "SN-008": "Indício de receita não reconhecida ou divergência entre movimentação e faturamento.",
@@ -241,7 +243,7 @@ def _impacto_tecnico(finding: RuleFinding) -> str:
 
 def _classificacao_tecnica(finding: RuleFinding) -> str:
     code = finding.codigo
-    if code.startswith(("SN-017", "SN-020", "SN-024", "SN-025")):
+    if code.startswith(("SN-005", "SN-017", "SN-020", "SN-024", "SN-025")):
         return "Validacao documental"
     if code.startswith("SN-COMP") or finding.nivel == RiskLevel.ALTO:
         return "Possivel inconsistencia material"
@@ -357,6 +359,14 @@ def _label(value: str) -> str:
         "lucro_disponivel_identificado": "Lucro disponível identificado",
         "lucros_distribuidos": "Lucros distribuídos",
         "saldo_contas_socios": "Saldo de contas de sócios",
+        "percentual_receita": "Percentual sobre a receita",
+        "limite_percentual_relevancia": "Limite percentual de relevância",
+        "limite_absoluto_relevancia": "Limite absoluto de relevância",
+        "limite_baixa_materialidade": "Limite de baixa materialidade",
+        "classificacao_materialidade": "Classificação de materialidade",
+        "codigos_monitorados": "Códigos monitorados",
+        "contrato_mutuo": "Contrato de mútuo",
+        "iof_recolhido": "IOF recolhido",
         "folha_pro_labore": "Folha e pró-labore",
         "percentual_folha": "Percentual da folha",
         "provisoes": "Provisões",

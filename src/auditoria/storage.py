@@ -14,7 +14,8 @@ from typing import Any, Iterator
 from .models import AuditResult
 
 
-DB_SCHEMA_VERSION = "1.0.0"
+DB_SCHEMA_VERSION = "1.1.0"
+DB_USER_VERSION = 2
 
 
 class AuditStorage:
@@ -59,6 +60,7 @@ class AuditStorage:
                     risco_geral TEXT,
                     pontuacao_total INTEGER NOT NULL DEFAULT 0,
                     total_regras_acionadas INTEGER NOT NULL DEFAULT 0,
+                    schema_version TEXT,
                     summary_json TEXT NOT NULL,
                     annual_source_json TEXT NOT NULL,
                     created_at TEXT NOT NULL,
@@ -70,6 +72,7 @@ class AuditStorage:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
                     ano INTEGER NOT NULL,
+                    schema_version TEXT,
                     payload_json TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
@@ -77,6 +80,7 @@ class AuditStorage:
                 );
                 """
             )
+            _run_migrations(conn)
 
     def save_quarterly_audit(
         self,
@@ -103,10 +107,10 @@ class AuditStorage:
                 """
                 INSERT INTO quarterly_audits (
                     company_id, ano, trimestre, periodo, atividade, arquivo_nome, arquivo_hash,
-                    risco_geral, pontuacao_total, total_regras_acionadas, summary_json,
+                    risco_geral, pontuacao_total, total_regras_acionadas, schema_version, summary_json,
                     annual_source_json, created_at, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(company_id, ano, trimestre) DO UPDATE SET
                     periodo = excluded.periodo,
                     atividade = excluded.atividade,
@@ -115,6 +119,7 @@ class AuditStorage:
                     risco_geral = excluded.risco_geral,
                     pontuacao_total = excluded.pontuacao_total,
                     total_regras_acionadas = excluded.total_regras_acionadas,
+                    schema_version = excluded.schema_version,
                     summary_json = excluded.summary_json,
                     annual_source_json = excluded.annual_source_json,
                     updated_at = excluded.updated_at
@@ -130,6 +135,7 @@ class AuditStorage:
                     result.nivel_geral.value,
                     int(result.pontuacao_total),
                     len(result.achados),
+                    DB_SCHEMA_VERSION,
                     _json_dumps(summary_payload),
                     _json_dumps(annual_source),
                     now,
@@ -164,7 +170,7 @@ class AuditStorage:
                     q.id, c.nome, c.cnpj_original, c.regime_tributario,
                     q.ano, q.trimestre, q.periodo, q.atividade, q.arquivo_nome,
                     q.arquivo_hash, q.risco_geral, q.pontuacao_total,
-                    q.total_regras_acionadas, q.created_at, q.updated_at
+                    q.total_regras_acionadas, q.schema_version, q.created_at, q.updated_at
                 FROM quarterly_audits q
                 JOIN companies c ON c.id = q.company_id
                 {where}
@@ -202,13 +208,14 @@ class AuditStorage:
             )
             conn.execute(
                 """
-                INSERT INTO annual_audits (company_id, ano, payload_json, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO annual_audits (company_id, ano, schema_version, payload_json, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT(company_id, ano) DO UPDATE SET
+                    schema_version = excluded.schema_version,
                     payload_json = excluded.payload_json,
                     updated_at = excluded.updated_at
                 """,
-                (company_id, int(ano), _json_dumps(payload), now, now),
+                (company_id, int(ano), DB_SCHEMA_VERSION, _json_dumps(payload), now, now),
             )
             row = conn.execute(
                 "SELECT id FROM annual_audits WHERE company_id = ? AND ano = ?",
@@ -273,6 +280,40 @@ class AuditStorage:
         finally:
             if self._memory_conn is None:
                 conn.close()
+
+
+def _run_migrations(conn: sqlite3.Connection) -> None:
+    current = int(conn.execute("PRAGMA user_version").fetchone()[0])
+    if current < 1:
+        conn.execute("PRAGMA user_version = 1")
+        current = 1
+
+    if current < 2:
+        _ensure_column(conn, "quarterly_audits", "schema_version", "TEXT")
+        _ensure_column(conn, "annual_audits", "schema_version", "TEXT")
+        conn.execute(
+            """
+            UPDATE quarterly_audits
+            SET schema_version = ?
+            WHERE schema_version IS NULL OR schema_version = ''
+            """,
+            (DB_SCHEMA_VERSION,),
+        )
+        conn.execute(
+            """
+            UPDATE annual_audits
+            SET schema_version = ?
+            WHERE schema_version IS NULL OR schema_version = ''
+            """,
+            (DB_SCHEMA_VERSION,),
+        )
+        conn.execute(f"PRAGMA user_version = {DB_USER_VERSION}")
+
+
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
+    columns = {str(row["name"]) for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    if column not in columns:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
 def default_db_path() -> Path:
@@ -392,6 +433,7 @@ def _quarter_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
         "risco_geral": row["risco_geral"],
         "pontuacao_total": row["pontuacao_total"],
         "total_regras_acionadas": row["total_regras_acionadas"],
+        "schema_version": row["schema_version"],
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }

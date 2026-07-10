@@ -37,6 +37,7 @@ class AuditApiHandler(BaseHTTPRequestHandler):
     use_ai: bool = True
     api_key: str | None = None
     ai_api_key: str | None = None
+    cors_origin: str = "*"
     regime_tributario: str | None = None
     atividade: str = "servicos"
     db_path: str | None = None
@@ -88,7 +89,7 @@ class AuditApiHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def _send_cors_headers(self) -> None:
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Origin", self.cors_origin or "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, X-API-Key")
 
@@ -192,7 +193,7 @@ class AuditApiHandler(BaseHTTPRequestHandler):
                     file_hash=file_sha256(uploaded_file.content),
                     atividade=atividade,
                 )
-            self._send_json(payload)
+            self._send_json(_audit_result_to_dashboard_payload(result, payload))
             logger.info(
                 "Auditoria concluida: id=%s nivel=%s score=%d achados=%d",
                 storage_id,
@@ -436,11 +437,13 @@ def run_server(
     host: str = "127.0.0.1",
     port: int = 8000,
     api_key: str | None = None,
+    cors_origin: str = "*",
     regime_tributario: str | None = None,
     atividade: str = "servicos",
     db_path: str | None = None,
 ) -> None:
     AuditApiHandler.api_key = api_key
+    AuditApiHandler.cors_origin = cors_origin
     AuditApiHandler.regime_tributario = regime_tributario
     AuditApiHandler.atividade = atividade
     AuditApiHandler.db_path = db_path
@@ -448,6 +451,7 @@ def run_server(
     logger.info("Servidor iniciado em http://%s:%d", host, port)
     logger.info("Regime tributario: %s", regime_tributario or "Simples Nacional (padrao)")
     logger.info("Atividade/conjunto de regras: %s", atividade)
+    logger.info("CORS permitido para: %s", cors_origin)
     logger.info("Banco de dados local: %s", db_path or os.environ.get("AUDIT_DB_PATH") or "data/auditoria.sqlite")
     if api_key:
         logger.info("Autenticacao por API key: habilitada.")
@@ -461,6 +465,7 @@ def main() -> None:
         host=args.host,
         port=args.port,
         api_key=args.api_key or os.environ.get("AUDIT_API_KEY"),
+        cors_origin=args.cors_origin or os.environ.get("AUDIT_CORS_ORIGIN") or "*",
         regime_tributario=args.regime_tributario,
         atividade=args.atividade,
         db_path=args.db_path,
@@ -472,6 +477,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--api-key", help="Chave da API para autenticacao (ou use AUDIT_API_KEY).")
+    parser.add_argument("--cors-origin", help="Origem permitida para CORS (ou use AUDIT_CORS_ORIGIN). Padrao: *.")
     parser.add_argument("--regime-tributario", default=None, help="Regime tributario (padrao: Simples Nacional).")
     parser.add_argument(
         "--atividade",
@@ -566,6 +572,27 @@ def _audit_result_to_annual_source(result: AuditResult) -> dict:
             for finding in result.achados
         ],
     }
+
+
+def _audit_result_to_dashboard_payload(result: AuditResult, summary_payload: dict[str, Any]) -> dict[str, Any]:
+    """Return the formal quarterly JSON plus UI-only data for the local dashboard."""
+    payload = dict(summary_payload)
+    metricas = _annual_metric_entries(result)
+    indicadores = result.metricas_valores.get("indicadores_derivados")
+    if isinstance(indicadores, dict):
+        metricas["indicadores_derivados"] = indicadores
+
+    payload["dashboard"] = {
+        "metricas": metricas,
+        "contexto_regime": result.contexto_regime,
+        "resumo_metricas": result.resumo_metricas,
+        "meta": {
+            "total_contas_analisadas": result.total_contas_analisadas,
+            "total_regras_verificadas": result.total_regras_verificadas,
+            "total_regras_acionadas": len(result.achados),
+        },
+    }
+    return payload
 
 
 def _annual_metric_entries(result: AuditResult) -> dict:

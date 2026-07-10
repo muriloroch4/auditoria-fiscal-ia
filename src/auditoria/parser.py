@@ -209,16 +209,8 @@ def _read_trial_balance_records(
 def _row_to_account(row: dict[str, str], line_number: int) -> LedgerAccount:
     codigo = _required_text(row, "codigo", line_number)
     conta = _required_text(row, "conta", line_number)
-    grupo = _required_text(row, "grupo", line_number).lower()
-    mapped_by_code = _mapped_grupo_from_config(codigo, conta, allow_description=False)
-    inferred = _infer_grupo_from_conta(codigo, conta)
-    mapped_by_description = _mapped_grupo_from_config(codigo, conta, allow_description=True)
-    mapped_group = inferred or mapped_by_code or mapped_by_description
-
-    if grupo not in VALID_GRUPOS:
-        grupo = mapped_group or "outros"
-    elif grupo == "outros" and mapped_group:
-        grupo = mapped_group
+    grupo_original = _required_text(row, "grupo", line_number).lower()
+    grupo, origem, confianca, observacao = _classify_group(codigo, conta, grupo_original)
 
     return LedgerAccount(
         codigo=codigo,
@@ -228,7 +220,41 @@ def _row_to_account(row: dict[str, str], line_number: int) -> LedgerAccount:
         debito=_decimal(row["debito"], "debito", line_number),
         credito=_decimal(row["credito"], "credito", line_number),
         saldo_atual=_decimal(row["saldo_atual"], "saldo_atual", line_number),
+        grupo_original=grupo_original,
+        classificacao_origem=origem,
+        classificacao_confianca=confianca,
+        classificacao_observacao=observacao,
     )
+
+
+def _classify_group(codigo: str, conta: str, grupo_original: str) -> tuple[str, str, str, str]:
+    mapped_by_code = _mapped_grupo_from_config(codigo, conta, allow_description=False)
+    inferred = _infer_grupo_from_conta(codigo, conta)
+    mapped_by_description = _mapped_grupo_from_config(codigo, conta, allow_description=True)
+    mapped_group = mapped_by_code or inferred or mapped_by_description
+
+    if grupo_original in VALID_GRUPOS and grupo_original != "outros":
+        observacao = "Grupo informado no arquivo de entrada."
+        if mapped_group and mapped_group != grupo_original:
+            observacao = f"Grupo informado no arquivo; mapa/inferencia sugeriu '{mapped_group}'."
+        return grupo_original, "arquivo", "alta", observacao
+
+    if inferred and mapped_by_code and inferred != mapped_by_code:
+        return (
+            inferred,
+            "inferido_codigo_descricao",
+            "media",
+            f"Descricao especifica sugeriu '{inferred}', enquanto o mapa por codigo/prefixo sugeriu '{mapped_by_code}'.",
+        )
+    if mapped_by_code:
+        return mapped_by_code, "mapa_codigo_prefixo", "alta", "Classificado pelo mapa configuravel por codigo exato, segmento ou prefixo."
+    if inferred:
+        return inferred, "inferido_codigo_descricao", "media", "Classificado por fallback interno com base no codigo e/ou descricao da conta."
+    if mapped_by_description:
+        return mapped_by_description, "mapa_descricao", "media", "Classificado pelo mapa configuravel por descricao da conta."
+
+    motivo = "Grupo original invalido." if grupo_original not in VALID_GRUPOS else "Grupo original informado como outros."
+    return "outros", "nao_classificado", "baixa", f"{motivo} Revisar mapeamento do plano de contas."
 
 
 def _required_text(row: dict[str, str], field: str, line_number: int) -> str:
@@ -373,15 +399,20 @@ def parse_dominio_balancete(
         if not codigo or not descricao or not _dominio_is_leaf(codigo):
             continue
 
+        grupo, origem, confianca, observacao = _dominio_group_classification(codigo, descricao)
         contas.append(
             LedgerAccount(
                 codigo=codigo,
                 conta=descricao,
-                grupo=_dominio_group(codigo, descricao),
+                grupo=grupo,
                 saldo_anterior=_dominio_decimal(_value_at(row, _DOM_COL_SALDO_ANTERIOR)),
                 debito=_dominio_decimal(_value_at(row, _DOM_COL_DEBITO)),
                 credito=_dominio_decimal(_value_at(row, _DOM_COL_CREDITO)),
                 saldo_atual=_dominio_decimal(_value_at(row, _DOM_COL_SALDO_ATUAL)),
+                grupo_original="",
+                classificacao_origem=origem,
+                classificacao_confianca=confianca,
+                classificacao_observacao=observacao,
             )
         )
 
@@ -784,6 +815,25 @@ def _dominio_group(classification: str, description: str) -> str:
     return "outros"
 
 
+def _dominio_group_classification(classification: str, description: str) -> tuple[str, str, str, str]:
+    mapped_group = _mapped_grupo_from_config(classification, description, allow_description=False)
+    inferred = _infer_grupo_from_conta(classification, description)
+    if inferred and mapped_group and inferred != mapped_group:
+        return (
+            inferred,
+            "inferido_codigo_descricao",
+            "media",
+            f"Descricao especifica sugeriu '{inferred}', enquanto o mapa por codigo/prefixo sugeriu '{mapped_group}'.",
+        )
+    if mapped_group:
+        return mapped_group, "mapa_codigo_prefixo", "alta", "Classificado pelo mapa configuravel antes dos fallbacks do layout Dominio."
+
+    group = _dominio_group(classification, description)
+    if group == "outros":
+        return group, "nao_classificado", "baixa", "Layout Dominio nao encontrou grupo especifico; revisar mapeamento do plano de contas."
+    return group, "layout_dominio", "media", "Classificado por prefixos e descricoes conhecidos do layout Dominio."
+
+
 def _infer_grupo_from_conta(codigo: str, conta: str) -> str | None:
     text = _normalize_key(conta)
 
@@ -793,6 +843,8 @@ def _infer_grupo_from_conta(codigo: str, conta: str) -> str | None:
         return "imobilizado"
     if "veiculo" in text:
         return "imobilizado"
+    if any(k in text for k in ("socio", "socios", "administrador", "administradores", "pessoa ligada", "mutuo")):
+        return "socios"
     if "fornecedor" in text:
         return "fornecedores"
     if "representacao" in text or "viagem" in text or "hospedagem" in text or "alimentacao" in text:

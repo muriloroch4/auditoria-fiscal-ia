@@ -63,6 +63,8 @@ Motor de regras fiscais para análise de balancetes trimestrais de empresas opta
 
 Conjuntos disponíveis em `metadados.conjunto_regras`: `simples_servicos`, `simples_comercio` e `simples_comercio_servicos`.
 
+O JSON formal validado pelo schema é o contrato para pareceres e integrações. A resposta do endpoint `POST /api/auditorias` também inclui um bloco auxiliar `dashboard` com métricas completas, contexto tributário e totais operacionais usados apenas pela interface web. O botão **JSON** do dashboard remove esse bloco auxiliar e baixa somente o payload formal `v3.0.0`.
+
 As tabelas estruturadas dos anexos usados pelo contexto tributário ficam em `config/simples_anexos.json`. O motor estima Anexo I para comércio, Anexo III ou V para serviços conforme Fator R trimestral, e exige segregação para empresas mistas. A estimativa não substitui RBT12 oficial, CNAE, PGDAS-D e validação documental.
 
 Quando os quatro trimestres estão salvos no backend para o mesmo CNPJ/ano, o motor passa a usar o RBT12 consolidado pelo histórico para contexto tributário, regra de limite do Simples (`SN-001`) e sublimite de comércio (`SN-019`). Sem os quatro trimestres, ele mantém `receita x 4` apenas como alerta.
@@ -93,7 +95,7 @@ python -m mypy src/auditoria --config-file pyproject.toml
 python -m src.auditoria.api --port 8000
 ```
 
-Acesse `http://127.0.0.1:8000` — faça upload do balancete e veja o dashboard/JSON de saída. Botões **⬇ JSON** e **PDF** permitem baixar o JSON e salvar o dashboard em PDF pelo navegador.
+Acesse `http://127.0.0.1:8000` — faça upload do balancete e veja o dashboard/JSON de saída. Botões **JSON** e **PDF** permitem baixar o JSON formal e salvar o dashboard em PDF pelo navegador.
 
 Endpoint JSON:
 ```text
@@ -129,11 +131,20 @@ python -m src.auditoria.api --port 8000 --db-path C:\dados\auditoria.sqlite
 
 Ou use a variável de ambiente `AUDIT_DB_PATH`.
 
+O SQLite possui versionamento interno por `PRAGMA user_version`. A versão atual do schema local é `1.1.0`; bancos antigos são migrados automaticamente para incluir a coluna `schema_version` nos registros trimestrais e anuais.
+
 Autenticação opcional:
 ```powershell
 $env:AUDIT_API_KEY = "dev-local-secret"
 python -m src.auditoria.api --port 8000
 ```
+
+CORS opcional:
+```powershell
+python -m src.auditoria.api --port 8000 --cors-origin http://127.0.0.1:8000
+```
+
+Também é possível usar a variável `AUDIT_CORS_ORIGIN`. Se não for informado, o servidor local usa `*`.
 
 Regime tributário personalizado:
 ```powershell
@@ -218,7 +229,7 @@ Modelos disponíveis em `samples/`.
 | `folha` | Pró-labore, salários e encargos |
 | `despesas` / `custos` | Despesas operacionais, custos dos serviços ou CMV |
 | Conta `325` ou descrição `serviços prestados por terceiros` | Monitorada pela regra `SN-025` quando relevante nas despesas |
-| `socios` | Empréstimos, mútuos e contas correntes |
+| `socios` | Empréstimos, mútuos, contas correntes, contas 616/627 no ativo e 770 no passivo |
 | `adiantamentos` / `adiantamentos_clientes` | Adiantamentos a fornecedores, clientes, empregados e terceiros |
 | `caixa` / `bancos` | Disponibilidades |
 | `lucros` | Distribuição de lucros |
@@ -229,7 +240,9 @@ Modelos disponíveis em `samples/`.
 
 O arquivo `config/plano_contas_map.json` permite ajustar o reconhecimento de contas por código exato, prefixo e descrição sem alterar o código Python. O parser usa esse mapa quando o grupo informado vem inválido ou como `outros`, mantendo os fallbacks internos para o layout Domínio e para CSVs simples.
 
-Esse mapa já inclui a conta `325`/`serviços prestados por terceiros`, bancos, caixa, clientes, estoques, fornecedores, tributos, folha, receitas, deduções e custos/CMV.
+O JSON trimestral inclui o bloco `classificacao_contas`, que resume quantas contas foram classificadas por grupo, origem e nível de confiança, além de listar contas que precisam revisão. Isso ajuda a validar o plano de contas antes de confiar integralmente nos achados do motor.
+
+Esse mapa já inclui a conta `325`/`serviços prestados por terceiros`, contas de sócios/mútuos (`616`, `627` e `770`), bancos, caixa, clientes, estoques, fornecedores, tributos, folha, receitas, deduções e custos/CMV.
 
 ## Integração com IA
 

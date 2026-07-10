@@ -82,7 +82,7 @@ def _analyze_simples_nacional(
             profit_distribution_capacity,
         )
     )
-    findings.extend(_check_partner_accounts(metrics.revenue, metrics.partners))
+    findings.extend(_check_partner_accounts(metrics.revenue, metrics.partners, metrics.partner_accounts))
     findings.extend(_check_receivables(metrics.revenue, metrics.clients, metrics.client_movement))
     findings.extend(_check_zero_receivables(metrics.revenue, metrics.clients, metrics.client_movement))
     findings.extend(_check_advances(metrics.revenue, metrics.advances))
@@ -315,28 +315,51 @@ def _check_profit_distribution(
     return []
 
 
-def _check_partner_accounts(revenue: Decimal, partners: Decimal) -> list[RuleFinding]:
-    if revenue <= 0:
+def _check_partner_accounts(revenue: Decimal, partners: Decimal, accounts: list[LedgerAccount]) -> list[RuleFinding]:
+    if partners <= 0 or not accounts:
         return []
 
     cfg = get_rule_config("SN-005")
-    lim = Decimal(str(cfg.get("limite_medio", 0.20)))
-    ratio = partners / revenue
-    if ratio > lim:
-        return [
-            RuleFinding(
-                codigo="SN-005",
-                titulo="Movimentações relevantes em contas de sócios",
-                nivel=RiskLevel.MEDIO,
-                pontuacao=cfg.get("pontuacao_medio", 18),
-                descricao="Contas relacionadas a sócios têm saldo relevante em comparação à receita do trimestre.",
-                evidencia={"receita": _money(revenue), "saldo_contas_socios": _money(partners), "percentual": _percent(ratio)},
-                recomendacao="Classificar a natureza dos valores: mútuo, adiantamento, distribuição, reembolso ou despesa particular.",
-                normas_aplicaveis=("LC 123/2006", "RIR/2018"),
-            )
-        ]
+    lim_ratio = Decimal(str(cfg.get("limite_medio_receita", cfg.get("limite_medio", 0.20))))
+    lim_abs = Decimal(str(cfg.get("limite_medio_absoluto", 10000)))
+    lim_baixo_abs = Decimal(str(cfg.get("limite_baixo_absoluto", 1000)))
+    ratio = partners / revenue if revenue > 0 else None
+    material = partners >= lim_abs or (ratio is not None and ratio >= lim_ratio)
+    level = RiskLevel.MEDIO if material else RiskLevel.BAIXO
+    score = cfg.get("pontuacao_medio", 18) if material else cfg.get("pontuacao_baixo", 6)
+    evidence = {
+        "receita": _money(revenue),
+        "saldo_contas_socios": _money(partners),
+        "percentual_receita": _percent(ratio) if ratio is not None else "[VERIFICAR: receita do trimestre]",
+        "limite_percentual_relevancia": _percent(lim_ratio),
+        "limite_absoluto_relevancia": _money(lim_abs),
+        "limite_baixa_materialidade": _money(lim_baixo_abs),
+        "classificacao_materialidade": "material" if material else "baixa_materialidade",
+        "quantidade_contas_identificadas": str(len(accounts)),
+        "contas_identificadas": format_account_trace(accounts),
+        "codigos_monitorados": "616 e 627 no ativo; 770 no passivo; demais contas com socio, administrador, pessoa ligada ou mutuo na descricao",
+        "contrato_mutuo": "[VERIFICAR: existencia, valor, prazo, juros, partes e assinatura do contrato de mutuo ou instrumento equivalente]",
+        "iof_recolhido": "[VERIFICAR: calculo, guia e comprovante de recolhimento do IOF quando a operacao caracterizar mutuo/credito]",
+        "criterio_rastreio": "saldo final em contas de socios ou codigos 616/627/770",
+        "tipo_achado": "validacao_documental",
+    }
 
-    return []
+    return [
+        RuleFinding(
+            codigo="SN-005",
+            titulo="Saldos em contas de socios exigem validacao de mutuo e IOF",
+            nivel=level,
+            pontuacao=score,
+            descricao=(
+                "Foram identificados saldos materiais em contas relacionadas a socios, administradores, pessoas ligadas ou codigos monitorados de mutuo, exigindo validacao documental da natureza da operacao."
+                if material
+                else "Foram identificados saldos de baixa materialidade em contas relacionadas a socios, administradores, pessoas ligadas ou codigos monitorados de mutuo; o saldo deve ser conciliado e documentado."
+            ),
+            evidencia=evidence,
+            recomendacao="Revisar o razao contabil e os extratos das contas de socios, validar contrato de mutuo ou instrumento equivalente, conferir prazo, juros, movimentacao financeira e comprovar o IOF recolhido quando aplicavel; reclassificar valores que representem adiantamento, distribuicao de lucros, reembolso ou despesa particular.",
+            normas_aplicaveis=("ITG 2000", "NBC TG 1000", "RIR/2018", "Decreto 6.306/2007"),
+        )
+    ]
 
 
 def _check_receivables(revenue: Decimal, clients: Decimal, client_movement: Decimal) -> list[RuleFinding]:

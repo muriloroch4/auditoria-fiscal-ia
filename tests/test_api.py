@@ -1,5 +1,6 @@
 import io
 import json
+import sqlite3
 import tempfile
 import unittest
 import unittest.mock
@@ -12,6 +13,7 @@ from textwrap import dedent
 from xml.sax.saxutils import escape
 
 from src.auditoria.api import AuditApiHandler, UploadedFile
+from src.auditoria.storage import DB_USER_VERSION, AuditStorage
 
 
 class FakeRfile:
@@ -264,6 +266,8 @@ class APIHealthTest(unittest.TestCase):
         self.assertEqual(handler._response_headers["Content-Type"], "text/javascript; charset=utf-8")
         content = handler.wfile.getvalue().decode("utf-8")
         self.assertIn("printDashboardPdf", content)
+        self.assertIn("formalAuditPayload", content)
+        self.assertIn("renderAccountClassification", content)
         self.assertIn("data-finding-filter", content)
 
     def test_static_missing_asset_returns_404(self):
@@ -362,6 +366,9 @@ class APIAuditUploadTest(unittest.TestCase):
             self.assertIn("resumo_analise", result)
             self.assertIn("risco_geral", result["resumo_analise"])
             self.assertIn("principais_achados", result)
+            self.assertIn("dashboard", result)
+            self.assertIn("metricas", result["dashboard"])
+            self.assertEqual(result["dashboard"]["meta"]["total_contas_analisadas"], 5)
 
     def test_upload_xlsx_returns_audit_result(self):
         xlsx_content = _xlsx_trial_balance()
@@ -384,6 +391,8 @@ class APIAuditUploadTest(unittest.TestCase):
             result = mock_send.call_args.args[0]
             self.assertEqual(result["metadados"]["versao_schema"], "3.0.0")
             self.assertIn("risco_geral", result["resumo_analise"])
+            self.assertIn("dashboard", result)
+            self.assertIn("contexto_regime", result["dashboard"])
 
     def test_upload_missing_balancete_returns_400(self):
         body, content_type = _build_multipart_form({
@@ -470,6 +479,7 @@ class APIAuditUploadTest(unittest.TestCase):
             result = mock_send.call_args.args[0]
             self.assertEqual(result["metadados"]["versao_schema"], "3.0.0")
             self.assertIn("risco_geral", result["resumo_analise"])
+            self.assertIn("dashboard", result)
 
     def test_upload_auth_key_is_not_used_as_openrouter_key(self):
         csv_content = _csv_trial_balance()
@@ -586,6 +596,8 @@ class APIStoredAuditTest(unittest.TestCase):
             self.assertEqual(payload["items"][0]["empresa"], "BNF Tecnologia")
             self.assertEqual(payload["items"][0]["trimestre"], "T1")
             self.assertEqual(payload["items"][0]["ano"], 2025)
+            self.assertEqual(payload["db_schema_version"], "1.1.0")
+            self.assertEqual(payload["items"][0]["schema_version"], "1.1.0")
 
     def test_saved_quarters_generate_annual_payload(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -629,6 +641,68 @@ class APIStoredAuditTest(unittest.TestCase):
 
             observations = payload["fundamentacao_tecnica_resumida"]["observacoes_tecnicas"]
             self.assertTrue(any("RBT12 utilizado pelo motor" in item for item in observations))
+
+    def test_storage_migrates_legacy_schema_version_columns(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = str(Path(tmpdir) / "legacy.sqlite")
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.executescript(
+                    """
+                    CREATE TABLE companies (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        nome TEXT NOT NULL,
+                        cnpj TEXT NOT NULL UNIQUE,
+                        cnpj_original TEXT,
+                        regime_tributario TEXT,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    );
+                    CREATE TABLE quarterly_audits (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        company_id INTEGER NOT NULL,
+                        ano INTEGER NOT NULL,
+                        trimestre INTEGER NOT NULL,
+                        periodo TEXT NOT NULL,
+                        atividade TEXT,
+                        arquivo_nome TEXT,
+                        arquivo_hash TEXT,
+                        risco_geral TEXT,
+                        pontuacao_total INTEGER NOT NULL DEFAULT 0,
+                        total_regras_acionadas INTEGER NOT NULL DEFAULT 0,
+                        summary_json TEXT NOT NULL,
+                        annual_source_json TEXT NOT NULL,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL,
+                        UNIQUE(company_id, ano, trimestre)
+                    );
+                    CREATE TABLE annual_audits (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        company_id INTEGER NOT NULL,
+                        ano INTEGER NOT NULL,
+                        payload_json TEXT NOT NULL,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL,
+                        UNIQUE(company_id, ano)
+                    );
+                    """
+                )
+            finally:
+                conn.close()
+
+            AuditStorage(db_path)
+
+            conn = sqlite3.connect(db_path)
+            try:
+                quarterly_columns = {row[1] for row in conn.execute("PRAGMA table_info(quarterly_audits)")}
+                annual_columns = {row[1] for row in conn.execute("PRAGMA table_info(annual_audits)")}
+                user_version = conn.execute("PRAGMA user_version").fetchone()[0]
+            finally:
+                conn.close()
+
+            self.assertIn("schema_version", quarterly_columns)
+            self.assertIn("schema_version", annual_columns)
+            self.assertEqual(user_version, DB_USER_VERSION)
 
 
 class APICORSTest(unittest.TestCase):

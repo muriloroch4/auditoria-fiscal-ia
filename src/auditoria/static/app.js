@@ -32,6 +32,10 @@ function normalizeAuditPayload(data) {
   const conclusion = data.conclusao_tecnica || {};
   const foundation = data.fundamentacao_tecnica_resumida || {};
   const meta = data.metadados || {};
+  const dashboard = data.dashboard || {};
+  const dashboardMeta = dashboard.meta || {};
+  const dashboardContext = dashboard.contexto_regime || {};
+  const classificationData = data.classificacao_contas || dashboard.classificacao_contas || {};
   const counts = summary.achados_por_severidade || {};
   const recommendations = data.recomendacoes_tecnicas || [];
   const findings = (data.principais_achados || []).map((finding, index) => ({
@@ -41,6 +45,7 @@ function normalizeAuditPayload(data) {
     pontuacao: finding.pontuacao || 0,
     descricao: finding.impacto_tecnico || "",
     evidencia: evidenceFromSummaryFinding(finding),
+    evidencia_estruturada: finding.evidencia || {},
     recomendacao: recommendationForFinding(recommendations, finding, index),
     normas_aplicaveis: finding.norma_fundamento || [],
   }));
@@ -64,27 +69,37 @@ function normalizeAuditPayload(data) {
       },
       explicacao_pontuacao: summary.principais_pontos || [],
     },
-    metricas: {},
+    metricas: dashboard.metricas || data.metricas || {},
     achados: findings,
     contexto_regime: {
-      regime: ident.regime_tributario,
-      faixa_receita_estimada: "",
-      aliquota_efetiva_esperada: "",
-      fator_r_calculado: "",
-      fator_r_threshold: "",
-      sublimite_risco: false,
-      observacoes: foundation.observacoes_tecnicas || [],
+      regime: dashboardContext.regime || ident.regime_tributario,
+      anexo_estimado: dashboardContext.anexo_estimado || "",
+      faixa_receita_estimada: dashboardContext.faixa_receita_estimada || "",
+      aliquota_efetiva_esperada: dashboardContext.aliquota_efetiva_esperada || "",
+      aliquota_nominal_estimada: dashboardContext.aliquota_nominal_estimada || "",
+      parcela_deduzir_estimada: dashboardContext.parcela_deduzir_estimada || "",
+      fator_r_calculado: dashboardContext.fator_r_calculado || "",
+      fator_r_threshold: dashboardContext.fator_r_threshold || "",
+      sublimite_risco: Boolean(dashboardContext.sublimite_risco),
+      observacoes: dashboardContext.observacoes || foundation.observacoes_tecnicas || [],
     },
     meta: {
       versao_schema: meta.versao_schema,
       versao_regras: meta.versao_regras,
       conjunto_regras: meta.conjunto_regras,
       data_analise: meta.data_analise,
-      total_contas_analisadas: 0,
-      total_regras_verificadas: summary.total_regras_verificadas || 0,
-      total_regras_acionadas: summary.total_regras_acionadas || findings.length,
+      total_contas_analisadas: dashboardMeta.total_contas_analisadas ?? classificationData.total_contas ?? 0,
+      total_regras_verificadas: dashboardMeta.total_regras_verificadas ?? summary.total_regras_verificadas ?? 0,
+      total_regras_acionadas: dashboardMeta.total_regras_acionadas ?? summary.total_regras_acionadas ?? findings.length,
     },
+    classificacao_contas: classificationData,
   };
+}
+
+function formalAuditPayload(data) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return data;
+  const { dashboard, ...payload } = data;
+  return payload;
 }
 
 function severityToLevel(severity) {
@@ -275,28 +290,31 @@ function buildDashboardHtml(data, options = {}) {
   const filter = options.findingFilter || "all";
   const printMode = Boolean(options.printMode);
   const rawData = options.rawData || data;
-
   return `
     <div class="dashboard-stack">
       ${renderRiskPanel(risk, findings, meta, level)}
       ${renderClassification(classification)}
+      ${renderAccountClassification(data.classificacao_contas)}
       ${renderMetricGroups(metrics)}
       ${renderIndicators(metrics.indicadores_derivados)}
       ${renderAnalysisGrid(context, findings, meta, filter, printMode)}
       ${renderScoreExplanation(risk.explicacao_pontuacao || [], printMode)}
-      ${printMode ? "" : renderRawJson(rawData)}
+      ${printMode ? "" : renderRawJson(formalAuditPayload(rawData))}
     </div>
   `;
 }
 
 function renderRiskPanel(risk, findings, meta, level) {
   const rules = `${esc(meta.total_regras_acionadas ?? findings.length)} de ${esc(meta.total_regras_verificadas ?? "?")} regras`;
+  const score = Number(risk.pontuacao_total ?? 0);
+  const scoreWidth = Math.max(4, Math.min(100, score));
   const version = `${esc(meta.conjunto_regras || "Conjunto não informado")} ${esc(meta.versao_regras || "")}`.trim();
   return `
     <section class="risk-panel ${level}">
       <div class="risk-copy">
         <span class="risk-kicker">Risco ${levelLabel(level)}</span>
         <h3>${esc(opinionLabel(risk.modalidade_opiniao_sugerida))}</h3>
+        <div class="risk-score-track" aria-hidden="true"><span style="width: ${scoreWidth}%"></span></div>
         <p>Classificação calculada a partir das regras fiscais acionadas no período analisado.</p>
         <div class="risk-meta">
           <span>${rules}</span>
@@ -327,6 +345,76 @@ function renderClassification(classification) {
       </div>
     </section>
   `;
+}
+
+function renderAccountClassification(classification) {
+  if (!classification || !classification.total_contas) return "";
+
+  const reviewAccounts = Array.isArray(classification.contas_revisao)
+    ? classification.contas_revisao.slice(0, 8)
+    : [];
+  const originChips = renderCountChips(classification.classificacoes_por_origem, "Origem");
+  const confidenceChips = renderCountChips(classification.classificacoes_por_confianca, "Confianca");
+  const reviewRows = reviewAccounts.map(renderAccountReviewRow).join("");
+  const reviewBody = reviewRows || `<tr><td colspan="6"><div class="finding-empty">Nenhuma conta marcada para revisao.</div></td></tr>`;
+
+  return `
+    <section class="section account-classification-section">
+      <div class="section-header">
+        <h3 class="section-title">Classificacao das contas</h3>
+      </div>
+      <div class="indicator-list">
+        <span class="indicator-badge"><strong>Contas analisadas:</strong>&nbsp;${esc(classification.total_contas ?? 0)}</span>
+        <span class="indicator-badge"><strong>Para revisao:</strong>&nbsp;${esc(classification.total_contas_revisao ?? 0)}</span>
+        ${originChips}
+        ${confidenceChips}
+      </div>
+      <div class="table-wrap">
+        <table class="findings-table account-classification-table">
+          <thead>
+            <tr>
+              <th>Codigo</th>
+              <th>Conta</th>
+              <th>Grupo</th>
+              <th>Origem</th>
+              <th>Confianca</th>
+              <th>Observacao</th>
+            </tr>
+          </thead>
+          <tbody>${reviewBody}</tbody>
+        </table>
+      </div>
+    </section>
+  `;
+}
+
+function renderCountChips(counts, label) {
+  if (!counts || typeof counts !== "object") return "";
+  return Object.entries(counts)
+    .filter(([, count]) => Number(count) > 0)
+    .map(([key, count]) => `<span class="indicator-badge"><strong>${esc(label)} ${esc(key)}:</strong>&nbsp;${esc(count)}</span>`)
+    .join("");
+}
+
+function renderAccountReviewRow(account) {
+  return `
+    <tr>
+      <td class="finding-code">${esc(account.codigo)}</td>
+      <td><span class="finding-title">${esc(account.conta)}</span></td>
+      <td>${esc(account.grupo_atribuido)}</td>
+      <td>${esc(account.origem_classificacao)}</td>
+      <td><span class="chip ${confidenceClass(account.confianca)}">${esc(account.confianca || "nao_informada")}</span></td>
+      <td>${esc(account.observacao || "")}</td>
+    </tr>
+  `;
+}
+
+function confidenceClass(value) {
+  const normalized = String(value || "").toLowerCase();
+  if (normalized === "alta") return "baixo";
+  if (normalized === "media") return "medio";
+  if (normalized === "baixa") return "alto";
+  return "info";
 }
 
 function renderMetricGroups(metrics) {
@@ -578,6 +666,7 @@ function renderFindingDetail(finding) {
         <span class="detail-label">Evidência identificada</span>
         ${evidence}
       </div>
+      ${renderStructuredEvidence(finding.evidencia_estruturada)}
       <div>
         <span class="detail-label">Impacto técnico</span>
         <p>${esc(finding.descricao || "[VERIFICAR: impacto técnico]")}</p>
@@ -590,6 +679,32 @@ function renderFindingDetail(finding) {
         <span class="detail-label">Recomendação técnica</span>
         <p>${esc(finding.recomendacao || "[VERIFICAR: recomendação]")}</p>
       </div>
+    </div>
+  `;
+}
+
+function renderStructuredEvidence(evidence) {
+  if (!evidence || typeof evidence !== "object" || !Object.keys(evidence).length) return "";
+
+  const docs = Array.isArray(evidence.documentos_recomendados)
+    ? evidence.documentos_recomendados.map((item) => `<li>${esc(item)}</li>`).join("")
+    : "";
+  const fields = evidence.campos_extraidos && typeof evidence.campos_extraidos === "object"
+    ? Object.entries(evidence.campos_extraidos)
+      .map(([key, value]) => `<li><strong>${esc(key)}:</strong> ${esc(evidenceValue(value))}</li>`)
+      .join("")
+    : "";
+
+  return `
+    <div>
+      <span class="detail-label">Evidencia estruturada</span>
+      <ul>
+        <li><strong>Fonte:</strong> ${esc(evidence.fonte_dado || "[VERIFICAR: fonte]")}</li>
+        <li><strong>Confianca:</strong> ${esc(evidence.confianca || "[VERIFICAR: confianca]")}</li>
+        <li><strong>Necessita documento:</strong> ${evidence.necessita_documento ? "Sim" : "Nao"}</li>
+      </ul>
+      ${docs ? `<span class="detail-label">Documentos recomendados</span><ul>${docs}</ul>` : ""}
+      ${fields ? `<span class="detail-label">Campos extraidos</span><ul>${fields}</ul>` : ""}
     </div>
   `;
 }
@@ -658,7 +773,7 @@ function bindDynamicControls() {
 
 function downloadJson() {
   if (!lastData) return;
-  const blob = new Blob([JSON.stringify(lastData, null, 2)], { type: "application/json" });
+  const blob = new Blob([JSON.stringify(formalAuditPayload(lastData), null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;

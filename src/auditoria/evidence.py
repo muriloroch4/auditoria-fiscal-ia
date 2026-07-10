@@ -12,7 +12,7 @@ _DOCUMENTS_BY_PREFIX: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("SN-002", ("PGDAS-D", "DAS apurado e pago", "livro fiscal de receitas")),
     ("SN-003", ("folha de pagamento", "pro-labore", "eSocial", "PGDAS-D para calculo oficial do Fator R")),
     ("SN-004", ("balancete de verificacao", "razao contabil de lucros", "ata/contrato de distribuicao de lucros")),
-    ("SN-005", ("razao das contas de socios", "extratos bancarios", "contratos de mutuo ou adiantamento")),
+    ("SN-005", ("razao das contas de socios", "extratos bancarios", "contrato de mutuo ou instrumento equivalente", "memoria de calculo do IOF", "guia e comprovante de recolhimento do IOF")),
     ("SN-006", ("extratos bancarios", "conciliacao bancaria", "boletim de caixa")),
     ("SN-007", ("razao das despesas", "notas fiscais de servicos tomados", "contratos e comprovantes de pagamento")),
     ("SN-008", ("notas fiscais emitidas", "extratos bancarios", "relatorio de recebimentos")),
@@ -34,6 +34,7 @@ _DOCUMENTS_BY_PREFIX: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("SN-024", ("NF-e por NCM/CFOP/CST", "PGDAS-D", "memoria de ICMS-ST e ressarcimentos")),
     ("SN-025", ("contratos de prestadores", "notas fiscais de servicos tomados", "comprovantes bancarios", "retencoes aplicaveis")),
     ("AN-DOC-325", ("contratos de prestadores", "notas fiscais de servicos tomados", "comprovantes bancarios", "retencoes aplicaveis")),
+    ("AN-DOC-MUTUO", ("razao das contas de socios", "extratos bancarios", "contrato de mutuo ou instrumento equivalente", "memoria de calculo do IOF", "guia e comprovante de recolhimento do IOF")),
     ("AN-COM", ("inventario de estoque", "notas fiscais de compra e venda", "memoria de CMV", "PGDAS-D quando aplicavel")),
     ("AN-", ("JSONs trimestrais consolidados", "balancetes trimestrais", "documentos de suporte dos achados recorrentes")),
 )

@@ -114,7 +114,8 @@ def _render_consultivo_resumo(payload: dict[str, Any]) -> str:
 
     segundo = "Principais pontos identificados: " + ("; ".join(pontos) if pontos else "[VERIFICAR: principais pontos].")
     contexto = _render_contexto_regime(payload)
-    return "\n\n".join(item for item in (primeiro, segundo, contexto) if item)
+    classificacao = _render_classificacao_contas_resumo(payload)
+    return "\n\n".join(item for item in (primeiro, segundo, classificacao, contexto) if item)
 
 
 def _render_metricas_principais(payload: dict[str, Any]) -> str:
@@ -128,6 +129,18 @@ def _render_contexto_regime(payload: dict[str, Any]) -> str:
     if not observacoes:
         return ""
     return "Observações técnicas resumidas: " + " ".join(str(obs).rstrip(".") + "." for obs in observacoes[:4])
+
+
+def _render_classificacao_contas_resumo(payload: dict[str, Any]) -> str:
+    classificacao = payload.get("classificacao_contas") or {}
+    total_revisao = int(classificacao.get("total_contas_revisao") or 0)
+    if total_revisao <= 0:
+        return ""
+    total = int(classificacao.get("total_contas") or 0)
+    return (
+        f"Classificação do plano de contas: {total_revisao} de {total} conta(s) foram marcadas para revisão "
+        "quanto ao grupo contábil atribuído pelo parser."
+    )
 
 
 def _render_consultivo_achados(payload: dict[str, Any]) -> str:
@@ -452,7 +465,7 @@ def _first_available_conta(evidencia: dict) -> str:
         (
             "conta", "conta_relacionada", "grupo", "grupo_contabil",
             "saldo_anterior_tributos", "despesas_representacao",
-            "despesas_veiculos", "servicos_terceiros", "receita", "folha_pro_labore",
+            "despesas_veiculos", "servicos_terceiros", "saldo_contas_socios", "receita", "folha_pro_labore",
         ),
         "[VERIFICAR: conta contábil relacionada]",
     )
@@ -466,7 +479,7 @@ def _first_available_saldo(evidencia: dict) -> str:
             "saldo_anterior_tributos", "valor", "valor_total",
             "receita", "tributos", "despesas_representacao",
             "despesas_veiculos", "servicos_terceiros", "total_despesas",
-            "clientes_recebiveis", "adiantamentos",
+            "clientes_recebiveis", "adiantamentos", "saldo_contas_socios",
             "lucro_apurado", "lucros_distribuidos",
             "folha_pro_labore", "provisoes",
         ),
@@ -481,7 +494,7 @@ def _get_risco_identificado_operational_template(finding) -> str:
         "SN-002": "Risco de divergência fiscal por carga tributária incompatível com a receita contábil.",
         "SN-003": "Risco trabalhista, previdenciário e tributário associado ao Fator R e à composição da folha.",
         "SN-004": "Risco de distribuição disfarçada, remuneração não tributada ou ausência de lastro contábil.",
-        "SN-005": "Risco de confusão patrimonial, mútuos não formalizados ou movimentação indevida com sócios.",
+        "SN-005": "Risco de saldo com sócios ou mútuo sem contrato formal, conciliação financeira e validação do IOF quando aplicável.",
         "SN-006": "Risco em disponibilidades por caixa ou banco negativo, conciliação inadequada ou suprimento não contabilizado.",
         "SN-007": "Risco operacional e fiscal por despesas excessivas ou sem comprovação suficiente.",
         "SN-008": "Risco de omissão de receita, cruzamentos fiscais e divergência entre movimentação financeira e faturamento.",
@@ -525,7 +538,7 @@ def _impacto_fiscal_potencial(finding) -> str:
         "SN-005": (
             "Desconsideração da personalidade jurídica (art. 50 do CC c/c art. 135 do CTN); "
             "responsabilização solidária dos sócios por tributos devidos; "
-            "autuação por distribuição disfarçada de lucros."
+            "questionamento de mútuos sem contrato e cobrança de IOF quando a operação caracterizar crédito."
         ),
         "SN-006": (
             "Arbitramento da base de cálculo (art. 148 do CTN) no caso de caixa negativo; "
@@ -629,6 +642,7 @@ O JSON terá estes blocos:
 
 - `identificacao_empresa`
 - `resumo_analise`
+- `classificacao_contas`
 - `principais_achados`
 - `fundamentacao_tecnica_resumida`
 - `conclusao_tecnica`
@@ -646,6 +660,7 @@ O JSON terá estes blocos:
 7. Todas as recomendações de `recomendacoes_tecnicas` devem aparecer no parecer.
 8. Mantenha o texto objetivo e resumido, em Markdown.
 9. Não inclua número de parecer, assinatura, carimbo, rubrica ou fechamento formal.
+10. Se `classificacao_contas` indicar contas para revisão, mencione isso de forma objetiva na análise.
 
 ## Estrutura esperada
 

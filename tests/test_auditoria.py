@@ -978,6 +978,56 @@ class MelhoriasMotorFiscalTest(unittest.TestCase):
         self.assertIn("4.2.325 - Servicos Prestados por Terceiros", finding.evidencia["contas_identificadas"])
         self.assertIn("Validacao documental", serialized["impacto_tecnico"])
 
+    def test_saldos_socios_codigos_monitorados_trigger_sn005_mutuo_iof(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;50000;40000;10000
+            1.1.616;Mutuo com Socio no Ativo;outros;0;8000;0;8000
+            2.1.770;Mutuo de Socio no Passivo;outros;0;0;7000;7000
+            3.1.1;Receita de Servicos;receita;0;0;200000;200000
+            4.2.1;Despesas Gerais;despesas;0;60000;0;-60000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Mutuo Socios", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        payload = audit_result_to_dict(result)
+        finding = next(f for f in result.achados if f.codigo == "SN-005")
+        serialized = next(achado for achado in payload["principais_achados"] if achado["codigo"] == "SN-005")
+
+        self.assertEqual(result.metricas_valores["saldo_contas_socios"], 15000.0)
+        self.assertEqual(finding.evidencia["quantidade_contas_identificadas"], "2")
+        self.assertEqual(finding.nivel, RiskLevel.MEDIO)
+        self.assertEqual(finding.evidencia["classificacao_materialidade"], "material")
+        self.assertIn("1.1.616 - Mutuo com Socio no Ativo", finding.evidencia["contas_identificadas"])
+        self.assertIn("2.1.770 - Mutuo de Socio no Passivo", finding.evidencia["contas_identificadas"])
+        self.assertIn("contrato_mutuo", finding.evidencia)
+        self.assertIn("iof_recolhido", finding.evidencia)
+        self.assertIn("Validacao documental", serialized["impacto_tecnico"])
+        self.assertTrue(any("Decreto nº 6.306/2007" in norma for norma in serialized["norma_fundamento"]))
+
+    def test_descricao_relacionada_a_socios_trigger_sn005_sem_codigo_monitorado(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;50000;40000;10000
+            1.1.999;Adiantamento a Socio Administrador;custom;0;3000;0;3000
+            3.1.1;Receita de Servicos;receita;0;0;200000;200000
+            4.2.1;Despesas Gerais;despesas;0;60000;0;-60000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Socio Descricao", periodo="2026-T1")
+        account = next(conta for conta in balance.contas if conta.codigo == "1.1.999")
+        result = run_quarterly_audit(balance)
+        codes = {finding.codigo for finding in result.achados}
+        finding = next(finding for finding in result.achados if finding.codigo == "SN-005")
+
+        self.assertEqual(account.grupo, "socios")
+        self.assertEqual(result.metricas_valores["saldo_contas_socios"], 3000.0)
+        self.assertIn("SN-005", codes)
+        self.assertEqual(finding.nivel, RiskLevel.BAIXO)
+        self.assertEqual(finding.evidencia["classificacao_materialidade"], "baixa_materialidade")
+
     def test_mapa_contabil_classifica_conta_325_com_grupo_custom(self):
         content = dedent(
             """\
@@ -1015,6 +1065,7 @@ class SchemaV3ResumoTest(unittest.TestCase):
             [
                 "identificacao_empresa",
                 "resumo_analise",
+                "classificacao_contas",
                 "principais_achados",
                 "fundamentacao_tecnica_resumida",
                 "conclusao_tecnica",
@@ -1026,6 +1077,8 @@ class SchemaV3ResumoTest(unittest.TestCase):
         self.assertEqual(payload["identificacao_empresa"]["regime_tributario"], "Simples Nacional")
         self.assertIn("total_regras_verificadas", payload["resumo_analise"])
         self.assertIn("total_regras_acionadas", payload["resumo_analise"])
+        self.assertIn("classificacoes_por_confianca", payload["classificacao_contas"])
+        self.assertIn("amostra_classificacoes", payload["classificacao_contas"])
         self.assertNotIn("_schema_version", payload)
 
     def test_resumo_and_conclusao_have_risk_and_opinion(self):
@@ -1092,6 +1145,30 @@ class SchemaV3ResumoTest(unittest.TestCase):
 
         with self.assertRaises(SchemaValidationError):
             validate_payload_against_schema(payload, "trimestral")
+
+    def test_classificacao_contas_lista_contas_para_revisao(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            9.9.9;Conta não mapeada;outros;0;0;0;123
+            4.2.20.325;Serviços prestados por terceiros;outros;0;25000;0;25000
+            3.1.1;Receita;receita;0;0;100000;100000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Classificacao", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        payload = audit_result_to_dict(result)
+        classification = payload["classificacao_contas"]
+
+        self.assertEqual(classification["total_contas"], 3)
+        self.assertGreaterEqual(classification["total_contas_revisao"], 1)
+        self.assertIn("baixa", classification["classificacoes_por_confianca"])
+        self.assertIn("mapa_codigo_prefixo", classification["classificacoes_por_origem"])
+        review_codes = {item["codigo"] for item in classification["contas_revisao"]}
+        self.assertIn("9.9.9", review_codes)
+        account_325 = next(item for item in classification["amostra_classificacoes"] if item["codigo"] == "4.2.20.325")
+        self.assertEqual(account_325["grupo_atribuido"], "despesas")
+        self.assertEqual(account_325["confianca"], "alta")
 
     def test_total_regras_verificadas_uses_configured_sn_rules(self):
         content = dedent(
@@ -1243,6 +1320,23 @@ class AnnualComparisonTest(unittest.TestCase):
         self.assertEqual(finding["evidencia"]["fonte_dado"], "json_trimestral_consolidado")
         self.assertIn("contratos de prestadores", finding["evidencia"]["documentos_recomendados"])
 
+    def test_build_annual_comparison_identifica_saldo_final_socios(self):
+        payloads = [
+            self._legacy_commerce_quarter("2026-T1", inventory=10000, suppliers=5000, cogs=40000, tax_credits=0),
+            self._legacy_commerce_quarter("2026-T2", inventory=10000, suppliers=5000, cogs=40000, tax_credits=0),
+            self._legacy_commerce_quarter("2026-T3", inventory=10000, suppliers=5000, cogs=40000, tax_credits=0),
+            self._legacy_commerce_quarter("2026-T4", inventory=10000, suppliers=5000, cogs=40000, tax_credits=0, partner_accounts=25000),
+        ]
+
+        annual = build_annual_comparison(payloads)
+        codes = {finding["codigo"] for finding in annual["achados_anuais"]}
+
+        self.assertEqual(annual["metricas_anual"]["saldo_contas_socios_final"]["valor"], 25000.0)
+        self.assertIn("AN-DOC-MUTUO-001", codes)
+        finding = next(item for item in annual["achados_anuais"] if item["codigo"] == "AN-DOC-MUTUO-001")
+        self.assertIn("contrato de mutuo ou instrumento equivalente", finding["evidencia"]["documentos_recomendados"])
+        self.assertIn("guia e comprovante de recolhimento do IOF", finding["evidencia"]["documentos_recomendados"])
+
     def test_generate_annual_markdown_report(self):
         payloads = [
             self._quarter_payload("2026-T1", revenue=100000, expenses=80000),
@@ -1281,6 +1375,7 @@ class AnnualComparisonTest(unittest.TestCase):
         cogs: int,
         tax_credits: int,
         third_party_services: int = 0,
+        partner_accounts: int = 0,
     ) -> dict:
         return {
             "identificacao": {
@@ -1302,6 +1397,7 @@ class AnnualComparisonTest(unittest.TestCase):
                 "folha_pro_labore": {"valor": 0, "formatado": "R$ 0,00"},
                 "despesas_operacionais": {"valor": 20000, "formatado": "R$ 20.000,00"},
                 "servicos_terceiros": {"valor": third_party_services, "formatado": "R$ 0,00"},
+                "saldo_contas_socios": {"valor": partner_accounts, "formatado": "R$ 0,00"},
                 "lucros_distribuidos": {"valor": 0, "formatado": "R$ 0,00"},
                 "lucro_apurado_base": {"valor": 30000, "formatado": "R$ 30.000,00"},
                 "caixa_e_bancos": {"valor": 10000, "formatado": "R$ 10.000,00"},

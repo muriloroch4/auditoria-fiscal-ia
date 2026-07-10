@@ -6,6 +6,7 @@ from collections import Counter, defaultdict
 from decimal import Decimal
 from typing import Any
 
+from .config_loader import get_rule_config
 from .evidence import structured_evidence
 from .schema_validator import validate_payload_against_schema
 from .utils import format_brl, format_percent
@@ -105,6 +106,7 @@ def _quarter_summary(payload: dict[str, Any]) -> dict[str, Any]:
                 "folha_pro_labore": _metric(metricas, "folha_pro_labore"),
                 "despesas_operacionais": _metric(metricas, "despesas_operacionais"),
                 "servicos_terceiros": _metric(metricas, "servicos_terceiros"),
+                "saldo_contas_socios": _metric(metricas, "saldo_contas_socios"),
                 "lucros_distribuidos": _metric(metricas, "lucros_distribuidos"),
                 "lucro_apurado_base": _metric(metricas, "lucro_apurado_base"),
                 "caixa_e_bancos": _metric(metricas, "caixa_e_bancos"),
@@ -145,6 +147,7 @@ def _quarter_summary(payload: dict[str, Any]) -> dict[str, Any]:
             "folha_pro_labore": _metric(metricas, "folha_pro_labore"),
             "despesas_operacionais": _metric(metricas, "despesas_operacionais"),
             "servicos_terceiros": _metric(metricas, "servicos_terceiros"),
+            "saldo_contas_socios": _metric(metricas, "saldo_contas_socios"),
             "lucros_distribuidos": _metric(metricas, "lucros_distribuidos"),
             "lucro_apurado_base": _metric(metricas, "lucro_apurado_base"),
             "caixa_e_bancos": _metric(metricas, "caixa_e_bancos"),
@@ -176,6 +179,7 @@ def _annual_totals(quarters: list[dict[str, Any]], rbt12_context: dict[str, Any]
     profit = sum_metric("lucro_apurado_base")
     profit_distribution = sum_metric("lucros_distribuidos")
     cogs = sum_metric("cmv_custos")
+    partner_accounts = last["metricas"]["saldo_contas_socios"]
     debt = last["metricas"]["emprestimos"]
     tax_liability = last["metricas"]["tributos_a_recolher"]
     suppliers = last["metricas"]["fornecedores"]
@@ -189,6 +193,7 @@ def _annual_totals(quarters: list[dict[str, Any]], rbt12_context: dict[str, Any]
         "folha_pro_labore_total": _entry(payroll),
         "despesas_operacionais_total": _entry(expenses),
         "servicos_terceiros_total": _entry(third_party_services),
+        "saldo_contas_socios_final": _entry(partner_accounts),
         "lucro_apurado_total": _entry(profit),
         "lucros_distribuidos_total": _entry(profit_distribution),
         "tributos_a_recolher_final": _entry(tax_liability),
@@ -272,6 +277,7 @@ def _annual_findings(quarters: list[dict[str, Any]], totals: dict[str, Any]) -> 
     third_party_services = _value(totals, "servicos_terceiros_total")
     profit = _value(totals, "lucro_apurado_total")
     profit_distribution = _value(totals, "lucros_distribuidos_total")
+    partner_accounts = _value(totals, "saldo_contas_socios_final")
     debt = _value(totals, "emprestimos_final")
     tax_liability = _value(totals, "tributos_a_recolher_final")
     inventory = _value(totals, "estoques_final")
@@ -347,6 +353,39 @@ def _annual_findings(quarters: list[dict[str, Any]], totals: dict[str, Any]) -> 
                     "criterio_rastreio": "consolidacao anual da metrica servicos_terceiros dos JSONs trimestrais",
                 },
                 "Validar contratos, notas fiscais, comprovantes bancarios, retencoes aplicaveis e a correta apropriacao dos pagamentos lancados diretamente em despesas.",
+            )
+        )
+
+    if partner_accounts > 0:
+        cfg = get_rule_config("SN-005")
+        lim_abs = Decimal(str(cfg.get("limite_medio_absoluto", 10000)))
+        lim_ratio = Decimal(str(cfg.get("limite_medio_receita", cfg.get("limite_medio", 0.05))))
+        partner_ratio = partner_accounts / revenue if revenue > 0 else None
+        material = partner_accounts >= lim_abs or (partner_ratio is not None and partner_ratio >= lim_ratio)
+        level = "medio" if material else "baixo"
+        score = int(cfg.get("pontuacao_medio", 12) if material else cfg.get("pontuacao_baixo", 6))
+        findings.append(
+            _finding(
+                "AN-DOC-MUTUO-001",
+                "Saldo final em contas de socios exige validacao documental",
+                level,
+                score,
+                (
+                    "O consolidado anual apresenta saldo material em contas de socios, administradores, pessoas ligadas ou mutuos, exigindo validacao de contrato, razao, extratos e IOF quando aplicavel."
+                    if material
+                    else "O consolidado anual apresenta saldo de baixa materialidade em contas de socios, administradores, pessoas ligadas ou mutuos, exigindo conciliacao e suporte documental."
+                ),
+                {
+                    "saldo_contas_socios_final": format_brl(partner_accounts),
+                    "percentual_sobre_receita_anual": format_percent(partner_ratio) if partner_ratio is not None else "[VERIFICAR: receita anual]",
+                    "limite_absoluto_relevancia": format_brl(lim_abs),
+                    "limite_percentual_relevancia": format_percent(lim_ratio),
+                    "classificacao_materialidade": "material" if material else "baixa_materialidade",
+                    "criterio_rastreio": "saldo_contas_socios_final consolidado a partir do ultimo JSON trimestral",
+                    "contrato_mutuo": "[VERIFICAR: existencia, valor, prazo, juros, partes e assinatura]",
+                    "iof_recolhido": "[VERIFICAR: memoria de calculo, guia e comprovante de recolhimento quando aplicavel]",
+                },
+                "Validar razao contabil, extratos, contrato de mutuo ou instrumento equivalente, natureza da movimentacao, prazo, juros e IOF antes do encerramento anual.",
             )
         )
 
@@ -684,6 +723,7 @@ def _render_annual_metrics(metricas: dict[str, Any], evolution: dict[str, Any]) 
         f"({indicators['despesas_sobre_receita_anual']}). "
         f"Servicos de terceiros: {metricas['servicos_terceiros_total']['formatado']} "
         f"({indicators['servicos_terceiros_sobre_despesas_anual']} das despesas). "
+        f"Saldo final em contas de socios: {metricas['saldo_contas_socios_final']['formatado']}. "
         f"CMV/custos anual: {metricas['cmv_custos_total']['formatado']} "
         f"({indicators['cmv_sobre_receita_anual']}). "
         f"Estoques finais: {metricas['estoques_final']['formatado']}. "

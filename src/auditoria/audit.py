@@ -3,6 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
+from .account_classification import build_account_classification_report
 from .config_loader import load_config, load_simples_anexos
 from .models import AuditResult, RiskLevel, RuleFinding, TrialBalance
 from .risk import classify_total_risk
@@ -12,6 +13,7 @@ from .rules.metricas import (
     calculate_cost_of_goods,
     calculate_inventory,
     calculate_operating_expenses,
+    calculate_partner_accounts_balance,
     calculate_profit_basis,
     calculate_profit_distribution,
     calculate_revenue,
@@ -40,7 +42,7 @@ def run_quarterly_audit(
     payroll = abs(balance.debito_por_grupo("folha"))
     tax_expense = calculate_tax_expense(balance)
     tax_liability = calculate_tax_liability(balance)
-    partners = abs(balance.total_por_grupo("socios"))
+    partners = calculate_partner_accounts_balance(balance)
     profit_dist = calculate_profit_distribution(balance)
     cash = balance.total_por_grupo("caixa") + balance.total_por_grupo("bancos")
     clients = abs(balance.total_por_grupo("clientes"))
@@ -64,7 +66,7 @@ def run_quarterly_audit(
 
     metricas_valores = _build_metricas_valores(
         revenue, revenue_deductions, tax_expense, tax_liability, payroll, expenses,
-        third_party_services, profit_dist, profit_basis, cash, clients, advances, suppliers, inventory,
+        third_party_services, partners, profit_dist, profit_basis, cash, clients, advances, suppliers, inventory,
         tax_credits, cogs, debt, equity,
     )
 
@@ -82,7 +84,7 @@ def run_quarterly_audit(
         achados=findings,
         resumo_metricas=_build_resumo_metricas(
             revenue, revenue_deductions, tax_expense, tax_liability, payroll, expenses,
-            third_party_services, profit_dist, profit_basis, cash, clients, advances, suppliers, inventory,
+            third_party_services, partners, profit_dist, profit_basis, cash, clients, advances, suppliers, inventory,
             tax_credits, cogs, debt, equity,
         ),
         metricas_valores=metricas_valores,
@@ -91,6 +93,7 @@ def run_quarterly_audit(
         total_contas_analisadas=len(balance.contas),
         total_regras_verificadas=_total_regras_configuradas(conjunto_regras),
         conjunto_regras=conjunto_regras,
+        classificacao_contas=build_account_classification_report(balance),
     )
 
 
@@ -102,6 +105,7 @@ def _build_resumo_metricas(
     payroll: Decimal,
     expenses: Decimal,
     third_party_services: Decimal,
+    partners: Decimal,
     profit_dist: Decimal,
     profit_basis: Any,
     cash: Decimal,
@@ -124,6 +128,7 @@ def _build_resumo_metricas(
         "folha_pro_labore": format_brl(payroll),
         "despesas": format_brl(expenses),
         "servicos_terceiros": format_brl(third_party_services),
+        "saldo_contas_socios": format_brl(partners),
         "lucros_distribuidos": format_brl(profit_dist),
         "lucro_apurado_base": format_brl(profit_basis.value),
         "origem_lucro_apurado": profit_basis.source,
@@ -155,6 +160,7 @@ def _build_metricas_valores(
     payroll: Decimal,
     expenses: Decimal,
     third_party_services: Decimal,
+    partners: Decimal,
     profit_dist: Decimal,
     profit_basis: Any,
     cash: Decimal,
@@ -179,6 +185,7 @@ def _build_metricas_valores(
         "folha_pro_labore": _f(payroll),
         "despesas_operacionais": _f(expenses),
         "servicos_terceiros": _f(third_party_services),
+        "saldo_contas_socios": _f(partners),
         "lucros_distribuidos": _f(profit_dist),
         "lucro_apurado_base": _f(profit_basis.value),
         "origem_lucro_apurado": profit_basis.source,

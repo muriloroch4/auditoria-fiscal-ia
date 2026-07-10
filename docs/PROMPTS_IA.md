@@ -34,6 +34,7 @@ Você receberá um JSON com os seguintes blocos:
 
 - identificacao_empresa
 - resumo_analise
+- classificacao_contas
 - principais_achados
 - fundamentacao_tecnica_resumida
 - conclusao_tecnica
@@ -41,6 +42,7 @@ Você receberá um JSON com os seguintes blocos:
 - metadados
 
 Cada item de `principais_achados` pode conter `evidencia`, com fonte dos dados, nível de confiança, documentos recomendados e campos extraídos pelo motor de regras.
+O bloco `classificacao_contas` informa como as contas contábeis foram reconhecidas pelo sistema, incluindo origem, confiança e contas que precisam revisão.
 
 Tarefa
 
@@ -67,6 +69,8 @@ Se algum dado não existir no JSON, usar [VERIFICAR: dado necessário].
 ## 2. Resumo da análise
 
 Use exclusivamente os dados de `resumo_analise`, incluindo total de regras verificadas, regras acionadas, risco geral, pontuação, achados por severidade e principais pontos.
+
+Quando houver contas em `classificacao_contas.contas_revisao`, mencionar de forma resumida que há contas contábeis com classificação a validar, sem transformar essa seção em relatório extenso.
 
 ## 3. Principais achados
 

@@ -37,6 +37,7 @@ class SimplesMetrics:
     expenses: Decimal
     third_party_service_accounts: list[LedgerAccount]
     third_party_services: Decimal
+    partner_accounts: list[LedgerAccount]
     partners: Decimal
     clients: Decimal
     client_movement: Decimal
@@ -57,6 +58,8 @@ def collect_simples_metrics(balance: TrialBalance, rbt12_context: dict | None = 
         (_third_party_services_amount(account) for account in third_party_service_accounts),
         Decimal("0"),
     )
+    partner_accounts = partner_related_accounts(balance)
+    partners = sum((_partner_account_amount(account) for account in partner_accounts), Decimal("0"))
 
     return SimplesMetrics(
         revenue=calculate_revenue(balance),
@@ -67,7 +70,8 @@ def collect_simples_metrics(balance: TrialBalance, rbt12_context: dict | None = 
         expenses=calculate_operating_expenses(balance),
         third_party_service_accounts=third_party_service_accounts,
         third_party_services=third_party_services,
-        partners=_abs(balance.total_por_grupo("socios")),
+        partner_accounts=partner_accounts,
+        partners=partners,
         clients=_abs(balance.total_por_grupo("clientes")),
         client_movement=_group_movement(balance, "clientes"),
         advances=calculate_advances(balance),
@@ -118,11 +122,23 @@ def calculate_third_party_services_expense(balance: TrialBalance) -> Decimal:
     return sum((_third_party_services_amount(account) for account in third_party_services_accounts(balance)), Decimal("0"))
 
 
+def calculate_partner_accounts_balance(balance: TrialBalance) -> Decimal:
+    return sum((_partner_account_amount(account) for account in partner_related_accounts(balance)), Decimal("0"))
+
+
 def third_party_services_accounts(balance: TrialBalance) -> list[LedgerAccount]:
     return [
         account
         for account in balance.contas
         if _is_third_party_services_account(account.codigo, account.conta)
+    ]
+
+
+def partner_related_accounts(balance: TrialBalance) -> list[LedgerAccount]:
+    return [
+        account
+        for account in balance.contas
+        if _partner_account_amount(account) > 0 and _is_partner_related_account(account)
     ]
 
 
@@ -245,6 +261,33 @@ def _third_party_services_amount(account: LedgerAccount) -> Decimal:
     elif amount <= 0 and account.credito > 0:
         amount = account.credito
     return _abs(amount)
+
+
+def _partner_account_amount(account: LedgerAccount) -> Decimal:
+    return _abs(account.saldo_atual)
+
+
+def _is_partner_related_account(account: LedgerAccount) -> bool:
+    code = str(account.codigo or "").strip()
+    code_parts = "".join(char if char.isdigit() else " " for char in code).split()
+    text = _normalize_text(account.conta)
+    monitored_codes = {"616", "627", "770"}
+    partner_keywords = (
+        "socio",
+        "socios",
+        "administrador",
+        "administradores",
+        "pessoa ligada",
+        "mutuo",
+        "conta corrente socio",
+        "emprestimo de socio",
+        "adiantamento a socio",
+    )
+    return (
+        account.grupo == "socios"
+        or any(part.lstrip("0") in monitored_codes for part in code_parts)
+        or any(keyword in text for keyword in partner_keywords)
+    )
 
 
 def _is_third_party_services_account(code: str, name: str) -> bool:

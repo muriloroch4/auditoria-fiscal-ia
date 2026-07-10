@@ -21,6 +21,10 @@ class LedgerAccount:
     debito: Decimal
     credito: Decimal
     saldo_atual: Decimal
+    grupo_original: str = ""
+    classificacao_origem: str = ""
+    classificacao_confianca: str = ""
+    classificacao_observacao: str = ""
 
 
 @dataclass(frozen=True)
@@ -71,3 +75,4 @@ class AuditResult:
     total_contas_analisadas: int
     total_regras_verificadas: int
     conjunto_regras: str = "simples_servicos"
+    classificacao_contas: dict[str, Any] = field(default_factory=dict)
