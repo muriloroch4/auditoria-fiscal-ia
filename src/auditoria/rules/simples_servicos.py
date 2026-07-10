@@ -1,93 +1,34 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from decimal import Decimal
-from unicodedata import combining, normalize
 
 from ..config_loader import get_rule_config, load_config
 from ..models import LedgerAccount, RiskLevel, RuleFinding, TrialBalance
 from ..utils import format_brl, format_percent
+from .comercio import analyze_commerce_rules
+from .compostas import apply_compound_rules
+from .metricas import (
+    LEGACY_TAX_GROUP,
+    ProfitBasis,
+    calculate_profit_basis,
+    calculate_profit_distribution_capacity,
+    collect_simples_metrics,
+    format_account_trace,
+    TAX_LIABILITY_GROUPS,
+)
+from .misto import check_mixed_revenue_segregation
+from .rulesets import (
+    COMMERCE_RULESETS,
+    RULESET_COMERCIO,
+    RULESET_COMERCIO_SERVICOS,
+    RULESET_SERVICOS,
+    SERVICE_RULESETS,
+    normalize_ruleset,
+)
+from .servicos import check_payroll_factor
 
 _money = format_brl
 _percent = format_percent
-
-OPERATING_EXPENSE_GROUPS = frozenset({
-    "despesas",
-    "custos",
-    "despesas_representacao",
-    "despesas_veiculos",
-    "despesas_tributarias",
-    "multas_fiscais",
-})
-ADVANCE_GROUPS = frozenset({"adiantamentos", "adiantamentos_clientes"})
-TAX_EXPENSE_GROUPS = frozenset({"despesas_tributarias"})
-TAX_LIABILITY_GROUPS = frozenset({"tributos_a_recolher"})
-LEGACY_TAX_GROUP = "tributos"
-
-RULESET_SERVICOS = "simples_servicos"
-RULESET_COMERCIO = "simples_comercio"
-RULESET_COMERCIO_SERVICOS = "simples_comercio_servicos"
-
-_RULESET_ALIASES = {
-    "servico": RULESET_SERVICOS,
-    "servicos": RULESET_SERVICOS,
-    "serviços": RULESET_SERVICOS,
-    "simples_servicos": RULESET_SERVICOS,
-    "simples_serviços": RULESET_SERVICOS,
-    "comercio": RULESET_COMERCIO,
-    "comércio": RULESET_COMERCIO,
-    "simples_comercio": RULESET_COMERCIO,
-    "simples_comércio": RULESET_COMERCIO,
-    "misto": RULESET_COMERCIO_SERVICOS,
-    "mista": RULESET_COMERCIO_SERVICOS,
-    "comercio_servicos": RULESET_COMERCIO_SERVICOS,
-    "comércio_serviços": RULESET_COMERCIO_SERVICOS,
-    "comercio e servicos": RULESET_COMERCIO_SERVICOS,
-    "comércio e serviços": RULESET_COMERCIO_SERVICOS,
-    "simples_comercio_servicos": RULESET_COMERCIO_SERVICOS,
-    "simples_comércio_serviços": RULESET_COMERCIO_SERVICOS,
-}
-
-_SERVICE_RULESETS = frozenset({RULESET_SERVICOS, RULESET_COMERCIO_SERVICOS})
-_COMMERCE_RULESETS = frozenset({RULESET_COMERCIO, RULESET_COMERCIO_SERVICOS})
-
-
-@dataclass(frozen=True)
-class ProfitBasis:
-    value: Decimal
-    source: str
-
-
-@dataclass(frozen=True)
-class SimplesMetrics:
-    revenue: Decimal
-    active_movement: Decimal
-    operational_movement: Decimal
-    tax_expense: Decimal
-    payroll: Decimal
-    expenses: Decimal
-    third_party_service_accounts: list[LedgerAccount]
-    third_party_services: Decimal
-    partners: Decimal
-    clients: Decimal
-    client_movement: Decimal
-    advances: Decimal
-    profit_distribution: Decimal
-    cash: Decimal
-    physical_cash: Decimal
-    suppliers: Decimal
-    inventory: Decimal
-    tax_credits: Decimal
-    cogs: Decimal
-    rbt12_revenue: Decimal | None
-
-
-def normalize_ruleset(value: str | None = None) -> str:
-    normalized = _normalize_text(value or RULESET_SERVICOS).replace("-", "_").replace("/", " ")
-    normalized = " ".join(normalized.replace("_", " ").split())
-    direct_key = normalized.replace(" ", "_")
-    return _RULESET_ALIASES.get(normalized) or _RULESET_ALIASES.get(direct_key) or RULESET_SERVICOS
-
 
 def analyze_simples_servicos(balance: TrialBalance, profit_basis: ProfitBasis | None = None) -> list[RuleFinding]:
     return _analyze_simples_nacional(balance, RULESET_SERVICOS, profit_basis=profit_basis)
@@ -121,7 +62,7 @@ def _analyze_simples_nacional(
     profit_basis: ProfitBasis | None = None,
     rbt12_context: dict | None = None,
 ) -> list[RuleFinding]:
-    metrics = _collect_simples_metrics(balance, rbt12_context)
+    metrics = collect_simples_metrics(balance, rbt12_context)
 
     if profit_basis is None:
         profit_basis = calculate_profit_basis(balance, metrics.revenue, metrics.expenses)
@@ -131,8 +72,8 @@ def _analyze_simples_nacional(
     findings.extend(_check_low_or_missing_revenue(metrics.revenue, metrics.active_movement, metrics.operational_movement))
     findings.extend(_check_revenue_limit(metrics.revenue, metrics.rbt12_revenue))
     findings.extend(_check_tax_ratio(metrics.revenue, metrics.tax_expense, ruleset))
-    if ruleset in _SERVICE_RULESETS:
-        findings.extend(_check_payroll_factor(metrics.revenue, metrics.payroll, ruleset))
+    if ruleset in SERVICE_RULESETS:
+        findings.extend(check_payroll_factor(metrics.revenue, metrics.payroll, ruleset))
     findings.extend(
         _check_profit_distribution(
             metrics.revenue,
@@ -159,24 +100,20 @@ def _analyze_simples_nacional(
     findings.extend(_check_high_profit_margin(metrics.revenue, profit_basis))
     findings.extend(_check_tax_liability_growth(balance, metrics.revenue))
     findings.extend(_check_missing_provisions(metrics.revenue, metrics.payroll, balance))
-    if ruleset in _COMMERCE_RULESETS:
-        findings.extend(_check_inventory_position(metrics.revenue, metrics.inventory, metrics.cogs))
-        findings.extend(_check_supplier_position(metrics.revenue, metrics.suppliers, metrics.inventory))
-        findings.extend(_check_tax_credits_simples(metrics.revenue, metrics.tax_credits))
-        findings.extend(_check_cogs_for_commerce(metrics.revenue, metrics.inventory, metrics.suppliers, metrics.cogs))
-        findings.extend(_check_commerce_sublimit(metrics.revenue, metrics.rbt12_revenue))
+    if ruleset in COMMERCE_RULESETS:
         findings.extend(
-            _check_icms_st_attention(
+            analyze_commerce_rules(
                 metrics.revenue,
                 metrics.inventory,
                 metrics.suppliers,
-                metrics.cogs,
                 metrics.tax_credits,
+                metrics.cogs,
+                metrics.rbt12_revenue,
             )
         )
     if ruleset == RULESET_COMERCIO_SERVICOS:
         findings.extend(
-            _check_mixed_revenue_segregation(
+            check_mixed_revenue_segregation(
                 balance,
                 metrics.revenue,
                 metrics.payroll,
@@ -184,170 +121,9 @@ def _analyze_simples_nacional(
                 metrics.suppliers,
             )
         )
-    findings.extend(_apply_compound_rules(findings))
+    findings.extend(apply_compound_rules(findings))
 
     return findings
-
-
-def _collect_simples_metrics(balance: TrialBalance, rbt12_context: dict | None = None) -> SimplesMetrics:
-    third_party_service_accounts = third_party_services_accounts(balance)
-    third_party_services = sum(
-        (_third_party_services_amount(account) for account in third_party_service_accounts),
-        Decimal("0"),
-    )
-
-    return SimplesMetrics(
-        revenue=calculate_revenue(balance),
-        active_movement=_active_movement(balance),
-        operational_movement=_operational_movement(balance),
-        tax_expense=calculate_tax_expense(balance),
-        payroll=_abs(balance.debito_por_grupo("folha")),
-        expenses=calculate_operating_expenses(balance),
-        third_party_service_accounts=third_party_service_accounts,
-        third_party_services=third_party_services,
-        partners=_abs(balance.total_por_grupo("socios")),
-        clients=_abs(balance.total_por_grupo("clientes")),
-        client_movement=_group_movement(balance, "clientes"),
-        advances=calculate_advances(balance),
-        profit_distribution=calculate_profit_distribution(balance),
-        cash=balance.total_por_grupo("caixa") + balance.total_por_grupo("bancos"),
-        physical_cash=_abs(balance.total_por_grupo("caixa")),
-        suppliers=calculate_suppliers(balance),
-        inventory=calculate_inventory(balance),
-        tax_credits=calculate_tax_credits(balance),
-        cogs=calculate_cost_of_goods(balance),
-        rbt12_revenue=_rbt12_decimal(rbt12_context, "receita"),
-    )
-
-
-def calculate_profit_basis(
-    balance: TrialBalance,
-    revenue: Decimal | None = None,
-    expenses: Decimal | None = None,
-) -> ProfitBasis:
-    result_accounts = balance.contas_por_grupo("resultado")
-    if result_accounts:
-        return ProfitBasis(
-            value=sum((account.saldo_atual for account in result_accounts), Decimal("0")),
-            source="resultado informado no balancete",
-        )
-
-    revenue_value = calculate_revenue(balance) if revenue is None else revenue
-    expense_value = calculate_operating_expenses(balance) if expenses is None else expenses
-    revenue_deductions = calculate_revenue_deductions(balance)
-    return ProfitBasis(
-        value=revenue_value - revenue_deductions - expense_value,
-        source="estimativa: receita - deduções - custos/despesas",
-    )
-
-
-def calculate_revenue(balance: TrialBalance) -> Decimal:
-    credit_revenue = _abs(balance.credito_por_grupo("receita"))
-    if credit_revenue > 0:
-        return credit_revenue
-    return _abs(balance.total_por_grupo("receita"))
-
-
-def calculate_operating_expenses(balance: TrialBalance) -> Decimal:
-    return _abs(_debitos_por_grupos(balance, OPERATING_EXPENSE_GROUPS))
-
-
-def calculate_third_party_services_expense(balance: TrialBalance) -> Decimal:
-    return sum((_third_party_services_amount(account) for account in third_party_services_accounts(balance)), Decimal("0"))
-
-
-def third_party_services_accounts(balance: TrialBalance) -> list[LedgerAccount]:
-    return [
-        account
-        for account in balance.contas
-        if _is_third_party_services_account(account.codigo, account.conta)
-    ]
-
-
-def _third_party_services_amount(account: LedgerAccount) -> Decimal:
-    amount = account.debito
-    if amount <= 0 and account.saldo_atual != 0:
-        amount = _abs(account.saldo_atual)
-    elif amount <= 0 and account.credito > 0:
-        amount = account.credito
-    return _abs(amount)
-
-
-def calculate_revenue_deductions(balance: TrialBalance) -> Decimal:
-    saldo_deductions = _abs(_saldos_por_grupos(balance, {"tributos_sobre_receita"}))
-    if saldo_deductions > 0:
-        return saldo_deductions
-    return _abs(_debitos_por_grupos(balance, {"tributos_sobre_receita"}))
-
-
-def calculate_tax_expense(balance: TrialBalance) -> Decimal:
-    explicit_tax = calculate_revenue_deductions(balance) + _abs(_debitos_por_grupos(balance, TAX_EXPENSE_GROUPS))
-    if explicit_tax > 0:
-        return explicit_tax
-    return _abs(balance.total_por_grupo(LEGACY_TAX_GROUP))
-
-
-def calculate_tax_liability(balance: TrialBalance) -> Decimal:
-    explicit_liability = _abs(_saldos_por_grupos(balance, TAX_LIABILITY_GROUPS))
-    if explicit_liability > 0:
-        return explicit_liability
-    return _abs(balance.total_por_grupo(LEGACY_TAX_GROUP))
-
-
-def calculate_advances(balance: TrialBalance) -> Decimal:
-    return _abs(_saldos_por_grupos(balance, ADVANCE_GROUPS))
-
-
-def calculate_suppliers(balance: TrialBalance) -> Decimal:
-    return _abs(balance.total_por_grupo("fornecedores"))
-
-
-def calculate_inventory(balance: TrialBalance) -> Decimal:
-    return _abs(balance.total_por_grupo("estoques") + balance.total_por_grupo("estoque"))
-
-
-def calculate_tax_credits(balance: TrialBalance) -> Decimal:
-    return _abs(balance.total_por_grupo("creditos_fiscais"))
-
-
-def calculate_cost_of_goods(balance: TrialBalance) -> Decimal:
-    return _abs(balance.debito_por_grupo("custos"))
-
-
-def calculate_profit_distribution(balance: TrialBalance) -> Decimal:
-    total = Decimal("0")
-    for account in balance.contas_por_grupo("lucros"):
-        if account.debito > 0:
-            total += account.debito
-            continue
-        text = account.conta.lower()
-        if any(key in text for key in ("lucro", "dividendo", "jcp", "juros sobre capital")):
-            if account.credito > 0:
-                total += account.credito
-            elif account.saldo_atual != 0:
-                total += _abs(account.saldo_atual)
-    return _abs(total)
-
-
-def calculate_profit_distribution_capacity(balance: TrialBalance, profit_basis: ProfitBasis | None = None) -> Decimal:
-    capacity = Decimal("0")
-    for group in ("patrimonio", "patrimonio_liquido", "resultado"):
-        for account in balance.contas_por_grupo(group):
-            text = _normalize_text(account.conta)
-            is_profit_account = any(key in text for key in ("lucro", "resultado", "reserva"))
-            is_loss_account = "preju" in text
-            if not is_profit_account and not is_loss_account:
-                continue
-
-            value = _abs(account.saldo_atual)
-            if is_loss_account:
-                capacity -= value
-            else:
-                capacity += value
-
-    if profit_basis and profit_basis.value > 0:
-        capacity = max(capacity, profit_basis.value)
-    return max(capacity, Decimal("0"))
 
 
 def _check_low_or_missing_revenue(revenue: Decimal, active_movement: Decimal, operational_movement: Decimal) -> list[RuleFinding]:
@@ -486,31 +262,6 @@ def _check_tax_ratio(revenue: Decimal, tax_expense: Decimal, ruleset: str = RULE
                 evidencia={"receita": _money(revenue), "tributos_registrados": _money(tax_expense), "percentual": _percent(ratio)},
                 recomendacao="Validar se todas as guias do trimestre foram reconhecidas e se houve retenções compensáveis.",
                 normas_aplicaveis=("LC 123/2006", tax_norm),
-            )
-        ]
-
-    return []
-
-
-def _check_payroll_factor(revenue: Decimal, payroll: Decimal, ruleset: str = RULESET_SERVICOS) -> list[RuleFinding]:
-    if revenue <= 0:
-        return []
-
-    cfg = get_rule_config("SN-003")
-    lim = Decimal(str(cfg.get("limite_medio", 0.08)))
-    factor = payroll / revenue
-    title_activity = "empresa de serviços" if ruleset == RULESET_SERVICOS else "atividade de serviços em empresa mista"
-    if factor < lim:
-        return [
-            RuleFinding(
-                codigo="SN-003",
-                titulo=f"Folha e pró-labore trimestrais baixos para {title_activity}",
-                nivel=RiskLevel.MEDIO,
-                pontuacao=cfg.get("pontuacao_medio", 14),
-                descricao="A folha e o pró-labore do trimestre representam percentual baixo da receita trimestral, funcionando como indicador preliminar para validação do Fator R.",
-                evidencia={"receita_trimestre": _money(revenue), "folha_pro_labore_trimestre": _money(payroll), "fator_r_trimestral_estimado": _percent(factor)},
-                recomendacao="Revisar folha, pró-labore dos sócios e apuração do Fator R com base acumulada de 12 meses antes de concluir sobre o anexo aplicável.",
-                normas_aplicaveis=("LC 123/2006", "art. 18° LC 123/2006"),
             )
         ]
 
@@ -907,7 +658,7 @@ def _check_third_party_services_expense(
                 "limite_percentual_despesas": _percent(ratio_limit),
                 "limite_absoluto": _money(absolute_limit),
                 "quantidade_contas_identificadas": str(len(accounts)),
-                "contas_identificadas": _format_account_trace(accounts),
+                "contas_identificadas": format_account_trace(accounts),
                 "criterio_rastreio": "codigo 325, prefixo configurado ou descricao de servicos prestados por terceiros",
                 "tipo_achado": "validacao_documental",
             },
@@ -1108,563 +859,8 @@ def _check_missing_provisions(revenue: Decimal, payroll: Decimal, balance: Trial
     ]
 
 
-def _check_inventory_position(revenue: Decimal, inventory: Decimal, cogs: Decimal) -> list[RuleFinding]:
-    if inventory <= 0:
-        return []
-
-    cfg = get_rule_config("SN-015")
-    absolute_limit = Decimal(str(cfg.get("limite_absoluto_sem_receita", 10000)))
-
-    if revenue <= 0 and inventory > absolute_limit:
-        return [
-            RuleFinding(
-                codigo="SN-015A",
-                titulo="Estoque relevante sem receita registrada",
-                nivel=RiskLevel.ALTO,
-                pontuacao=cfg.get("pontuacao_alto", 24),
-                descricao="A empresa apresenta saldo relevante de estoques sem receita registrada no trimestre.",
-                evidencia={
-                    "receita": _money(revenue),
-                    "estoques": _money(inventory),
-                    "limite_absoluto": _money(absolute_limit),
-                },
-                recomendacao="Validar inventario, notas fiscais de entrada e saida, baixas por venda, perdas e eventual receita nao reconhecida.",
-                normas_aplicaveis=("LC 123/2006", "CPC 16 R1", "ITG 2000"),
-            )
-        ]
-
-    if revenue <= 0:
-        return []
-
-    ratio = inventory / revenue
-    lim_alto = Decimal(str(cfg.get("limite_alto_ratio", 2.0)))
-    if ratio > lim_alto:
-        return [
-            RuleFinding(
-                codigo="SN-015C",
-                titulo="Estoque muito elevado em relacao a receita trimestral",
-                nivel=RiskLevel.ALTO,
-                pontuacao=cfg.get("pontuacao_alto", 24),
-                descricao="O saldo de estoques supera parametro elevado em relacao a receita trimestral, indicando risco de inventario sem giro, baixa pendente ou classificacao inadequada.",
-                evidencia={
-                    "receita": _money(revenue),
-                    "estoques": _money(inventory),
-                    "cmv_custos": _money(cogs),
-                    "percentual_sobre_receita": _percent(ratio),
-                },
-                recomendacao="Conciliar estoque contabil com inventario fisico, compras, notas fiscais de venda, perdas, devolucoes e criterios de avaliacao.",
-                normas_aplicaveis=("LC 123/2006", "CPC 16 R1", "ITG 2000"),
-            )
-        ]
-
-    lim_medio = Decimal(str(cfg.get("limite_medio_ratio", 1.0)))
-    if ratio > lim_medio:
-        return [
-            RuleFinding(
-                codigo="SN-015B",
-                titulo="Estoque elevado em relacao a receita trimestral",
-                nivel=RiskLevel.MEDIO,
-                pontuacao=cfg.get("pontuacao_medio", 14),
-                descricao="O saldo de estoques esta relevante em relacao a receita do trimestre e deve ser confrontado com o giro operacional.",
-                evidencia={
-                    "receita": _money(revenue),
-                    "estoques": _money(inventory),
-                    "cmv_custos": _money(cogs),
-                    "percentual_sobre_receita": _percent(ratio),
-                },
-                recomendacao="Revisar inventario, compras do periodo, baixas por venda e composicao de itens sem giro.",
-                normas_aplicaveis=("CPC 16 R1", "ITG 2000"),
-            )
-        ]
-
-    return []
-
-
-def _check_supplier_position(revenue: Decimal, suppliers: Decimal, inventory: Decimal) -> list[RuleFinding]:
-    if suppliers <= 0:
-        return []
-
-    cfg = get_rule_config("SN-016")
-    absolute_limit = Decimal(str(cfg.get("limite_absoluto_sem_receita", 10000)))
-
-    if revenue <= 0 and suppliers > absolute_limit:
-        return [
-            RuleFinding(
-                codigo="SN-016A",
-                titulo="Fornecedores relevantes sem receita registrada",
-                nivel=RiskLevel.MEDIO,
-                pontuacao=cfg.get("pontuacao_medio", 14),
-                descricao="Ha saldo relevante de fornecedores sem receita registrada no trimestre, exigindo conciliacao entre compras, estoques e operacao.",
-                evidencia={
-                    "receita": _money(revenue),
-                    "fornecedores": _money(suppliers),
-                    "estoques": _money(inventory),
-                },
-                recomendacao="Conciliar contas a pagar, notas fiscais de compra, estoque e eventual faturamento posterior.",
-                normas_aplicaveis=("LC 123/2006", "ITG 2000"),
-            )
-        ]
-
-    if revenue <= 0:
-        return []
-
-    ratio = suppliers / revenue
-    lim_alto = Decimal(str(cfg.get("limite_alto_ratio", 1.5)))
-    if ratio > lim_alto:
-        return [
-            RuleFinding(
-                codigo="SN-016C",
-                titulo="Fornecedores muito elevados em relacao a receita",
-                nivel=RiskLevel.ALTO,
-                pontuacao=cfg.get("pontuacao_alto", 22),
-                descricao="O saldo de fornecedores e muito elevado em relacao a receita trimestral, podendo indicar passivo comercial sem baixa, compras sem giro ou erro de classificacao.",
-                evidencia={
-                    "receita": _money(revenue),
-                    "fornecedores": _money(suppliers),
-                    "estoques": _money(inventory),
-                    "percentual_sobre_receita": _percent(ratio),
-                },
-                recomendacao="Conferir aging de fornecedores, documentos fiscais de compra, pagamentos posteriores e vinculo com estoque/CMV.",
-                normas_aplicaveis=("NBC TG 1000", "ITG 2000"),
-            )
-        ]
-
-    lim_medio = Decimal(str(cfg.get("limite_medio_ratio", 0.8)))
-    if ratio > lim_medio:
-        return [
-            RuleFinding(
-                codigo="SN-016B",
-                titulo="Fornecedores elevados em relacao a receita",
-                nivel=RiskLevel.MEDIO,
-                pontuacao=cfg.get("pontuacao_medio", 14),
-                descricao="O saldo de fornecedores esta relevante em relacao a receita trimestral e deve ser conciliado com compras e pagamentos.",
-                evidencia={
-                    "receita": _money(revenue),
-                    "fornecedores": _money(suppliers),
-                    "estoques": _money(inventory),
-                    "percentual_sobre_receita": _percent(ratio),
-                },
-                recomendacao="Revisar composicao de fornecedores, notas fiscais, duplicatas pagas e mercadorias recebidas.",
-                normas_aplicaveis=("NBC TG 1000", "ITG 2000"),
-            )
-        ]
-
-    return []
-
-
-def _check_tax_credits_simples(revenue: Decimal, tax_credits: Decimal) -> list[RuleFinding]:
-    if tax_credits <= 0:
-        return []
-
-    cfg = get_rule_config("SN-017")
-    absolute_limit = Decimal(str(cfg.get("limite_absoluto", 5000)))
-    ratio_limit = Decimal(str(cfg.get("limite_ratio", 0.02)))
-    ratio_reference = revenue * ratio_limit if revenue > 0 else Decimal("0")
-    reference = max(absolute_limit, ratio_reference)
-
-    if tax_credits <= reference:
-        return []
-
-    ratio = tax_credits / revenue if revenue > 0 else Decimal("0")
-    return [
-        RuleFinding(
-            codigo="SN-017",
-            titulo="Creditos fiscais relevantes em empresa do Simples Nacional",
-            nivel=RiskLevel.MEDIO,
-            pontuacao=cfg.get("pontuacao_medio", 16),
-            descricao="Foram identificados creditos fiscais relevantes em empresa optante pelo Simples Nacional, exigindo validacao da natureza e recuperabilidade.",
-            evidencia={
-                "receita": _money(revenue),
-                "creditos_fiscais": _money(tax_credits),
-                "referencia_aplicada": _money(reference),
-                "percentual_sobre_receita": _percent(ratio) if revenue > 0 else "0,0%",
-            },
-            recomendacao="Validar se os creditos decorrem de retencoes, ICMS-ST, ressarcimentos ou saldos recuperaveis documentados, evitando manter ativo fiscal sem suporte.",
-            normas_aplicaveis=("LC 123/2006", "NBC TG 1000", "ITG 2000"),
-        )
-    ]
-
-
-def _check_cogs_for_commerce(
-    revenue: Decimal,
-    inventory: Decimal,
-    suppliers: Decimal,
-    cogs: Decimal,
-) -> list[RuleFinding]:
-    if revenue <= 0:
-        return []
-
-    cfg = get_rule_config("SN-018")
-    commerce_signal = inventory > 0 or suppliers > 0
-    min_revenue = Decimal(str(cfg.get("receita_minima", 10000)))
-
-    if commerce_signal and cogs <= 0 and revenue > min_revenue:
-        return [
-            RuleFinding(
-                codigo="SN-018A",
-                titulo="Receita de comercio sem CMV ou custo de mercadorias identificado",
-                nivel=RiskLevel.ALTO,
-                pontuacao=cfg.get("pontuacao_alto", 24),
-                descricao="Ha receita e indicadores comerciais, mas nao foi identificado custo de mercadorias vendidas ou baixa equivalente no balancete.",
-                evidencia={
-                    "receita": _money(revenue),
-                    "estoques": _money(inventory),
-                    "fornecedores": _money(suppliers),
-                    "cmv_custos": _money(cogs),
-                },
-                recomendacao="Verificar se as baixas de estoque/CMV foram contabilizadas por competencia e se as contas de custo foram classificadas corretamente.",
-                normas_aplicaveis=("CPC 16 R1", "NBC TG 1000", "ITG 2000"),
-            )
-        ]
-
-    if cogs <= 0:
-        return []
-
-    ratio = cogs / revenue
-    lim_alto = Decimal(str(cfg.get("limite_alto_ratio", 0.95)))
-    if ratio > lim_alto:
-        return [
-            RuleFinding(
-                codigo="SN-018C",
-                titulo="CMV muito elevado em relacao a receita",
-                nivel=RiskLevel.ALTO,
-                pontuacao=cfg.get("pontuacao_alto", 24),
-                descricao="O custo de mercadorias representa percentual muito elevado da receita, indicando margem bruta insuficiente ou possivel classificacao indevida.",
-                evidencia={
-                    "receita": _money(revenue),
-                    "cmv_custos": _money(cogs),
-                    "percentual_cmv_receita": _percent(ratio),
-                },
-                recomendacao="Revisar precificacao, devolucoes, descontos, compras, criterio de custeio e classificacao entre custo e despesa.",
-                normas_aplicaveis=("CPC 16 R1", "NBC TG 1000"),
-            )
-        ]
-
-    lim_baixo = Decimal(str(cfg.get("limite_baixo_ratio", 0.30)))
-    if commerce_signal and ratio < lim_baixo:
-        return [
-            RuleFinding(
-                codigo="SN-018B",
-                titulo="CMV baixo para operacao comercial com estoque ou fornecedores",
-                nivel=RiskLevel.MEDIO,
-                pontuacao=cfg.get("pontuacao_medio", 14),
-                descricao="O custo de mercadorias esta baixo em relacao a receita diante de sinais de operacao comercial, exigindo validacao das baixas de estoque.",
-                evidencia={
-                    "receita": _money(revenue),
-                    "cmv_custos": _money(cogs),
-                    "estoques": _money(inventory),
-                    "fornecedores": _money(suppliers),
-                    "percentual_cmv_receita": _percent(ratio),
-                },
-                recomendacao="Conferir baixas de estoque, notas fiscais de saida, custo medio e eventual classificacao de custos em outras contas.",
-                normas_aplicaveis=("CPC 16 R1", "ITG 2000"),
-            )
-        ]
-
-    return []
-
-
-def _check_commerce_sublimit(revenue: Decimal, rbt12_revenue: Decimal | None = None) -> list[RuleFinding]:
-    if revenue <= 0:
-        return []
-
-    cfg = get_rule_config("SN-019")
-    has_rbt12 = rbt12_revenue is not None and rbt12_revenue > 0
-    annualized_revenue = (rbt12_revenue or Decimal("0")) if has_rbt12 else revenue * Decimal("4")
-    base_calculo_limite = "RBT12 consolidado pelo historico" if has_rbt12 else "receita trimestral anualizada (receita x 4)"
-    sublimite = Decimal(str(cfg.get("sublimite_anual", 3600000)))
-    if annualized_revenue <= sublimite:
-        return []
-
-    return [
-        RuleFinding(
-            codigo="SN-019",
-            titulo="Receita anualizada acima do sublimite de ICMS",
-            nivel=RiskLevel.MEDIO,
-            pontuacao=cfg.get("pontuacao_medio", 16),
-            descricao="A receita trimestral anualizada supera o sublimite usado como alerta para ICMS fora do DAS em empresas comerciais.",
-            evidencia={
-                "receita_trimestre": _money(revenue),
-                "receita_anualizada_estimativa": _money(annualized_revenue),
-                "sublimite_anual": _money(sublimite),
-                "base_calculo_limite": base_calculo_limite,
-            },
-            recomendacao="Validar a RBT12, sublimite estadual aplicavel, segregacao de receitas e eventual recolhimento de ICMS fora do DAS.",
-            normas_aplicaveis=("LC 123/2006", "art. 20 LC 123/2006"),
-        )
-    ]
-
-
-def _check_icms_st_attention(
-    revenue: Decimal,
-    inventory: Decimal,
-    suppliers: Decimal,
-    cogs: Decimal,
-    tax_credits: Decimal,
-) -> list[RuleFinding]:
-    cfg = get_rule_config("SN-024")
-    min_revenue = Decimal(str(cfg.get("receita_minima", 10000)))
-    if revenue <= min_revenue:
-        return []
-
-    credit_ratio_limit = Decimal(str(cfg.get("limite_creditos_ratio", 0.01)))
-    credit_ratio = tax_credits / revenue if revenue > 0 else Decimal("0")
-    commercial_signal = inventory > 0 or suppliers > 0 or cogs > 0
-    has_relevant_tax_credits = tax_credits > 0 and credit_ratio >= credit_ratio_limit
-
-    if not commercial_signal or not has_relevant_tax_credits:
-        return []
-
-    return [
-        RuleFinding(
-            codigo="SN-024",
-            titulo="Validacao de ICMS-ST e creditos fiscais em operacao comercial",
-            nivel=RiskLevel.BAIXO,
-            pontuacao=cfg.get("pontuacao_baixo", 6),
-            descricao="Foram identificados creditos fiscais em contexto comercial, exigindo validacao documental de ICMS-ST, retencoes, ressarcimentos ou saldos recuperaveis.",
-            evidencia={
-                "receita": _money(revenue),
-                "creditos_fiscais": _money(tax_credits),
-                "percentual_sobre_receita": _percent(credit_ratio),
-                "estoques": _money(inventory),
-                "fornecedores": _money(suppliers),
-                "cmv_custos": _money(cogs),
-                "tipo_achado": "validacao_documental",
-                "limitacao_dados": "Balancete nao contem NCM, CFOP, CST ou item fiscal; exige confronto com notas fiscais e PGDAS-D.",
-            },
-            recomendacao="Validar NCM, CFOP, mercadorias sujeitas a substituicao tributaria, documentos de compra/venda, ressarcimentos e suporte dos creditos fiscais antes de concluir sobre margem e DAS.",
-            normas_aplicaveis=("LC 123/2006", "art. 20 LC 123/2006", "ITG 2000"),
-        )
-    ]
-
-
-def _check_mixed_revenue_segregation(
-    balance: TrialBalance,
-    revenue: Decimal,
-    payroll: Decimal,
-    inventory: Decimal,
-    suppliers: Decimal,
-) -> list[RuleFinding]:
-    if revenue <= 0:
-        return []
-
-    commerce_signal = inventory > 0 or suppliers > 0
-    service_signal = payroll > 0 or _revenue_by_nature(balance, "servicos") > 0
-    if not commerce_signal or not service_signal:
-        return []
-
-    service_revenue = _revenue_by_nature(balance, "servicos")
-    commerce_revenue = _revenue_by_nature(balance, "comercio")
-    identified_revenue = service_revenue + commerce_revenue
-
-    cfg = get_rule_config("SN-020")
-    tolerance = Decimal(str(cfg.get("tolerancia_receita_nao_segregada", 0.20)))
-    missing_split = service_revenue <= 0 or commerce_revenue <= 0
-    unsegregated_ratio = (revenue - identified_revenue) / revenue if revenue > identified_revenue else Decimal("0")
-
-    if not missing_split and unsegregated_ratio <= tolerance:
-        return []
-
-    return [
-        RuleFinding(
-            codigo="SN-020",
-            titulo="Receitas de comercio e servicos sem segregacao suficiente",
-            nivel=RiskLevel.MEDIO,
-            pontuacao=cfg.get("pontuacao_medio", 18),
-            descricao="A empresa apresenta sinais de atividade comercial e de servicos, mas a receita contabil nao esta suficientemente segregada por natureza.",
-            evidencia={
-                "receita_total": _money(revenue),
-                "receita_comercio_identificada": _money(commerce_revenue),
-                "receita_servicos_identificada": _money(service_revenue),
-                "receita_nao_segregada_estimativa": _percent(unsegregated_ratio),
-                "estoques": _money(inventory),
-                "fornecedores": _money(suppliers),
-                "folha_pro_labore": _money(payroll),
-            },
-            recomendacao="Segregar receitas de comercio e servicos por conta contabil e documento fiscal, validando anexos, fator R, ISS/ICMS e calculo do DAS.",
-            normas_aplicaveis=("LC 123/2006", "Anexos I e III/V da LC 123/2006", "ITG 2000"),
-        )
-    ]
-
-
-def _apply_compound_rules(findings: list[RuleFinding]) -> list[RuleFinding]:
-    compound: list[RuleFinding] = []
-    codes = {f.codigo for f in findings}
-
-    if any(c.startswith("SN-008") for c in codes) and "SN-007" in codes:
-        cfg = get_rule_config("SN-COMP-01")
-        compound.append(
-            RuleFinding(
-                codigo="SN-COMP-01",
-                titulo="Omissão de receita combinada com despesas operacionais elevadas",
-                nivel=RiskLevel.ALTO,
-                pontuacao=cfg.get("pontuacao", 15),
-                descricao="A empresa apresenta indicadores de omissão de receita (SN-008) e despesas operacionais elevadas (SN-007), sugerindo possível operação informal.",
-                evidencia={},
-                recomendacao="Realizar cruzamento entre entradas financeiras, notas fiscais emitidas e despesas contabilizadas para identificar divergências.",
-                normas_aplicaveis=("LC 123/2006", "NBC TG 1000"),
-            )
-        )
-
-    if "SN-009B" in codes and "SN-006A" in codes:
-        cfg = get_rule_config("SN-COMP-02")
-        compound.append(
-            RuleFinding(
-                codigo="SN-COMP-02",
-                titulo="Prejuízo contábil significativo com saldo financeiro negativo",
-                nivel=RiskLevel.ALTO,
-                pontuacao=cfg.get("pontuacao", 15),
-                descricao="A combinação de prejuízo contábil significativo (SN-009) com saldo de caixa/bancos negativo (SN-006) indica grave desequilíbrio financeiro.",
-                evidencia={},
-                recomendacao="Avaliar urgente a necessidade de aporte de capital, renegociação de passivos e revisão do modelo de negócio.",
-                normas_aplicaveis=("NBC TG 1000", "ITG 2000"),
-            )
-        )
-
-    if ("SN-010B" in codes or "SN-010C" in codes) and "SN-011A" in codes:
-        cfg = get_rule_config("SN-COMP-03")
-        compound.append(
-            RuleFinding(
-                codigo="SN-COMP-03",
-                titulo="Concentração de recebíveis e adiantamentos sem contrapartida",
-                nivel=RiskLevel.MEDIO,
-                pontuacao=cfg.get("pontuacao", 10),
-                descricao="A empresa apresenta simultaneamente saldos elevados em clientes/recebíveis (SN-010) e adiantamentos (SN-011), exigindo validação da liquidez e realização dos créditos.",
-                evidencia={},
-                recomendacao="Conciliar posições de recebíveis e adiantamentos com contratos, notas fiscais e projeção de fluxo de caixa.",
-                normas_aplicaveis=("NBC TG 1000", "ITG 2000"),
-            )
-        )
-
-    if any(c.startswith("SN-015") for c in codes) and any(c.startswith("SN-018") for c in codes):
-        cfg = get_rule_config("SN-COMP-04")
-        compound.append(
-            RuleFinding(
-                codigo="SN-COMP-04",
-                titulo="Estoque incompatível combinado com inconsistência de CMV",
-                nivel=RiskLevel.ALTO,
-                pontuacao=cfg.get("pontuacao", 15),
-                descricao="A empresa apresenta simultaneamente estoque relevante/incompatível e inconsistência no custo de mercadorias, aumentando o risco de distorção no resultado.",
-                evidencia={},
-                recomendacao="Reconciliar inventário, compras, notas fiscais de saída, devoluções, perdas e baixas de estoque antes do fechamento trimestral.",
-                normas_aplicaveis=("CPC 16 R1", "NBC TG 1000", "ITG 2000"),
-            )
-        )
-
-    if "SN-020" in codes and any(c.startswith("SN-002") for c in codes):
-        cfg = get_rule_config("SN-COMP-05")
-        compound.append(
-            RuleFinding(
-                codigo="SN-COMP-05",
-                titulo="Receita mista sem segregação combinada com carga tributária baixa",
-                nivel=RiskLevel.ALTO,
-                pontuacao=cfg.get("pontuacao", 15),
-                descricao="A ausência de segregação suficiente entre comércio e serviços aparece junto de carga tributária baixa, elevando o risco de anexo ou apuração incorreta.",
-                evidencia={},
-                recomendacao="Reprocessar a apuração do DAS com receitas segregadas por natureza, validando anexos, Fator R, ISS, ICMS e eventuais sublimites.",
-                normas_aplicaveis=("LC 123/2006", "Anexos I e III/V da LC 123/2006"),
-            )
-        )
-
-    return compound
-
-
 def _abs(value: Decimal) -> Decimal:
     return abs(value)
-
-
-def _rbt12_decimal(context: dict | None, key: str) -> Decimal | None:
-    if not context:
-        return None
-    value = context.get(key)
-    if value in (None, ""):
-        return None
-    try:
-        return Decimal(str(value))
-    except Exception:
-        return None
-
-
-def _is_third_party_services_account(code: str, name: str) -> bool:
-    text = _normalize_text(name)
-    code_parts = "".join(char if char.isdigit() else " " for char in str(code or "")).split()
-    code_matches = "325" in code_parts or str(code or "").strip() == "325"
-    keywords = (
-        "servicos prestados por terceiros",
-        "servico prestado por terceiro",
-        "servicos de terceiros",
-        "servico de terceiro",
-        "servicos terceiros",
-        "terceirizacao",
-        "terceirizados",
-    )
-    return code_matches or any(keyword in text for keyword in keywords)
-
-
-def _format_account_trace(accounts: list[LedgerAccount], limit: int = 6) -> str:
-    if not accounts:
-        return "Nenhuma conta individual identificada"
-
-    items = [
-        (
-            f"{account.codigo} - {account.conta} "
-            f"(grupo {account.grupo}; debito {_money(account.debito)}; "
-            f"credito {_money(account.credito)}; saldo {_money(account.saldo_atual)})"
-        )
-        for account in accounts[:limit]
-    ]
-    if len(accounts) > limit:
-        items.append(f"... mais {len(accounts) - limit} conta(s)")
-    return " | ".join(items)
-
-
-def _active_movement(balance: TrialBalance) -> Decimal:
-    relevant_grupos = {"bancos", "caixa"}
-    return sum(
-        (account.debito + account.credito for account in balance.contas if account.grupo in relevant_grupos),
-        Decimal("0"),
-    )
-
-
-def _operational_movement(balance: TrialBalance) -> Decimal:
-    relevant_grupos = {"bancos", "caixa", "clientes"}
-    return sum(
-        (account.debito + account.credito for account in balance.contas if account.grupo in relevant_grupos),
-        Decimal("0"),
-    )
-
-
-def _group_movement(balance: TrialBalance, group: str) -> Decimal:
-    return sum(
-        (account.debito + account.credito for account in balance.contas if account.grupo == group),
-        Decimal("0"),
-    )
-
-
-def _debitos_por_grupos(balance: TrialBalance, groups: frozenset[str] | set[str]) -> Decimal:
-    return sum((account.debito for account in balance.contas if account.grupo in groups), Decimal("0"))
-
-
-def _saldos_por_grupos(balance: TrialBalance, groups: frozenset[str] | set[str]) -> Decimal:
-    return sum((account.saldo_atual for account in balance.contas if account.grupo in groups), Decimal("0"))
-
-
-def _revenue_by_nature(balance: TrialBalance, nature: str) -> Decimal:
-    keywords = {
-        "servicos": ("servico", "servicos", "prestacao", "honorario", "consultoria"),
-        "comercio": ("venda", "mercadoria", "mercadorias", "produto", "produtos", "revenda"),
-    }.get(nature, ())
-    if not keywords:
-        return Decimal("0")
-
-    total = Decimal("0")
-    for account in balance.contas_por_grupo("receita"):
-        text = _normalize_text(account.conta)
-        if not any(keyword in text for keyword in keywords):
-            continue
-        value = _abs(account.credito) if account.credito != 0 else _abs(account.saldo_atual)
-        total += value
-    return total
 
 
 def _activity_label(ruleset: str) -> str:
@@ -1681,8 +877,3 @@ def _tax_annex_norm(ruleset: str) -> str:
     if ruleset == RULESET_COMERCIO_SERVICOS:
         return "Anexos I e III/V da LC 123/2006"
     return "Anexo III da LC 123/2006"
-
-
-def _normalize_text(value: str) -> str:
-    normalized = normalize("NFKD", value or "")
-    return "".join(char for char in normalized if not combining(char)).lower()

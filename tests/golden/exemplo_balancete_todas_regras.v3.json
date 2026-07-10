@@ -53,6 +53,23 @@
     {
       "achado": "Receita trimestral anualizada acima de 90% do limite do Simples",
       "codigo": "SN-001B",
+      "evidencia": {
+        "campos_extraidos": {
+          "base_calculo_limite": "receita trimestral anualizada (receita x 4)",
+          "limite_anual_simples": "R$ 4.800.000,00",
+          "percentual_limite_anual": "95,83%",
+          "receita_anualizada_estimativa": "R$ 4.600.000,00",
+          "receita_trimestre": "R$ 1.150.000,00"
+        },
+        "confianca": "media",
+        "documentos_recomendados": [
+          "PGDAS-D",
+          "receita bruta acumulada dos ultimos 12 meses",
+          "relatorio de faturamento por competencia"
+        ],
+        "fonte_dado": "balancete_contabil",
+        "necessita_documento": true
+      },
       "evidencia_identificada": "Receita do trimestre: R$ 1.150.000,00; Receita anualizada estimada: R$ 4.600.000,00; Limite anual do Simples Nacional: R$ 4.800.000,00; Percentual do limite anual: 95,83%; Base de calculo do limite: receita trimestral anualizada (receita x 4)",
       "impacto_tecnico": "Possivel inconsistencia material: Risco de extrapola\u00e7\u00e3o de limite, sublimite ou desenquadramento do Simples Nacional.",
       "norma_fundamento": [
@@ -66,6 +83,22 @@
     {
       "achado": "Distribui\u00e7\u00e3o de lucros acima do lucro dispon\u00edvel identificado",
       "codigo": "SN-004A",
+      "evidencia": {
+        "campos_extraidos": {
+          "lucro_apurado": "R$ 350.000,00",
+          "lucro_disponivel_identificado": "R$ 350.000,00",
+          "lucros_distribuidos": "R$ 500.000,00",
+          "origem_lucro": "resultado informado no balancete"
+        },
+        "confianca": "media",
+        "documentos_recomendados": [
+          "balancete de verificacao",
+          "razao contabil de lucros",
+          "ata/contrato de distribuicao de lucros"
+        ],
+        "fonte_dado": "balancete_contabil",
+        "necessita_documento": true
+      },
       "evidencia_identificada": "Lucro apurado: R$ 350.000,00; Origem do lucro: resultado informado no balancete; Lucro dispon\u00edvel identificado: R$ 350.000,00; Lucros distribu\u00eddos: R$ 500.000,00",
       "impacto_tecnico": "Possivel inconsistencia material: Risco societ\u00e1rio e fiscal por distribui\u00e7\u00e3o sem lastro cont\u00e1bil suficiente.",
       "norma_fundamento": [
@@ -78,6 +111,21 @@
     {
       "achado": "Carga tribut\u00e1ria abaixo de 3% da receita",
       "codigo": "SN-002B",
+      "evidencia": {
+        "campos_extraidos": {
+          "percentual": "1,30%",
+          "receita": "R$ 1.150.000,00",
+          "tributos_registrados": "R$ 15.000,00"
+        },
+        "confianca": "media",
+        "documentos_recomendados": [
+          "PGDAS-D",
+          "DAS apurado e pago",
+          "livro fiscal de receitas"
+        ],
+        "fonte_dado": "balancete_contabil",
+        "necessita_documento": true
+      },
       "evidencia_identificada": "Receita: R$ 1.150.000,00; Tributos registrados: R$ 15.000,00; Percentual: 1,30%",
       "impacto_tecnico": "Possivel inconsistencia material: Poss\u00edvel subapura\u00e7\u00e3o tribut\u00e1ria ou diverg\u00eancia entre receita e tributos reconhecidos.",
       "norma_fundamento": [
@@ -90,6 +138,22 @@
     {
       "achado": "Folha e pr\u00f3-labore trimestrais baixos para empresa de servi\u00e7os",
       "codigo": "SN-003",
+      "evidencia": {
+        "campos_extraidos": {
+          "fator_r_trimestral_estimado": "6,52%",
+          "folha_pro_labore_trimestre": "R$ 75.000,00",
+          "receita_trimestre": "R$ 1.150.000,00"
+        },
+        "confianca": "baixa",
+        "documentos_recomendados": [
+          "folha de pagamento",
+          "pro-labore",
+          "eSocial",
+          "PGDAS-D para calculo oficial do Fator R"
+        ],
+        "fonte_dado": "balancete_contabil",
+        "necessita_documento": true
+      },
       "evidencia_identificada": "Receita do trimestre: R$ 1.150.000,00; Folha pro labore trimestre: R$ 75.000,00; Fator R trimestral estimado: 6,52%",
       "impacto_tecnico": "Alerta tecnico: Risco de enquadramento incorreto do anexo e inconsist\u00eancia no Fator R.",
       "norma_fundamento": [
@@ -102,6 +166,29 @@
     {
       "achado": "Servicos prestados por terceiros relevantes nas despesas",
       "codigo": "SN-025",
+      "evidencia": {
+        "campos_extraidos": {
+          "conta_referencia": "325 - Servicos prestados por terceiros",
+          "contas_identificadas": "4.2.2 - Servicos de Terceiros (grupo despesas; debito R$ 420.000,00; credito R$ 0,00; saldo R$ -420.000,00)",
+          "criterio_rastreio": "codigo 325, prefixo configurado ou descricao de servicos prestados por terceiros",
+          "limite_absoluto": "R$ 10.000,00",
+          "limite_percentual_despesas": "20,00%",
+          "percentual_sobre_despesas": "56,38%",
+          "quantidade_contas_identificadas": "1",
+          "servicos_terceiros": "R$ 420.000,00",
+          "tipo_achado": "validacao_documental",
+          "total_despesas": "R$ 745.000,00"
+        },
+        "confianca": "media",
+        "documentos_recomendados": [
+          "contratos de prestadores",
+          "notas fiscais de servicos tomados",
+          "comprovantes bancarios",
+          "retencoes aplicaveis"
+        ],
+        "fonte_dado": "balancete_contabil",
+        "necessita_documento": true
+      },
       "evidencia_identificada": "Conta de referencia: 325 - Servicos prestados por terceiros; Servicos de terceiros: R$ 420.000,00; Total de despesas: R$ 745.000,00; Percentual sobre despesas: 56,38%; Limite percentual sobre despesas: 20,00%; Limite absoluto: R$ 10.000,00; Quantidade de contas identificadas: 1; Contas identificadas: 4.2.2 - Servicos\u2026",
       "impacto_tecnico": "Validacao documental: Ponto de atencao documental sobre pagamentos e servicos de terceiros lancados diretamente em despesas.",
       "norma_fundamento": [

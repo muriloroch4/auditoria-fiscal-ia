@@ -13,7 +13,6 @@ _VERIFY_CNPJ = ""
 
 _NOVO_TEMPLATE = r"""
 Parecer técnico contábil consultivo trimestral
-[espaço para numeração manual]
 
 Cliente:  {cliente}
 CNPJ:     {cnpj}
@@ -32,16 +31,6 @@ Emissão:  {emissao}
 ## 3. Opinião técnica
 
 {opiniao_tecnica}
-
-## 4. Assinatura
-
-Local e data: _________________________, _____ de ______________ de _______
-
-Nome:  ________________________________________________________________
-
-CRC:   ________________________________________________________________
-
-Assinatura: ____________________________________________________________
 """.strip()
 
 
@@ -160,19 +149,24 @@ def _render_consultivo_achados(payload: dict[str, Any]) -> str:
     linhas = [
         abertura,
         "",
-        "| Código | Achado | Nível | Evidência | Impacto técnico |",
-        "|--------|--------|-------|-----------|--------------|",
+        "| Código | Achado | Nível | Evidência | Fonte | Confiança | Documentos recomendados | Impacto técnico |",
+        "|--------|--------|-------|-----------|-------|-----------|--------------------------|-----------------|",
     ]
     for achado in achados:
         codigo = achado["codigo"]
         if str(codigo).startswith("SN-COMP"):
             codigo = f"**{codigo}**"
+        evidencia = achado.get("evidencia") or {}
+        documentos = ", ".join(evidencia.get("documentos_recomendados") or [])
         linhas.append(
             "| "
             f"{codigo} | "
             f"{_escape_table(achado['achado'])} | "
             f"{_level_label(achado['severidade'])} | "
             f"{_escape_table(achado.get('evidencia_identificada') or 'Não aplicável')} | "
+            f"{_escape_table(evidencia.get('fonte_dado') or 'balancete_contabil')} | "
+            f"{_level_label(evidencia.get('confianca') or 'media')} | "
+            f"{_escape_table(documentos or '[VERIFICAR: documentos recomendados]')} | "
             f"{_escape_table(achado.get('impacto_tecnico') or '[VERIFICAR: impacto técnico]')} |"
         )
 
@@ -651,6 +645,7 @@ O JSON terá estes blocos:
 6. Todos os itens de `principais_achados` devem aparecer no parecer.
 7. Todas as recomendações de `recomendacoes_tecnicas` devem aparecer no parecer.
 8. Mantenha o texto objetivo e resumido, em Markdown.
+9. Não inclua número de parecer, assinatura, carimbo, rubrica ou fechamento formal.
 
 ## Estrutura esperada
 
@@ -662,8 +657,7 @@ Use esta estrutura:
 4. Fundamentação técnica resumida
 5. Conclusão técnica
 6. Recomendações técnicas
-7. Data e assinatura
 
-Na seção de achados, use tabela com: Código, Severidade, Achado, Evidência, Impacto técnico, Pontuação e Norma/Fundamento.
+Na seção de achados, use tabela com: Código, Severidade, Achado, Evidência, Fonte, Confiança, Impacto técnico, Pontuação e Norma/Fundamento.
 Na seção de recomendações, use tabela com: Ordem, Recomendação, Área relacionada e Prioridade.
 """.strip()

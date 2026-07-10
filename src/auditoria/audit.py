@@ -7,7 +7,7 @@ from .config_loader import load_config, load_simples_anexos
 from .models import AuditResult, RiskLevel, RuleFinding, TrialBalance
 from .risk import classify_total_risk
 from .rules import analyze_simples_nacional, normalize_ruleset
-from .rules.simples_servicos import (
+from .rules.metricas import (
     calculate_advances,
     calculate_cost_of_goods,
     calculate_inventory,

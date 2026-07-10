@@ -224,7 +224,7 @@ function renderEmpty() {
   output.innerHTML = `
     <div class="empty-state">
       <h3>Aguardando balancete</h3>
-      <p>Nenhuma análise gerada nesta sessão.</p>
+      <p>Informe os dados da empresa e envie um arquivo CSV, XLSX ou XLS para iniciar a análise trimestral.</p>
     </div>
   `;
 }
@@ -290,12 +290,18 @@ function buildDashboardHtml(data, options = {}) {
 }
 
 function renderRiskPanel(risk, findings, meta, level) {
+  const rules = `${esc(meta.total_regras_acionadas ?? findings.length)} de ${esc(meta.total_regras_verificadas ?? "?")} regras`;
+  const version = `${esc(meta.conjunto_regras || "Conjunto não informado")} ${esc(meta.versao_regras || "")}`.trim();
   return `
     <section class="risk-panel ${level}">
-      <div>
+      <div class="risk-copy">
         <span class="risk-kicker">Risco ${levelLabel(level)}</span>
         <h3>${esc(opinionLabel(risk.modalidade_opiniao_sugerida))}</h3>
-        <p>Classificação calculada a partir das regras fiscais acionadas no período.</p>
+        <p>Classificação calculada a partir das regras fiscais acionadas no período analisado.</p>
+        <div class="risk-meta">
+          <span>${rules}</span>
+          <span>${version}</span>
+        </div>
       </div>
       <div class="risk-stats">
         <div class="stat-box"><strong>${esc(risk.pontuacao_total ?? 0)}</strong><span>Pontuação</span></div>

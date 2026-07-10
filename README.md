@@ -250,13 +250,21 @@ Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`.
 
 - `src/auditoria/models.py` — modelos de dados (RuleFinding, AuditResult, etc.)
 - `src/auditoria/parser.py` — leitura e normalização do balancete (CSV, XLSX, XLS)
-- `src/auditoria/rules/simples_servicos.py` — regras fiscais para Simples Nacional serviços, comércio e misto com `normas_aplicaveis`
+- `src/auditoria/rules/simples_servicos.py` — orquestração das regras fiscais para Simples Nacional serviços, comércio e misto
+- `src/auditoria/rules/servicos.py` — checagens específicas de serviços, incluindo Fator R/folha
+- `src/auditoria/rules/comercio.py` — checagens específicas de comércio, incluindo estoque, fornecedores, CMV, sublimite e ICMS-ST
+- `src/auditoria/rules/misto.py` — checagens de empresas mistas com receitas de comércio e serviços
+- `src/auditoria/rules/metricas.py` — cálculo de métricas contábeis usadas pelo motor de regras
+- `src/auditoria/rules/compostas.py` — regras compostas que combinam achados correlacionados
+- `src/auditoria/rules/rulesets.py` — normalização dos conjuntos de regras por atividade
 - `src/auditoria/risk.py` — classificação de risco + `suggest_opinion_type`
 - `src/auditoria/audit.py` — orquestração: métricas, contexto do regime, explicação do score
 - `src/auditoria/annual.py` — consolidação anual dos JSONs trimestrais e parecer anual comparativo
 - `src/auditoria/serializers.py` — serialização para JSON trimestral resumido v3.0.0
+- `src/auditoria/evidence.py` — evidência estruturada por achado, com fonte, confiança e documentos recomendados
 - `src/auditoria/storage.py` — persistência SQLite dos trimestres e consolidações anuais
 - `src/auditoria/schema_loader.py` — carregamento dos JSON Schemas formais trimestral/anual
+- `src/auditoria/schema_validator.py` — validação interna dos JSONs gerados contra os schemas formais
 - `src/auditoria/api.py` — servidor HTTP com upload, schemas e rotas estáticas do dashboard
 - `src/auditoria/static/` — frontend do dashboard, download JSON, filtros de achados e impressão em PDF
 - `src/auditoria/report_ai.py` — system prompt para geração de parecer via IA

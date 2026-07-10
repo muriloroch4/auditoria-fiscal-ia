@@ -6,6 +6,8 @@ from collections import Counter, defaultdict
 from decimal import Decimal
 from typing import Any
 
+from .evidence import structured_evidence
+from .schema_validator import validate_payload_against_schema
 from .utils import format_brl, format_percent
 
 ANNUAL_SCHEMA_VERSION = "annual-1.0.0"
@@ -23,7 +25,7 @@ def build_annual_comparison(quarterly_payloads: list[dict[str, Any]]) -> dict[st
     risk = _annual_risk(quarters, findings)
     identificacao = _annual_identification(quarters)
 
-    return {
+    payload = {
         "_schema_version": ANNUAL_SCHEMA_VERSION,
         "meta": {
             "versao_schema": ANNUAL_SCHEMA_VERSION,
@@ -39,6 +41,8 @@ def build_annual_comparison(quarterly_payloads: list[dict[str, Any]]) -> dict[st
         "achados_anuais": findings,
         "resumo_evolucao": _evolution_summary(quarters, totals, findings),
     }
+    validate_payload_against_schema(payload, "anual")
+    return payload
 
 
 def build_rbt12_context(quarterly_payloads: list[dict[str, Any]]) -> dict[str, Any]:
@@ -59,7 +63,6 @@ def generate_annual_markdown_report(payload: dict[str, Any]) -> str:
     return "\n\n".join(
         [
             "Parecer técnico contábil consultivo anual comparativo\n"
-            "[espaço para numeração manual]\n\n"
             f"Cliente:  {identificacao.get('cliente', '')}\n"
             f"CNPJ:     {identificacao.get('cnpj', '')}\n"
             f"Regime:   {identificacao.get('regime_tributario', '')}\n"
@@ -70,11 +73,6 @@ def generate_annual_markdown_report(payload: dict[str, Any]) -> str:
             "## 3. Achados anuais e recorrências\n\n" + _render_annual_findings(findings),
             "## 4. Indicadores consolidados\n\n" + _render_annual_metrics(metricas, evolution),
             "## 5. Opinião técnica anual\n\n" + _render_annual_opinion(payload),
-            "## 6. Assinatura\n\n"
-            "Local e data: _________________________, _____ de ______________ de _______\n\n"
-            "Nome:  ________________________________________________________________\n\n"
-            "CRC:   ________________________________________________________________\n\n"
-            "Assinatura: ____________________________________________________________",
         ]
     )
 
@@ -658,15 +656,19 @@ def _render_annual_findings(findings: list[dict[str, Any]]) -> str:
         return "Nenhum achado anual adicional foi identificado a partir da consolidação dos trimestres."
 
     lines = [
-        "| Código | Achado | Nível | Evidência | Recomendação |",
-        "|--------|--------|-------|-----------|--------------|",
+        "| Código | Achado | Nível | Evidência | Fonte | Confiança | Documentos recomendados | Recomendação |",
+        "|--------|--------|-------|-----------|-------|-----------|--------------------------|--------------|",
     ]
     for finding in findings:
-        evidence = "; ".join(f"{key}: {value}" for key, value in finding["evidencia"].items()) or "Não aplicável"
+        structured = finding["evidencia"]
+        extracted = structured.get("campos_extraidos") or {}
+        evidence = "; ".join(f"{key}: {value}" for key, value in extracted.items()) or "Não aplicável"
+        documents = ", ".join(structured.get("documentos_recomendados") or [])
         lines.append(
             "| "
             f"{finding['codigo']} | {finding['titulo']} | {_risk_label(finding['nivel'])} | "
-            f"{evidence} | {finding['recomendacao']} |"
+            f"{evidence} | {structured.get('fonte_dado', '')} | {_risk_label(structured.get('confianca', ''))} | "
+            f"{documents} | {finding['recomendacao']} |"
         )
     return "\n".join(lines)
 
@@ -771,7 +773,7 @@ def _finding(
         "nivel": level,
         "pontuacao": score,
         "descricao": description,
-        "evidencia": evidence,
+        "evidencia": structured_evidence(code, evidence, severity=level, source="json_trimestral_consolidado"),
         "recomendacao": recommendation,
         "normas_aplicaveis": [
             "NBC PG 100 (R1) de 2018",

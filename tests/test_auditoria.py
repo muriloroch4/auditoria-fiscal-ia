@@ -15,6 +15,7 @@ from src.auditoria.annual import build_annual_comparison, generate_annual_markdo
 from src.auditoria.models import RiskLevel, RuleFinding
 from src.auditoria.parser import read_trial_balance_csv, read_trial_balance_csv_text, read_trial_balance_upload
 from src.auditoria.report_ai import generate_markdown_report
+from src.auditoria.schema_validator import SchemaValidationError, validate_payload_against_schema
 from src.auditoria.serializers import audit_result_to_dict
 from src.auditoria.storage import infer_year_quarter
 from src.auditoria.risk import classify_total_risk, suggest_opinion_type
@@ -70,7 +71,8 @@ class AuditPrototypeTest(unittest.TestCase):
         self.assertIn("## 1. Resumo executivo", report)
         self.assertIn("## 2. Achados e recomendações", report)
         self.assertIn("## 3. Opinião técnica", report)
-        self.assertIn("## 4. Assinatura", report)
+        self.assertNotIn("## 4. Assinatura", report)
+        self.assertNotIn("[espaço para numeração manual]", report)
         self.assertIn("CNPJ:     12.345.678/0001-90", report)
 
     def test_csv_text_parser_supports_upload_flow(self):
@@ -1066,9 +1068,30 @@ class SchemaV3ResumoTest(unittest.TestCase):
         self.assertIn("severidade", achado)
         self.assertIn("achado", achado)
         self.assertIn("evidencia_identificada", achado)
+        self.assertIn("evidencia", achado)
+        self.assertEqual(achado["evidencia"]["fonte_dado"], "balancete_contabil")
+        self.assertTrue(achado["evidencia"]["necessita_documento"])
+        self.assertIn("documentos_recomendados", achado["evidencia"])
         self.assertIn("impacto_tecnico", achado)
         self.assertIn("pontuacao", achado)
         self.assertIn("norma_fundamento", achado)
+
+    def test_schema_validation_rejects_unexpected_fields(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;0;0;0
+            3.1.1;Receita;receita;0;0;100000;100000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Schema", periodo="2026-T1")
+        payload = audit_result_to_dict(run_quarterly_audit(balance))
+
+        validate_payload_against_schema(payload, "trimestral")
+        payload["campo_nao_previsto"] = True
+
+        with self.assertRaises(SchemaValidationError):
+            validate_payload_against_schema(payload, "trimestral")
 
     def test_total_regras_verificadas_uses_configured_sn_rules(self):
         content = dedent(
@@ -1084,6 +1107,59 @@ class SchemaV3ResumoTest(unittest.TestCase):
         expected_total = len(load_config()["conjuntos_regras"]["simples_servicos"])
 
         self.assertEqual(payload["resumo_analise"]["total_regras_verificadas"], expected_total)
+
+
+class GoldenScenarioRulesTest(unittest.TestCase):
+    def test_servicos_identifica_margem_caixa_e_clientes_zerados(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1.01;Caixa físico;caixa;0;15000;0;15000
+            3.1.1;Receita de serviços;receita;0;0;300000;300000
+            4.2.1;Despesas administrativas;despesas;0;20000;0;20000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Serviços Anonimizado", periodo="2026-T1")
+        result = run_quarterly_audit(balance, atividade="servicos")
+        codes = {finding.codigo for finding in result.achados}
+
+        self.assertTrue(any(code.startswith("SN-021") for code in codes))
+        self.assertTrue(any(code.startswith("SN-022") for code in codes))
+        self.assertIn("SN-023", codes)
+
+    def test_comercio_identifica_estoque_fornecedor_e_cmv_incompativeis(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.5;Estoques de mercadorias;estoques;0;0;0;500000
+            2.1.3;Fornecedores nacionais;fornecedores;0;0;0;350000
+            3.1.1;Receita de venda de mercadorias;receita;0;0;200000;200000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Comércio Anonimizado", periodo="2026-T1")
+        result = run_quarterly_audit(balance, atividade="comercio")
+        codes = {finding.codigo for finding in result.achados}
+
+        self.assertTrue(any(code.startswith("SN-015") for code in codes))
+        self.assertTrue(any(code.startswith("SN-016") for code in codes))
+        self.assertTrue(any(code.startswith("SN-018") for code in codes))
+        self.assertIn("SN-COMP-04", codes)
+
+    def test_misto_identifica_receita_sem_segregacao(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.5;Estoques de mercadorias;estoques;0;0;0;50000
+            2.1.3;Fornecedores nacionais;fornecedores;0;0;0;30000
+            3.1.1;Receita operacional;receita;0;0;250000;250000
+            4.2.1.01;Salários e pró-labore;folha;0;50000;0;50000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Misto Anonimizado", periodo="2026-T1")
+        result = run_quarterly_audit(balance, atividade="comercio_servicos")
+        codes = {finding.codigo for finding in result.achados}
+
+        self.assertIn("SN-020", codes)
 
 
 class AnnualComparisonTest(unittest.TestCase):
@@ -1103,6 +1179,7 @@ class AnnualComparisonTest(unittest.TestCase):
         self.assertEqual(annual["meta"]["trimestres_ausentes"], [])
         self.assertIn("AN-REC-SN-007", codes)
         self.assertEqual(len(annual["comparativo_trimestral"]), 4)
+        validate_payload_against_schema(annual, "anual")
 
     def test_build_annual_comparison_consolida_metricas_comerciais(self):
         payloads = [
@@ -1162,6 +1239,9 @@ class AnnualComparisonTest(unittest.TestCase):
 
         self.assertEqual(annual["metricas_anual"]["servicos_terceiros_total"]["valor"], 54000.0)
         self.assertIn("AN-DOC-325-001", codes)
+        finding = next(item for item in annual["achados_anuais"] if item["codigo"] == "AN-DOC-325-001")
+        self.assertEqual(finding["evidencia"]["fonte_dado"], "json_trimestral_consolidado")
+        self.assertIn("contratos de prestadores", finding["evidencia"]["documentos_recomendados"])
 
     def test_generate_annual_markdown_report(self):
         payloads = [

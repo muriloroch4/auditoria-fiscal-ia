@@ -13,13 +13,16 @@
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-mark">AF</div>
-        <div>
+        <div class="brand-copy">
           <h1>Auditoria Fiscal IA</h1>
           <p>Pré-auditoria fiscal para Simples Nacional</p>
+          <span class="brand-status">Motor de regras v3</span>
         </div>
       </div>
 
       <form id="audit-form" class="upload-form">
+        <div class="sidebar-section-title">Dados da análise</div>
+
         <label for="cliente">Cliente</label>
         <input type="text" id="cliente" name="cliente" value="Cliente exemplo" required>
 
@@ -58,15 +61,15 @@
       </section>
 
       <div class="sidebar-footer">
-        <span>JSON trimestral</span>
-        <strong>v3.0.0</strong>
+        <span>Contrato JSON</span>
+        <strong>Schema v3.0.0</strong>
       </div>
     </aside>
 
     <main class="workspace">
       <header class="topbar">
         <div class="topbar-title">
-          <span class="eyebrow">Dashboard</span>
+          <span class="eyebrow">Painel de análise</span>
           <h2 id="report-title">Pré-auditoria fiscal trimestral</h2>
         </div>
         <div id="status-chips" class="status-chips" aria-live="polite"></div>
@@ -80,7 +83,7 @@
       <section id="output" class="report" aria-live="polite">
         <div class="empty-state">
           <h3>Aguardando o balancete</h3>
-          <p>Nenhuma análise gerada nesta sessão.</p>
+          <p>Informe os dados da empresa e envie um arquivo CSV, XLSX ou XLS para iniciar a análise trimestral.</p>
         </div>
       </section>
     </main>

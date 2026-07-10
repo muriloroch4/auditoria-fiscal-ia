@@ -184,14 +184,32 @@
         "nivel": { "$ref": "#/$defs/risco" },
         "pontuacao": { "type": "integer", "minimum": 0 },
         "descricao": { "type": "string" },
-        "evidencia": {
-          "type": "object",
-          "additionalProperties": { "type": ["string", "number", "integer", "boolean", "null"] }
-        },
+        "evidencia": { "$ref": "#/$defs/evidencia_estruturada" },
         "recomendacao": { "type": "string" },
         "normas_aplicaveis": {
           "type": "array",
           "items": { "type": "string" }
+        }
+      }
+    },
+    "evidencia_estruturada": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fonte_dado", "confianca", "necessita_documento", "documentos_recomendados", "campos_extraidos"],
+      "properties": {
+        "fonte_dado": { "type": "string" },
+        "confianca": {
+          "type": "string",
+          "enum": ["alta", "media", "baixa"]
+        },
+        "necessita_documento": { "type": "boolean" },
+        "documentos_recomendados": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "campos_extraidos": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "number", "integer", "boolean", "null"] }
         }
       }
     }

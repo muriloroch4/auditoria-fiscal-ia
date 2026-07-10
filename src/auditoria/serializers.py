@@ -4,8 +4,10 @@ import datetime
 from typing import Any
 
 from .config_loader import load_config
+from .evidence import structured_finding_evidence
 from .models import AuditResult, RiskLevel, RuleFinding
 from .risk import suggest_opinion_type
+from .schema_validator import validate_payload_against_schema
 
 SCHEMA_VERSION = "3.0.0"
 VERIFY = "[VERIFICAR: dado necessário]"
@@ -43,7 +45,7 @@ def audit_result_to_dict(result: AuditResult) -> dict[str, Any]:
     normas = _normas_consolidadas(findings, result.regime_tributario)
     opinion = suggest_opinion_type(result.nivel_geral, findings)
 
-    return {
+    payload = {
         "identificacao_empresa": {
             "cnpj": _required(result.cnpj),
             "regime_tributario": _required(result.regime_tributario),
@@ -80,6 +82,8 @@ def audit_result_to_dict(result: AuditResult) -> dict[str, Any]:
             "conjunto_regras": result.conjunto_regras,
         },
     }
+    validate_payload_against_schema(payload, "trimestral")
+    return payload
 
 
 def _finding_to_summary_dict(finding: RuleFinding) -> dict[str, Any]:
@@ -88,6 +92,7 @@ def _finding_to_summary_dict(finding: RuleFinding) -> dict[str, Any]:
         "severidade": _severity_label(finding.nivel),
         "achado": _shorten(finding.titulo or finding.descricao or VERIFY, 180),
         "evidencia_identificada": _format_evidence(finding.evidencia),
+        "evidencia": structured_finding_evidence(finding),
         "impacto_tecnico": _impacto_tecnico(finding),
         "pontuacao": finding.pontuacao,
         "norma_fundamento": _normalize_normas(finding.normas_aplicaveis),

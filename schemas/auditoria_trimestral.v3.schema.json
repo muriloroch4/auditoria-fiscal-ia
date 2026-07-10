@@ -141,6 +141,7 @@
         "severidade",
         "achado",
         "evidencia_identificada",
+        "evidencia",
         "impacto_tecnico",
         "pontuacao",
         "norma_fundamento"
@@ -150,11 +151,33 @@
         "severidade": { "$ref": "#/$defs/severidade" },
         "achado": { "$ref": "#/$defs/texto_ou_verificar" },
         "evidencia_identificada": { "$ref": "#/$defs/texto_ou_verificar" },
+        "evidencia": { "$ref": "#/$defs/evidencia_estruturada" },
         "impacto_tecnico": { "$ref": "#/$defs/texto_ou_verificar" },
         "pontuacao": { "type": "integer", "minimum": 0 },
         "norma_fundamento": {
           "type": "array",
           "items": { "type": "string" }
+        }
+      }
+    },
+    "evidencia_estruturada": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fonte_dado", "confianca", "necessita_documento", "documentos_recomendados", "campos_extraidos"],
+      "properties": {
+        "fonte_dado": { "type": "string" },
+        "confianca": {
+          "type": "string",
+          "enum": ["alta", "media", "baixa"]
+        },
+        "necessita_documento": { "type": "boolean" },
+        "documentos_recomendados": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "campos_extraidos": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "number", "integer", "boolean", "null"] }
         }
       }
     },

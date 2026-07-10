@@ -26,6 +26,7 @@ Regras obrigatórias
 8. Não gerar PDF, HTML ou JSON de saída.
 9. Não alterar a classificação de risco recebida no JSON, mas pode explicá-la.
 10. Não suavizar achados críticos. Se o JSON indicar risco alto, inconsistência material ou opinião adversa/com ressalva, isso deve aparecer claramente.
+11. Não incluir número do parecer, assinatura, carimbo, rubrica ou fechamento formal.
 
 Entrada esperada
 
@@ -39,11 +40,13 @@ Você receberá um JSON com os seguintes blocos:
 - recomendacoes_tecnicas
 - metadados
 
+Cada item de `principais_achados` pode conter `evidencia`, com fonte dos dados, nível de confiança, documentos recomendados e campos extraídos pelo motor de regras.
+
 Tarefa
 
 Gerar um parecer técnico contábil trimestral resumido e objetivo com a seguinte estrutura:
 
-# Parecer técnico contábil trimestral nº [VERIFICAR: número do parecer]
+# Parecer técnico contábil trimestral
 
 ## Resumo executivo
 
@@ -56,8 +59,6 @@ Informe:
 - empresa analisada;
 - CNPJ;
 - período trimestral analisado;
-- responsável técnico;
-- CRC;
 - finalidade do parecer;
 - documentos considerados.
 
@@ -83,20 +84,7 @@ Use `conclusao_tecnica`, deixando claro que a análise foi feita exclusivamente 
 
 Crie tabela com todos os itens de `recomendacoes_tecnicas`: ordem, descrição, área relacionada e prioridade.
 
-## 7. Data e assinatura
-
-Inserir:
-
-Local: [VERIFICAR: local]  
-Data: [usar data do JSON ou VERIFICAR]  
-
-Responsável técnico: [nome do contador]  
-CRC: [CRC informado no JSON]  
-Especialização: [VERIFICAR: especialização, se ausente]  
-
-Texto de encerramento:
-
-Este parecer foi elaborado com base nas informações disponibilizadas e no escopo expressamente delimitado, em conformidade com as normas profissionais e técnicas aplicáveis ao exercício da atividade contábil.
+Não incluir seção de assinatura, carimbo, rubrica, número de parecer ou fechamento formal.
 ```
 
 ## Chat 2 — Parecer Anual Comparativo via JSON
@@ -118,6 +106,7 @@ Regras obrigatórias
 8. Não alterar os achados anuais ou trimestrais recebidos.
 9. A conclusão anual deve refletir a materialidade, recorrência e impacto acumulado dos achados.
 10. Se houver ausência de algum trimestre, destacar a limitação de escopo.
+11. Não incluir número do parecer, assinatura, carimbo, rubrica ou fechamento formal.
 
 Entrada esperada
 
@@ -139,7 +128,7 @@ Tarefa
 
 Gerar um parecer técnico contábil anual comparativo com a seguinte estrutura:
 
-# Parecer técnico contábil anual comparativo nº [VERIFICAR: número do parecer]
+# Parecer técnico contábil anual comparativo
 
 ## Resumo executivo
 
@@ -160,8 +149,6 @@ Informar:
 - exercício social analisado;
 - trimestres incluídos;
 - trimestres ausentes, se houver;
-- responsável técnico;
-- CRC;
 - finalidade do parecer anual;
 - documentos e JSONs trimestrais considerados.
 
@@ -232,8 +219,8 @@ Explique o significado técnico dos indicadores mais relevantes.
 
 Criar tabela em Markdown:
 
-| Código | Severidade | Recorrência | Descrição | Evidência | Norma/Fundamento | Impacto |
-|---|---:|---|---|---|---|---|
+| Código | Severidade | Recorrência | Descrição | Evidência | Fonte | Confiança | Documentos recomendados | Norma/Fundamento | Impacto |
+|---|---:|---|---|---|---|---|---|---|---|
 
 Destacar:
 
@@ -292,16 +279,5 @@ Listar recomendações objetivas, vinculadas aos achados do JSON, como:
 - formalização documental;
 - acompanhamento trimestral contínuo.
 
-## 11. Data e Assinatura
-
-Local: [VERIFICAR: local]  
-Data: [usar data do JSON ou VERIFICAR]  
-
-Responsável técnico: [nome do contador]  
-CRC: [CRC informado no JSON]  
-Especialização: [VERIFICAR: especialização, se ausente]  
-
-Texto de encerramento:
-
-Este parecer anual comparativo foi elaborado com base nos dados trimestrais consolidados e no escopo expressamente delimitado, em conformidade com as normas profissionais e técnicas aplicáveis ao exercício da atividade contábil.
+Não incluir seção de assinatura, carimbo, rubrica, número de parecer ou fechamento formal.
 ```
