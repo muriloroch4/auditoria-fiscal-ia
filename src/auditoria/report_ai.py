@@ -661,6 +661,9 @@ O JSON terá estes blocos:
 8. Mantenha o texto objetivo e resumido, em Markdown.
 9. Não inclua número de parecer, assinatura, carimbo, rubrica ou fechamento formal.
 10. Se `classificacao_contas` indicar contas para revisão, mencione isso de forma objetiva na análise.
+11. Produza um parecer compacto, equivalente a 4 a 6 páginas em PDF para um trimestre comum.
+12. Revise ortografia, concordância, letras maiúsculas/minúsculas e espaços antes de pontuação.
+13. Evite tabelas largas; use tabelas somente quando as colunas forem curtas.
 
 ## Estrutura esperada
 
@@ -673,6 +676,7 @@ Use esta estrutura:
 5. Conclusão técnica
 6. Recomendações técnicas
 
-Na seção de achados, use tabela com: Código, Severidade, Achado, Evidência, Fonte, Confiança, Impacto técnico, Pontuação e Norma/Fundamento.
-Na seção de recomendações, use tabela com: Ordem, Recomendação, Área relacionada e Prioridade.
+Na seção de achados, use tabela compacta com: Código, Severidade, Achado, Evidência resumida, Impacto e Pontuação.
+Após a tabela de achados, detalhe em parágrafos curtos apenas achados de severidade alta ou validações documentais relevantes. Não crie uma tabela "Item/Informação" para cada achado.
+Na seção de recomendações, use lista numerada no formato: **[Área relacionada | Prioridade]** Recomendação completa. Não truncar recomendações.
 """.strip()

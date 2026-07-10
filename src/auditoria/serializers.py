@@ -107,7 +107,7 @@ def _recomendacoes_tecnicas(findings: list[RuleFinding]) -> list[dict[str, Any]]
         recommendations.append(
             {
                 "ordem": index,
-                "descricao": _shorten(finding.recomendacao or VERIFY, 260),
+                "descricao": _clean_text(finding.recomendacao or VERIFY),
                 "area_relacionada": _area_relacionada(finding.codigo),
                 "prioridade": _severity_label(finding.nivel),
             }
@@ -346,10 +346,14 @@ def _required(value: Any) -> str:
 
 
 def _shorten(value: str, limit: int) -> str:
-    text = " ".join(str(value or "").split())
+    text = _clean_text(value)
     if len(text) <= limit:
         return text
     return text[: limit - 1].rstrip() + "…"
+
+
+def _clean_text(value: str) -> str:
+    return " ".join(str(value or "").split())
 
 
 def _label(value: str) -> str:

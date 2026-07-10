@@ -1005,6 +1005,9 @@ class MelhoriasMotorFiscalTest(unittest.TestCase):
         self.assertIn("iof_recolhido", finding.evidencia)
         self.assertIn("Validacao documental", serialized["impacto_tecnico"])
         self.assertTrue(any("Decreto nº 6.306/2007" in norma for norma in serialized["norma_fundamento"]))
+        recommendation = next(item for item in payload["recomendacoes_tecnicas"] if item["descricao"].startswith("Revisar o razao contabil"))
+        self.assertIn("despesa particular", recommendation["descricao"])
+        self.assertNotIn("…", recommendation["descricao"])
 
     def test_descricao_relacionada_a_socios_trigger_sn005_sem_codigo_monitorado(self):
         content = dedent(

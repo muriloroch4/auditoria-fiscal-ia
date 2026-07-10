@@ -561,7 +561,7 @@
     },
     {
       "area_relacionada": "societ\u00e1ria",
-      "descricao": "Revisar o razao contabil e os extratos das contas de socios, validar contrato de mutuo ou instrumento equivalente, conferir prazo, juros, movimentacao financeira e comprovar o IOF recolhido quando aplicavel; reclassificar valores que representem adiantamento,\u2026",
+      "descricao": "Revisar o razao contabil e os extratos das contas de socios, validar contrato de mutuo ou instrumento equivalente, conferir prazo, juros, movimentacao financeira e comprovar o IOF recolhido quando aplicavel; reclassificar valores que representem adiantamento, distribuicao de lucros, reembolso ou despesa particular.",
       "ordem": 4,
       "prioridade": "media"
     },
