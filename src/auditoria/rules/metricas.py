@@ -15,7 +15,7 @@ OPERATING_EXPENSE_GROUPS = frozenset({
     "despesas_tributarias",
     "multas_fiscais",
 })
-ADVANCE_GROUPS = frozenset({"adiantamentos", "adiantamentos_clientes"})
+ADVANCE_GROUPS = frozenset({"adiantamentos"})
 TAX_EXPENSE_GROUPS = frozenset({"despesas_tributarias"})
 TAX_LIABILITY_GROUPS = frozenset({"tributos_a_recolher"})
 LEGACY_TAX_GROUP = "tributos"
@@ -165,6 +165,10 @@ def calculate_tax_liability(balance: TrialBalance) -> Decimal:
 
 def calculate_advances(balance: TrialBalance) -> Decimal:
     return _abs(_saldos_por_grupos(balance, ADVANCE_GROUPS))
+
+
+def calculate_customer_advances(balance: TrialBalance) -> Decimal:
+    return _abs(_saldos_por_grupos(balance, {"adiantamentos_clientes"}))
 
 
 def calculate_suppliers(balance: TrialBalance) -> Decimal:

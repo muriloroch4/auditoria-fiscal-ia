@@ -112,6 +112,7 @@ def _quarter_summary(payload: dict[str, Any]) -> dict[str, Any]:
                 "caixa_e_bancos": _metric(metricas, "caixa_e_bancos"),
                 "clientes_recebiveis": _metric(metricas, "clientes_recebiveis"),
                 "adiantamentos": _metric(metricas, "adiantamentos"),
+                "adiantamentos_clientes": _metric(metricas, "adiantamentos_clientes"),
                 "emprestimos": _metric(metricas, "emprestimos"),
                 "fornecedores": _metric(metricas, "fornecedores"),
                 "estoques": _metric(metricas, "estoques"),
@@ -153,6 +154,7 @@ def _quarter_summary(payload: dict[str, Any]) -> dict[str, Any]:
             "caixa_e_bancos": _metric(metricas, "caixa_e_bancos"),
             "clientes_recebiveis": _metric(metricas, "clientes_recebiveis"),
             "adiantamentos": _metric(metricas, "adiantamentos"),
+            "adiantamentos_clientes": _metric(metricas, "adiantamentos_clientes"),
             "emprestimos": _metric(metricas, "emprestimos"),
             "fornecedores": _metric(metricas, "fornecedores"),
             "estoques": _metric(metricas, "estoques"),
@@ -214,6 +216,7 @@ def _annual_totals(quarters: list[dict[str, Any]], rbt12_context: dict[str, Any]
         "caixa_e_bancos_final": _entry(last["metricas"]["caixa_e_bancos"]),
         "clientes_recebiveis_final": _entry(last["metricas"]["clientes_recebiveis"]),
         "adiantamentos_final": _entry(last["metricas"]["adiantamentos"]),
+        "adiantamentos_clientes_final": _entry(last["metricas"]["adiantamentos_clientes"]),
         "indicadores_derivados": {
             "carga_tributaria_efetiva_anual": _safe_percent(taxes, revenue),
             "deducoes_sobre_receita_anual": _safe_percent(deductions, revenue),
@@ -228,6 +231,7 @@ def _annual_totals(quarters: list[dict[str, Any]], rbt12_context: dict[str, Any]
             "distribuicao_lucros_sobre_lucro": _safe_percent(profit_distribution, profit),
             "receita_sobre_limite_simples": _safe_percent(revenue, SIMPLES_ANNUAL_LIMIT),
             "endividamento_sobre_receita": _safe_percent(debt, revenue),
+            "adiantamentos_clientes_sobre_receita": _safe_percent(last["metricas"]["adiantamentos_clientes"], revenue),
         },
     }
     return result
@@ -731,6 +735,7 @@ def _render_annual_metrics(metricas: dict[str, Any], evolution: dict[str, Any]) 
         f"Créditos fiscais finais: {metricas['creditos_fiscais_final']['formatado']}. "
         f"RBT12 consolidado: {metricas['rbt12_receita']['formatado']} "
         f"({metricas['contexto_rbt12']['base_calculo']}). "
+        f"Adiantamentos de clientes finais: {metricas['adiantamentos_clientes_final']['formatado']}. "
         f"Resultado anual: {metricas['lucro_apurado_total']['formatado']}. "
         f"Melhor trimestre por resultado: {evolution['melhor_trimestre_resultado']}. "
         f"Pior trimestre por resultado: {evolution['pior_trimestre_resultado']}."

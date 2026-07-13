@@ -234,6 +234,7 @@ def _impacto_tecnico(finding: RuleFinding) -> str:
         "SN-022": "Risco de saldo de caixa físico sem suporte operacional, bancário ou documental compatível.",
         "SN-023": "Ponto de atenção sobre recebimento à vista, baixa de recebíveis ou ausência de controle de clientes.",
         "SN-024": "Ponto de atencao documental sobre ICMS-ST, creditos fiscais, ressarcimentos ou saldos recuperaveis em operacao comercial.",
+        "SN-026": "Possivel sinal de sonegacao fiscal se houver receita ja liquidada sem baixa, emissao fiscal ou reconhecimento contabil/fiscal adequado.",
         "SN-COM": "Risco composto por combinação de achados, exigindo análise prioritária integrada.",
     }
     impacts["SN-025"] = "Ponto de atencao documental sobre pagamentos e servicos de terceiros lancados diretamente em despesas."
@@ -243,7 +244,7 @@ def _impacto_tecnico(finding: RuleFinding) -> str:
 
 def _classificacao_tecnica(finding: RuleFinding) -> str:
     code = finding.codigo
-    if code.startswith(("SN-005", "SN-017", "SN-020", "SN-024", "SN-025")):
+    if code.startswith(("SN-005", "SN-017", "SN-020", "SN-024", "SN-025", "SN-026")):
         return "Validacao documental"
     if code.startswith("SN-COMP") or finding.nivel == RiskLevel.ALTO:
         return "Possivel inconsistencia material"
@@ -253,7 +254,7 @@ def _classificacao_tecnica(finding: RuleFinding) -> str:
 
 
 def _area_relacionada(code: str) -> str:
-    if code.startswith(("SN-001", "SN-002", "SN-008", "SN-012", "SN-017", "SN-019", "SN-020", "SN-024")):
+    if code.startswith(("SN-001", "SN-002", "SN-008", "SN-012", "SN-017", "SN-019", "SN-020", "SN-024", "SN-026")):
         return "fiscal"
     if code.startswith(("SN-003", "SN-014")):
         return "trabalhista"
@@ -386,6 +387,7 @@ def _label(value: str) -> str:
         "fator_r_trimestral_estimado": "Fator R trimestral estimado",
         "caixa_bancos": "Caixa e bancos",
         "clientes_recebiveis": "Clientes e recebíveis",
+        "adiantamentos_clientes": "Adiantamentos de clientes",
         "saldo_final_clientes_recebiveis": "Saldo final de clientes e recebíveis",
         "movimentacao_clientes_trimestre": "Movimentação de clientes no trimestre",
         "percentual_sobre_receita_trimestral": "Percentual sobre a receita trimestral",
@@ -417,6 +419,8 @@ def _label(value: str) -> str:
         "limite_percentual_despesas": "Limite percentual sobre despesas",
         "quantidade_contas_identificadas": "Quantidade de contas identificadas",
         "contas_identificadas": "Contas identificadas",
+        "baixa_liquidacao": "Baixa ou liquidacao",
+        "validacao_documental": "Validacao documental",
         "criterio_rastreio": "Criterio de rastreio",
         "tipo_achado": "Tipo do achado",
         "limitacao_dados": "Limitacao dos dados",

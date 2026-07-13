@@ -1,5 +1,5 @@
 {
-    "version": "1.1.0",
+    "version": "1.2.0",
     "descricao": "Mapa contabil configuravel para classificar contas por codigo, prefixo e descricao antes dos fallbacks do parser.",
     "mapeamentos": [
         {
@@ -44,6 +44,17 @@
             "grupo": "bancos",
             "prefixos": ["1.1.10.200", "1.1.1.02", "1.1.1.03"],
             "descricoes_contem": ["banco", "conta corrente", "aplicacao financeira"]
+        },
+        {
+            "nome": "Adiantamentos de clientes",
+            "grupo": "adiantamentos_clientes",
+            "prefixos": ["2.1.6.01", "2.1.60.100"],
+            "descricoes_contem": [
+                "adiantamento de clientes",
+                "adiantamentos de clientes",
+                "adiantamento recebido de cliente",
+                "adiantamentos recebidos de clientes"
+            ]
         },
         {
             "nome": "Clientes e recebiveis",

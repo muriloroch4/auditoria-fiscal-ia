@@ -10,6 +10,7 @@ from .risk import classify_total_risk
 from .rules import analyze_simples_nacional, normalize_ruleset
 from .rules.metricas import (
     calculate_advances,
+    calculate_customer_advances,
     calculate_cost_of_goods,
     calculate_inventory,
     calculate_operating_expenses,
@@ -47,6 +48,7 @@ def run_quarterly_audit(
     cash = balance.total_por_grupo("caixa") + balance.total_por_grupo("bancos")
     clients = abs(balance.total_por_grupo("clientes"))
     advances = calculate_advances(balance)
+    customer_advances = calculate_customer_advances(balance)
     suppliers = calculate_suppliers(balance)
     inventory = calculate_inventory(balance)
     tax_credits = calculate_tax_credits(balance)
@@ -66,8 +68,8 @@ def run_quarterly_audit(
 
     metricas_valores = _build_metricas_valores(
         revenue, revenue_deductions, tax_expense, tax_liability, payroll, expenses,
-        third_party_services, partners, profit_dist, profit_basis, cash, clients, advances, suppliers, inventory,
-        tax_credits, cogs, debt, equity,
+        third_party_services, partners, profit_dist, profit_basis, cash, clients, advances, customer_advances,
+        suppliers, inventory, tax_credits, cogs, debt, equity,
     )
 
     contexto_regime = _build_contexto_regime_simples(
@@ -84,8 +86,8 @@ def run_quarterly_audit(
         achados=findings,
         resumo_metricas=_build_resumo_metricas(
             revenue, revenue_deductions, tax_expense, tax_liability, payroll, expenses,
-            third_party_services, partners, profit_dist, profit_basis, cash, clients, advances, suppliers, inventory,
-            tax_credits, cogs, debt, equity,
+            third_party_services, partners, profit_dist, profit_basis, cash, clients, advances, customer_advances,
+            suppliers, inventory, tax_credits, cogs, debt, equity,
         ),
         metricas_valores=metricas_valores,
         explicacao_pontuacao=_explain_score(findings, overall_risk, score),
@@ -111,6 +113,7 @@ def _build_resumo_metricas(
     cash: Decimal,
     clients: Decimal,
     advances: Decimal,
+    customer_advances: Decimal,
     suppliers: Decimal,
     inventory: Decimal,
     tax_credits: Decimal,
@@ -135,6 +138,7 @@ def _build_resumo_metricas(
         "caixa_bancos": format_brl(cash),
         "clientes_recebiveis": format_brl(clients),
         "adiantamentos": format_brl(advances),
+        "adiantamentos_clientes": format_brl(customer_advances),
         "fornecedores": format_brl(suppliers),
         "estoques": format_brl(inventory),
         "cmv_custos": format_brl(cogs),
@@ -166,6 +170,7 @@ def _build_metricas_valores(
     cash: Decimal,
     clients: Decimal,
     advances: Decimal,
+    customer_advances: Decimal,
     suppliers: Decimal,
     inventory: Decimal,
     tax_credits: Decimal,
@@ -192,6 +197,7 @@ def _build_metricas_valores(
         "caixa_e_bancos": _f(cash),
         "clientes_recebiveis": _f(clients),
         "adiantamentos": _f(advances),
+        "adiantamentos_clientes": _f(customer_advances),
         "fornecedores": _f(suppliers),
         "estoques": _f(inventory),
         "cmv_custos": _f(cogs),
@@ -436,6 +442,9 @@ def _explain_score(
     high_score = sum(f.pontuacao for f in high_findings)
     medium_score = sum(f.pontuacao for f in medium_findings)
     low_score = sum(f.pontuacao for f in low_findings)
+    compound_findings = [f for f in findings if f.codigo.startswith("SN-COMP")]
+    compound_score = sum(f.pontuacao for f in compound_findings)
+    base_score = score - compound_score
 
     top_findings = sorted(findings, key=lambda f: f.pontuacao, reverse=True)[:3]
     top_summary = ", ".join(
@@ -446,6 +455,12 @@ def _explain_score(
     reasons = [
         f"Pontuação total de {score} pontos, somando os pesos das regras acionadas.",
     ]
+
+    if compound_findings:
+        reasons.append(
+            f"Pontuação base de {base_score} ponto(s), com {compound_score} ponto(s) de regras compostas "
+            "(SN-COMP) tratadas como reforço contextual de achados correlacionados."
+        )
 
     if high_findings:
         lbl = "achado" if len(high_findings) == 1 else "achados"

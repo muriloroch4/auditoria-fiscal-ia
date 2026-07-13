@@ -155,9 +155,90 @@ function fmt(value) {
     return esc(value.formatado);
   }
   if (typeof value === "number") {
-    return esc(value.toLocaleString("pt-BR"));
+    return esc(formatNumberPtBr(value));
   }
   return esc(value ?? "");
+}
+
+function formatNumberPtBr(value, options = {}) {
+  const number = Number(value);
+  const safeNumber = Number.isFinite(number) ? number : 0;
+  return safeNumber.toLocaleString("pt-BR", {
+    minimumFractionDigits: options.minimumFractionDigits ?? 0,
+    maximumFractionDigits: options.maximumFractionDigits ?? 2,
+  });
+}
+
+function formatCountDisplay(value) {
+  const number = Number(value);
+  if (Number.isFinite(number)) return formatNumberPtBr(number);
+  return String(value ?? "0");
+}
+
+function formatCurrencyPtBr(value) {
+  const number = Number(value);
+  const safeNumber = Number.isFinite(number) ? number : 0;
+  return safeNumber.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function formatMetricDisplay(key, value) {
+  if (value && typeof value === "object" && value.formatado) {
+    return esc(value.formatado);
+  }
+  if (typeof value === "number" && monetaryMetricKeys().has(key)) {
+    return esc(formatCurrencyPtBr(value));
+  }
+  return fmt(value);
+}
+
+function monetaryMetricKeys() {
+  return new Set([
+    "receita_servicos",
+    "receita_operacional",
+    "deducoes_receita",
+    "tributos",
+    "tributos_a_recolher",
+    "tributos_registrados",
+    "folha_pro_labore",
+    "despesas",
+    "despesas_operacionais",
+    "servicos_terceiros",
+    "saldo_contas_socios",
+    "lucros_distribuidos",
+    "lucro_apurado_base",
+    "caixa_bancos",
+    "caixa_e_bancos",
+    "clientes_recebiveis",
+    "adiantamentos",
+    "adiantamentos_clientes",
+    "fornecedores",
+    "estoques",
+    "cmv_custos",
+    "creditos_fiscais",
+    "emprestimos",
+    "patrimonio_liquido",
+  ]);
+}
+
+function formatDateTimePtBr(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function hasDisplayValue(value) {
+  return value !== undefined && value !== null && value !== "";
 }
 
 function metricValue(metrics, key) {
@@ -293,11 +374,11 @@ function buildDashboardHtml(data, options = {}) {
   return `
     <div class="dashboard-stack">
       ${renderRiskPanel(risk, findings, meta, level)}
-      ${renderClassification(classification)}
-      ${renderAccountClassification(data.classificacao_contas)}
+      ${renderExecutiveSummary(data, metrics, findings, meta, context, classification)}
+      ${renderAnalysisGrid(context, findings, meta, filter, printMode)}
       ${renderMetricGroups(metrics)}
       ${renderIndicators(metrics.indicadores_derivados)}
-      ${renderAnalysisGrid(context, findings, meta, filter, printMode)}
+      ${renderAccountClassification(data.classificacao_contas)}
       ${renderScoreExplanation(risk.explicacao_pontuacao || [], printMode)}
       ${printMode ? "" : renderRawJson(formalAuditPayload(rawData))}
     </div>
@@ -330,6 +411,129 @@ function renderRiskPanel(risk, findings, meta, level) {
   `;
 }
 
+function renderExecutiveSummary(data, metrics, findings, meta, context, classification) {
+  const ident = data.identificacao || {};
+  const counts = countFindings(findings);
+  const accountClassification = data.classificacao_contas || {};
+  const reviewAccounts = Number(accountClassification.total_contas_revisao || 0);
+  const triggeredRules = meta.total_regras_acionadas ?? findings.length;
+  const checkedRules = meta.total_regras_verificadas ?? "?";
+  const revenue = metricValue(metrics, "receita_operacional") || metricValue(metrics, "receita_servicos");
+  const result = metricValue(metrics, "lucro_apurado_base");
+  const taxes = metricValue(metrics, "tributos_registrados") || metricValue(metrics, "tributos_a_recolher");
+  const highlights = executiveHighlights(findings);
+  const cards = [
+    renderExecutiveCard(
+      "Empresa",
+      ident.cliente || "[VERIFICAR: empresa]",
+      `${ident.regime_tributario || "Regime não informado"} | ${ident.periodo || "Período não informado"}`,
+    ),
+    renderExecutiveCard(
+      "Regras",
+      `${triggeredRules} acionadas`,
+      `${checkedRules} verificadas no motor`,
+      Number(triggeredRules) ? "warning" : "success",
+    ),
+    renderExecutiveCard(
+      "Achados",
+      findings.length,
+      `Alta ${counts.alto} | Média ${counts.medio} | Baixa ${counts.baixo}`,
+      counts.alto ? "danger" : counts.medio ? "warning" : "success",
+    ),
+    renderExecutiveCard(
+      "Próxima revisão",
+      nextDashboardAction(counts, reviewAccounts),
+      reviewAccounts ? `${reviewAccounts} conta(s) para revisar` : "Sem conta marcada para revisão",
+      counts.alto || reviewAccounts ? "warning" : "neutral",
+    ),
+  ].join("");
+  const metricStrip = [
+    renderExecutiveMetric("receita_operacional", "Receita", revenue),
+    renderExecutiveMetric("lucro_apurado_base", "Resultado", result),
+    renderExecutiveMetric("tributos_registrados", "Tributos", taxes),
+    renderExecutiveMetric("anexo_estimado", "Anexo estimado", context.anexo_estimado),
+  ].filter(Boolean).join("");
+
+  return `
+    <section class="section executive-section">
+      <div class="section-header">
+        <h3 class="section-title">Leitura executiva</h3>
+        <span class="section-note">${esc(classification.achados_compostos || 0)} achado(s) composto(s)</span>
+      </div>
+      <div class="executive-grid">${cards}</div>
+      ${metricStrip ? `<div class="executive-metric-strip">${metricStrip}</div>` : ""}
+      <div class="priority-board">
+        <div>
+          <h4>Principais pontos</h4>
+          <p>Itens priorizados por severidade para orientar a revisão documental.</p>
+        </div>
+        <div class="priority-list">${highlights}</div>
+      </div>
+    </section>
+  `;
+}
+
+function renderExecutiveCard(label, value, detail, tone = "neutral") {
+  return `
+    <div class="executive-card ${tone}">
+      <span>${esc(label)}</span>
+      <strong>${esc(value)}</strong>
+      <small>${esc(detail)}</small>
+    </div>
+  `;
+}
+
+function renderExecutiveMetric(key, label, value) {
+  if (!value) return "";
+  return `
+    <div class="executive-metric">
+      <span>${esc(label)}</span>
+      <strong>${formatMetricDisplay(key, value)}</strong>
+    </div>
+  `;
+}
+
+function executiveHighlights(findings) {
+  if (!findings.length) {
+    return `
+      <div class="priority-item success">
+        <span class="priority-code">OK</span>
+        <div>
+          <strong>Nenhum achado acionado</strong>
+          <p>Manter evidências e documentação de suporte do período analisado.</p>
+        </div>
+      </div>
+    `;
+  }
+
+  return findings.slice(0, 3).map((finding) => {
+    const level = normalizeLevel(finding.nivel);
+    const detail = truncateText(finding.descricao || finding.recomendacao || "Detalhe técnico disponível na tabela de achados.", 150);
+    return `
+      <div class="priority-item ${level}">
+        <span class="priority-code">${esc(finding.codigo)}</span>
+        <div>
+          <strong>${esc(finding.titulo || "Achado sem título")}</strong>
+          <p>${esc(detail)}</p>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function nextDashboardAction(counts, reviewAccounts) {
+  if (counts.alto) return "Revisar alto risco";
+  if (counts.medio) return "Validar evidências";
+  if (reviewAccounts) return "Conferir contas";
+  return "Manter suporte";
+}
+
+function truncateText(value, maxLength) {
+  const text = String(value || "").trim();
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, Math.max(0, maxLength - 3)).trim()}...`;
+}
+
 function renderClassification(classification) {
   const composite = classification.achados_compostos ?? 0;
   return `
@@ -353,37 +557,48 @@ function renderAccountClassification(classification) {
   const reviewAccounts = Array.isArray(classification.contas_revisao)
     ? classification.contas_revisao.slice(0, 8)
     : [];
+  const reviewTotal = Number(classification.total_contas_revisao || 0);
   const originChips = renderCountChips(classification.classificacoes_por_origem, "Origem");
-  const confidenceChips = renderCountChips(classification.classificacoes_por_confianca, "Confianca");
+  const confidenceChips = renderCountChips(classification.classificacoes_por_confianca, "Confiança");
   const reviewRows = reviewAccounts.map(renderAccountReviewRow).join("");
-  const reviewBody = reviewRows || `<tr><td colspan="6"><div class="finding-empty">Nenhuma conta marcada para revisao.</div></td></tr>`;
-
-  return `
-    <section class="section account-classification-section">
-      <div class="section-header">
-        <h3 class="section-title">Classificacao das contas</h3>
-      </div>
-      <div class="indicator-list">
-        <span class="indicator-badge"><strong>Contas analisadas:</strong>&nbsp;${esc(classification.total_contas ?? 0)}</span>
-        <span class="indicator-badge"><strong>Para revisao:</strong>&nbsp;${esc(classification.total_contas_revisao ?? 0)}</span>
-        ${originChips}
-        ${confidenceChips}
-      </div>
+  const reviewTable = reviewRows
+    ? `
       <div class="table-wrap">
         <table class="findings-table account-classification-table">
           <thead>
             <tr>
-              <th>Codigo</th>
+              <th>Código</th>
               <th>Conta</th>
               <th>Grupo</th>
               <th>Origem</th>
-              <th>Confianca</th>
-              <th>Observacao</th>
+              <th>Confiança</th>
+              <th>Observação</th>
             </tr>
           </thead>
-          <tbody>${reviewBody}</tbody>
+          <tbody>${reviewRows}</tbody>
         </table>
       </div>
+    `
+    : `
+      <div class="account-review-empty ${reviewTotal ? "warning" : "success"}">
+        <strong>${reviewTotal ? "Contas pendentes sem detalhe listado" : "Nenhuma conta marcada para revisão"}</strong>
+        <span>${reviewTotal ? "Validar a origem da classificação no JSON técnico." : "A classificação automática não encontrou contas com baixa confiança."}</span>
+      </div>
+    `;
+
+  return `
+    <section class="section account-classification-section">
+      <div class="section-header">
+        <h3 class="section-title">Classificação das contas</h3>
+        <span class="section-note">Apoio para revisar o plano de contas</span>
+      </div>
+      <div class="indicator-list">
+        <span class="indicator-badge"><strong>Contas analisadas:</strong>&nbsp;${esc(classification.total_contas ?? 0)}</span>
+        <span class="indicator-badge ${reviewTotal ? "bad" : "ok"}"><strong>Para revisão:</strong>&nbsp;${esc(classification.total_contas_revisao ?? 0)}</span>
+        ${originChips}
+        ${confidenceChips}
+      </div>
+      ${reviewTable}
     </section>
   `;
 }
@@ -447,6 +662,7 @@ function renderMetricGroups(metrics) {
         ["fornecedores", "Fornecedores"],
         ["emprestimos", "Empréstimos"],
         ["adiantamentos", "Adiantamentos"],
+        ["adiantamentos_clientes", "Adiantamentos de clientes"],
         ["estoques", "Estoques"],
         ["cmv_custos", "CMV/custos"],
         ["patrimonio_liquido", "Patrimônio líquido"],
@@ -497,7 +713,7 @@ function renderMetricCard(key, label, value, metrics) {
   return `
     <div class="metric-card">
       <div class="label">${esc(label)}</div>
-      <div class="value">${fmt(value)}</div>
+      <div class="value">${formatMetricDisplay(key, value)}</div>
       ${detail}
     </div>
   `;
@@ -755,6 +971,250 @@ function renderRawJson(data) {
   `;
 }
 
+function buildPrintDocumentHtml(data) {
+  const ident = data.identificacao || {};
+  const risk = data.risco || {};
+  const metrics = data.metricas || {};
+  const context = data.contexto_regime || {};
+  const meta = data.meta || {};
+  const findings = sortedFindings(data.achados || []);
+  const classification = risk.classificacao || {};
+  const level = normalizeLevel(risk.nivel_geral);
+  const counts = countFindings(findings);
+  const triggeredRules = meta.total_regras_acionadas ?? findings.length;
+  const checkedRules = meta.total_regras_verificadas ?? "?";
+  const issuedAt = formatDateTimePtBr();
+
+  return `
+    <article class="pdf-document">
+      <header class="pdf-cover ${level}">
+        <div>
+          <span class="pdf-kicker">Pré-auditoria fiscal</span>
+          <h1>Relatório de análise trimestral</h1>
+          <p>Documento gerado a partir do motor de regras e do JSON de auditoria fiscal para apoio à revisão contábil e tributária.</p>
+        </div>
+        <div class="pdf-risk-card">
+          <span>Risco geral</span>
+          <strong>${levelLabel(level)}</strong>
+          <small>Pontuação ${esc(formatNumberPtBr(risk.pontuacao_total ?? 0))}</small>
+        </div>
+      </header>
+
+      <section class="pdf-meta-grid" aria-label="Identificação">
+        ${renderPrintMetaItem("Empresa", ident.cliente || "[VERIFICAR: empresa]")}
+        ${renderPrintMetaItem("CNPJ", ident.cnpj || "[VERIFICAR: CNPJ]")}
+        ${renderPrintMetaItem("Regime tributário", ident.regime_tributario || "Simples Nacional")}
+        ${renderPrintMetaItem("Período analisado", ident.periodo || "[VERIFICAR: período]")}
+        ${renderPrintMetaItem("Emissão", issuedAt)}
+        ${renderPrintMetaItem("Conjunto de regras", `${meta.conjunto_regras || "não informado"} ${meta.versao_regras || ""}`.trim())}
+      </section>
+
+      <section class="pdf-section">
+        <h2>Resumo executivo</h2>
+        <p>${renderPrintSummaryText(level, risk, triggeredRules, checkedRules, counts)}</p>
+        <div class="pdf-summary-grid">
+          ${renderPrintSummaryCard("Regras verificadas", checkedRules)}
+          ${renderPrintSummaryCard("Regras acionadas", triggeredRules)}
+          ${renderPrintSummaryCard("Achados de risco alto", counts.alto)}
+          ${renderPrintSummaryCard("Achados de risco médio", counts.medio)}
+          ${renderPrintSummaryCard("Achados de risco baixo", counts.baixo)}
+          ${renderPrintSummaryCard("Achados compostos", classification.achados_compostos || 0)}
+        </div>
+      </section>
+
+      ${renderPrintMetricSection(metrics, context)}
+      ${renderPrintContextSection(context)}
+      ${renderPrintFindingsSection(findings)}
+      ${renderPrintAccountSection(data.classificacao_contas)}
+
+      <section class="pdf-section pdf-note-section">
+        <h2>Observação metodológica</h2>
+        <p>A análise é automatizada e foi elaborada com base exclusivamente nos dados estruturados recebidos no JSON de auditoria. A conclusão final deve ser validada com balancete, razão contábil, documentos fiscais, extratos, contratos e demais evidências aplicáveis ao período.</p>
+      </section>
+    </article>
+  `;
+}
+
+function renderPrintMetaItem(label, value) {
+  return `
+    <div class="pdf-meta-item">
+      <span>${esc(label)}</span>
+      <strong>${esc(value)}</strong>
+    </div>
+  `;
+}
+
+function renderPrintSummaryText(level, risk, triggeredRules, checkedRules, counts) {
+  const opinion = opinionLabel(risk.modalidade_opiniao_sugerida);
+  const score = formatNumberPtBr(risk.pontuacao_total ?? 0);
+  return `Foram verificadas ${esc(checkedRules)} regras, das quais ${esc(triggeredRules)} foram acionadas. O risco geral foi classificado como ${levelLabel(level).toLowerCase()}, com pontuação total de ${esc(score)} ponto(s). A conclusão sugerida pelo motor é: ${esc(opinion)}. A distribuição dos achados foi de ${counts.alto} alto(s), ${counts.medio} médio(s) e ${counts.baixo} baixo(s).`;
+}
+
+function renderPrintSummaryCard(label, value) {
+  return `
+    <div class="pdf-summary-card">
+      <span>${esc(label)}</span>
+      <strong>${esc(formatCountDisplay(value))}</strong>
+    </div>
+  `;
+}
+
+function renderPrintMetricSection(metrics, context) {
+  const rows = [
+    ["receita_operacional", "Receita operacional"],
+    ["lucro_apurado_base", "Resultado apurado"],
+    ["tributos_registrados", "Tributos registrados"],
+    ["despesas_operacionais", "Despesas operacionais"],
+    ["servicos_terceiros", "Serviços de terceiros"],
+    ["caixa_e_bancos", "Caixa e bancos"],
+    ["clientes_recebiveis", "Clientes e recebíveis"],
+    ["adiantamentos_clientes", "Adiantamentos de clientes"],
+    ["estoques", "Estoques"],
+    ["fornecedores", "Fornecedores"],
+    ["cmv_custos", "CMV/custos"],
+    ["patrimonio_liquido", "Patrimônio líquido"],
+  ].map(([key, label]) => renderPrintMetricItem(key, label, metricValue(metrics, key))).filter(Boolean).join("");
+
+  const indicators = metrics.indicadores_derivados || {};
+  const indicatorRows = [
+    ["carga_tributaria_efetiva_percentual", "Carga tributária efetiva"],
+    ["percentual_despesas_sobre_receita", "Despesas sobre receita"],
+    ["percentual_servicos_terceiros_sobre_despesas", "Serviços de terceiros sobre despesas"],
+    ["percentual_cmv_sobre_receita", "CMV/custos sobre receita"],
+    ["endividamento_bancario_sobre_receita", "Endividamento bancário sobre receita"],
+  ].map(([key, label]) => hasDisplayValue(indicators[key]) ? renderPrintMetricItem(key, label, indicators[key]) : "").join("");
+
+  const anexo = context.anexo_estimado
+    ? renderPrintMetricItem("anexo_estimado", "Anexo estimado", context.anexo_estimado)
+    : "";
+  const factorR = context.fator_r_calculado
+    ? renderPrintMetricItem("fator_r_calculado", "Fator R calculado", `${context.fator_r_calculado} | limite ${context.fator_r_threshold || "28%"}`)
+    : "";
+
+  if (!rows && !indicatorRows && !anexo && !factorR) return "";
+
+  return `
+    <section class="pdf-section">
+      <h2>Métricas e indicadores</h2>
+      <div class="pdf-metric-grid">${rows}${indicatorRows}${anexo}${factorR}</div>
+    </section>
+  `;
+}
+
+function renderPrintMetricItem(key, label, value) {
+  if (!hasDisplayValue(value)) return "";
+  return `
+    <div class="pdf-metric-item">
+      <span>${esc(label)}</span>
+      <strong>${formatMetricDisplay(key, value)}</strong>
+    </div>
+  `;
+}
+
+function renderPrintContextSection(context) {
+  const observations = Array.isArray(context.observacoes)
+    ? context.observacoes.filter(Boolean)
+    : [];
+  if (!observations.length && !context.sublimite_risco) return "";
+
+  const items = observations.map((item) => `<li>${esc(item)}</li>`).join("");
+  const sublimit = context.sublimite_risco
+    ? "<li>Receita estimada em faixa de atenção para sublimite, exigindo validação documental e tributária.</li>"
+    : "";
+
+  return `
+    <section class="pdf-section">
+      <h2>Contexto tributário</h2>
+      <ul class="pdf-list">${items}${sublimit}</ul>
+    </section>
+  `;
+}
+
+function renderPrintFindingsSection(findings) {
+  if (!findings.length) {
+    return `
+      <section class="pdf-section">
+        <h2>Principais achados</h2>
+        <p>Nenhum achado foi acionado pelo motor de regras para o período analisado.</p>
+      </section>
+    `;
+  }
+
+  const cards = findings.map(renderPrintFindingCard).join("");
+  return `
+    <section class="pdf-section">
+      <h2>Principais achados</h2>
+      <div class="pdf-finding-list">${cards}</div>
+    </section>
+  `;
+}
+
+function renderPrintFindingCard(finding) {
+  const level = normalizeLevel(finding.nivel);
+  const evidence = evidenceSummary(finding.evidencia);
+  const norms = Array.isArray(finding.normas_aplicaveis) && finding.normas_aplicaveis.length
+    ? finding.normas_aplicaveis.join("; ")
+    : "[VERIFICAR: fundamento normativo]";
+
+  return `
+    <article class="pdf-finding-card ${level}">
+      <header>
+        <span class="finding-code">${esc(finding.codigo)}</span>
+        <span class="chip ${level}">${levelLabel(level)}</span>
+        <span class="pdf-score">Pontuação ${esc(formatNumberPtBr(finding.pontuacao ?? 0))}</span>
+      </header>
+      <h3>${esc(finding.titulo || "Achado sem título")}</h3>
+      <dl>
+        <dt>Evidência</dt>
+        <dd>${esc(truncateText(evidence, 220))}</dd>
+        <dt>Impacto técnico</dt>
+        <dd>${esc(truncateText(finding.descricao || "[VERIFICAR: impacto técnico]", 240))}</dd>
+        <dt>Recomendação</dt>
+        <dd>${esc(truncateText(finding.recomendacao || "[VERIFICAR: recomendação técnica]", 260))}</dd>
+        <dt>Fundamento</dt>
+        <dd>${esc(truncateText(norms, 260))}</dd>
+      </dl>
+    </article>
+  `;
+}
+
+function evidenceSummary(evidence) {
+  if (!evidence || !Object.keys(evidence).length) return "[VERIFICAR: evidência]";
+  return Object.entries(evidence)
+    .slice(0, 4)
+    .map(([key, value]) => `${humanizeKey(key)}: ${evidenceValue(value)}`)
+    .join(" | ");
+}
+
+function humanizeKey(key) {
+  return String(key || "")
+    .replace(/_/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^./, (char) => char.toUpperCase());
+}
+
+function renderPrintAccountSection(classification) {
+  if (!classification || !classification.total_contas) return "";
+  const reviewAccounts = Array.isArray(classification.contas_revisao)
+    ? classification.contas_revisao.slice(0, 6)
+    : [];
+  const rows = reviewAccounts.map((account) => `
+    <li>
+      <strong>${esc(account.codigo)} - ${esc(account.conta)}</strong>
+      <span>${esc(account.grupo_atribuido || "grupo não informado")} | confiança ${esc(account.confianca || "não informada")}</span>
+    </li>
+  `).join("");
+
+  return `
+    <section class="pdf-section">
+      <h2>Classificação das contas</h2>
+      <p>Foram analisadas ${esc(formatNumberPtBr(classification.total_contas || 0))} conta(s). Total indicado para revisão: ${esc(formatNumberPtBr(classification.total_contas_revisao || 0))}.</p>
+      ${rows ? `<ul class="pdf-account-list">${rows}</ul>` : "<p>Nenhuma conta foi marcada para revisão de classificação.</p>"}
+    </section>
+  `;
+}
+
 function bindDynamicControls() {
   output.querySelectorAll("[data-finding-filter]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -787,8 +1247,8 @@ function printDashboardPdf() {
 
   const viewData = normalizeAuditPayload(lastData);
   const ident = viewData.identificacao || {};
-  const title = `Dashboard de auditoria fiscal - ${ident.cliente || "cliente"} - ${ident.periodo || "periodo"}`;
-  const content = buildDashboardHtml(viewData, { findingFilter: "all", printMode: true });
+  const title = `Relatório de pré-auditoria fiscal - ${ident.cliente || "cliente"} - ${ident.periodo || "periodo"}`;
+  const content = buildPrintDocumentHtml(viewData);
   const styleUrl = `${window.location.origin}/static/styles.css`;
   const printWindow = window.open("", "_blank");
 
@@ -806,13 +1266,7 @@ function printDashboardPdf() {
   <link rel="stylesheet" href="${esc(styleUrl)}">
 </head>
 <body>
-  <main class="print-page">
-    <header class="print-header">
-      <h1>${esc(title)}</h1>
-      <p>Relatório emitido a partir do dashboard de auditoria fiscal.</p>
-    </header>
-    <section class="report">${content}</section>
-  </main>
+  <main class="print-page">${content}</main>
 </body>
 </html>`);
   printWindow.document.close();

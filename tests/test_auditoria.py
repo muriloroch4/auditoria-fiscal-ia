@@ -210,11 +210,13 @@ class AuditPrototypeTest(unittest.TestCase):
         medio = RuleFinding(codigo="SN-007", titulo="Test", nivel=RiskLevel.MEDIO, pontuacao=16, descricao="Test")
         baixo = RuleFinding(codigo="SN-999", titulo="Test", nivel=RiskLevel.BAIXO, pontuacao=5, descricao="Test")
         composto = RuleFinding(codigo="SN-COMP-01", titulo="Test", nivel=RiskLevel.ALTO, pontuacao=15, descricao="Test")
+        composto_medio = RuleFinding(codigo="SN-COMP-03", titulo="Test", nivel=RiskLevel.MEDIO, pontuacao=6, descricao="Test")
 
         self.assertEqual(suggest_opinion_type(RiskLevel.ALTO, [alto]), "adversa")
         self.assertEqual(suggest_opinion_type(RiskLevel.MEDIO, [medio]), "com_ressalva")
         self.assertEqual(suggest_opinion_type(RiskLevel.BAIXO, [baixo]), "sem_ressalva")
         self.assertEqual(suggest_opinion_type(RiskLevel.BAIXO, [composto]), "adversa")
+        self.assertEqual(suggest_opinion_type(RiskLevel.MEDIO, [composto_medio]), "com_ressalva")
 
     def test_contexto_regime_is_present(self):
         content = dedent(
@@ -676,7 +678,7 @@ class MelhoriasMotorFiscalTest(unittest.TestCase):
         self.assertEqual(result.metricas_valores["tributos_registrados"], 2000.0)
         self.assertEqual(result.metricas_valores["tributos_a_recolher"], 30000.0)
 
-    def test_adiantamentos_de_clientes_tambem_disparam_sn011(self):
+    def test_adiantamentos_de_clientes_disparam_sn026_sem_duplicar_sn011(self):
         content = dedent(
             """\
             codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
@@ -689,7 +691,16 @@ class MelhoriasMotorFiscalTest(unittest.TestCase):
         result = run_quarterly_audit(balance)
         codes = {f.codigo for f in result.achados}
 
-        self.assertIn("SN-011A", codes)
+        self.assertNotIn("SN-011A", codes)
+        self.assertIn("SN-026", codes)
+        finding = next(f for f in result.achados if f.codigo == "SN-026")
+        self.assertEqual(finding.nivel, RiskLevel.MEDIO)
+        self.assertEqual(finding.pontuacao, 14)
+        self.assertIn("sonegacao fiscal", finding.descricao)
+        self.assertIn("liquidados", finding.recomendacao)
+        self.assertIn("validacao_documental", finding.evidencia)
+        self.assertEqual(result.metricas_valores["adiantamentos"], 0.0)
+        self.assertEqual(result.metricas_valores["adiantamentos_clientes"], 25000.0)
 
     def test_lucros_a_pagar_por_credito_entram_como_distribuicao(self):
         content = dedent(
@@ -815,6 +826,9 @@ class MelhoriasMotorFiscalTest(unittest.TestCase):
         self.assertIn("SN-008B", codes)
         self.assertIn("SN-007", codes)
         self.assertIn("SN-COMP-01", codes)
+        compound = next(f for f in result.achados if f.codigo == "SN-COMP-01")
+        self.assertEqual(compound.pontuacao, 8)
+        self.assertTrue(any("regras compostas" in item for item in result.explicacao_pontuacao))
 
     def test_sn012_tax_liability_growth_triggers(self):
         content = dedent(

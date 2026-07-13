@@ -88,7 +88,7 @@ def load_account_map(path: str | Path | None = None) -> dict[str, Any]:
 
 def _build_defaults() -> dict[str, Any]:
     return {
-        "version": "1.9.0",
+        "version": "1.11.0",
         "limites_gerais": {
             "simples_anual": 4800000,
             "limite_movimentacao_ativa": 10000,
@@ -98,21 +98,21 @@ def _build_defaults() -> dict[str, Any]:
             "simples_servicos": [
                 "SN-001", "SN-002", "SN-003", "SN-004", "SN-005", "SN-006", "SN-007",
                 "SN-008", "SN-009", "SN-010", "SN-011", "SN-012", "SN-013", "SN-014",
-                "SN-021", "SN-022", "SN-023", "SN-025",
+                "SN-021", "SN-022", "SN-023", "SN-025", "SN-026",
                 "SN-COMP-01", "SN-COMP-02", "SN-COMP-03",
             ],
             "simples_comercio": [
                 "SN-001", "SN-002", "SN-004", "SN-005", "SN-006", "SN-007",
                 "SN-008", "SN-009", "SN-010", "SN-011", "SN-012", "SN-013", "SN-014",
                 "SN-015", "SN-016", "SN-017", "SN-018", "SN-019",
-                "SN-021", "SN-022", "SN-023", "SN-024", "SN-025",
+                "SN-021", "SN-022", "SN-023", "SN-024", "SN-025", "SN-026",
                 "SN-COMP-01", "SN-COMP-02", "SN-COMP-03", "SN-COMP-04",
             ],
             "simples_comercio_servicos": [
                 "SN-001", "SN-002", "SN-003", "SN-004", "SN-005", "SN-006", "SN-007",
                 "SN-008", "SN-009", "SN-010", "SN-011", "SN-012", "SN-013", "SN-014",
                 "SN-015", "SN-016", "SN-017", "SN-018", "SN-019", "SN-020",
-                "SN-021", "SN-022", "SN-023", "SN-024", "SN-025",
+                "SN-021", "SN-022", "SN-023", "SN-024", "SN-025", "SN-026",
                 "SN-COMP-01", "SN-COMP-02", "SN-COMP-03", "SN-COMP-04", "SN-COMP-05",
             ],
         },
@@ -251,27 +251,34 @@ def _build_defaults() -> dict[str, Any]:
             "limite_ratio_despesas": 0.20,
             "pontuacao_medio": 12,
         },
+        "SN-026": {
+            "descricao": "Adiantamento de clientes no passivo com saldo",
+            "limite_medio_absoluto": 10000,
+            "limite_medio_receita": 0.05,
+            "pontuacao_baixo": 6,
+            "pontuacao_medio": 14,
+        },
         "SN-COMP-01": {
-            "pontuacao": 15,
+            "pontuacao": 8,
         },
         "SN-COMP-02": {
-            "pontuacao": 15,
+            "pontuacao": 8,
         },
         "SN-COMP-03": {
-            "pontuacao": 10,
+            "pontuacao": 6,
         },
         "SN-COMP-04": {
-            "pontuacao": 15,
+            "pontuacao": 8,
         },
         "SN-COMP-05": {
-            "pontuacao": 15,
+            "pontuacao": 8,
         },
     }
 
 
 def _build_account_map_defaults() -> dict[str, Any]:
     return {
-        "version": "1.1.0",
+        "version": "1.2.0",
         "mapeamentos": [
             {
                 "nome": "Servicos prestados por terceiros",
@@ -315,6 +322,17 @@ def _build_account_map_defaults() -> dict[str, Any]:
                 "grupo": "bancos",
                 "prefixos": ["1.1.10.200", "1.1.1.02", "1.1.1.03"],
                 "descricoes_contem": ["banco", "conta corrente", "aplicacao financeira"],
+            },
+            {
+                "nome": "Adiantamentos de clientes",
+                "grupo": "adiantamentos_clientes",
+                "prefixos": ["2.1.6.01", "2.1.60.100"],
+                "descricoes_contem": [
+                    "adiantamento de clientes",
+                    "adiantamentos de clientes",
+                    "adiantamento recebido de cliente",
+                    "adiantamentos recebidos de clientes",
+                ],
             },
             {
                 "nome": "Clientes e recebiveis",

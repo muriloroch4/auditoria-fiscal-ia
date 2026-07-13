@@ -677,10 +677,10 @@ def _dominio_group(classification: str, description: str) -> str:
             return "folha"
         return "folha"
     if c.startswith("2.1.6"):
-        if c.startswith("2.1.6.01") or any(k in text for k in ("adiantamento de cliente", "adiantamentos de clientes", "cliente")):
-            return "adiantamentos_clientes"
         if any(k in text for k in ("socio", "administrador", "pessoa ligada", "mutuo")):
             return "socios"
+        if c.startswith("2.1.6.01") or any(k in text for k in ("adiantamento de cliente", "adiantamentos de clientes", "cliente")):
+            return "adiantamentos_clientes"
         return "outros"
     if c.startswith("2.1.7"):
         return "lucros"

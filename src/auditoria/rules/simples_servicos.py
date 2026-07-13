@@ -86,6 +86,7 @@ def _analyze_simples_nacional(
     findings.extend(_check_receivables(metrics.revenue, metrics.clients, metrics.client_movement))
     findings.extend(_check_zero_receivables(metrics.revenue, metrics.clients, metrics.client_movement))
     findings.extend(_check_advances(metrics.revenue, metrics.advances))
+    findings.extend(_check_customer_advances(metrics.revenue, balance.contas_por_grupo("adiantamentos_clientes")))
     findings.extend(_check_cash_position(metrics.revenue, metrics.cash))
     findings.extend(_check_physical_cash_position(metrics.revenue, metrics.physical_cash, ruleset))
     findings.extend(_check_expense_ratio(metrics.revenue, metrics.expenses, balance, ruleset))
@@ -475,6 +476,52 @@ def _check_advances(revenue: Decimal, advances: Decimal) -> list[RuleFinding]:
         ]
 
     return []
+
+
+def _check_customer_advances(revenue: Decimal, accounts: list[LedgerAccount]) -> list[RuleFinding]:
+    customer_advances = sum((abs(account.saldo_atual) for account in accounts), Decimal("0"))
+    if customer_advances <= 0:
+        return []
+
+    cfg = get_rule_config("SN-026")
+    absolute_limit = Decimal(str(cfg.get("limite_medio_absoluto", 10000)))
+    ratio_limit = Decimal(str(cfg.get("limite_medio_receita", 0.05)))
+    ratio = customer_advances / revenue if revenue > 0 else None
+    material = customer_advances >= absolute_limit or (ratio is not None and ratio >= ratio_limit)
+    level = RiskLevel.MEDIO if material else RiskLevel.BAIXO
+    score = cfg.get("pontuacao_medio", 14) if material else cfg.get("pontuacao_baixo", 6)
+
+    return [
+        RuleFinding(
+            codigo="SN-026",
+            titulo="Adiantamento de clientes no passivo exige validacao fiscal e documental",
+            nivel=level,
+            pontuacao=score,
+            descricao=(
+                "Foi identificado saldo em conta passiva de adiantamento de clientes. O saldo pode representar "
+                "receita antecipada legitima, mas tambem pode ser possivel sinal de sonegacao fiscal quando indicar "
+                "receita ja liquidada sem baixa, emissao fiscal ou reconhecimento contabil adequado."
+            ),
+            evidencia={
+                "receita": _money(revenue),
+                "adiantamentos_clientes": _money(customer_advances),
+                "percentual_sobre_receita": _percent(ratio) if ratio is not None else "[VERIFICAR: receita trimestral]",
+                "limite_absoluto_relevancia": _money(absolute_limit),
+                "limite_percentual_relevancia": _percent(ratio_limit),
+                "classificacao_materialidade": "material" if material else "baixa_materialidade",
+                "contas_identificadas": format_account_trace(accounts),
+                "baixa_liquidacao": "[VERIFICAR: se os adiantamentos ja foram liquidados, faturados, baixados ou convertidos em receita]",
+                "validacao_documental": "[VERIFICAR: contratos, pedidos, notas fiscais, extratos, recibos e razao contabil]",
+                "tipo_achado": "validacao_documental_fiscal",
+            },
+            recomendacao=(
+                "Validar a composicao dos adiantamentos de clientes, confrontando contratos, pedidos, notas fiscais, "
+                "extratos bancarios, recibos e razao contabil; verificar se os valores ja foram liquidados, faturados "
+                "ou baixados e regularizar eventual receita nao reconhecida."
+            ),
+            normas_aplicaveis=("LC 123/2006", "NBC TG 1000", "ITG 2000"),
+        )
+    ]
 
 
 def _check_cash_position(revenue: Decimal, cash: Decimal) -> list[RuleFinding]:

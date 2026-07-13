@@ -33,6 +33,7 @@ _DOCUMENTS_BY_PREFIX: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("SN-023", ("relatorio de contas a receber", "comprovantes de recebimento", "meios de pagamento")),
     ("SN-024", ("NF-e por NCM/CFOP/CST", "PGDAS-D", "memoria de ICMS-ST e ressarcimentos")),
     ("SN-025", ("contratos de prestadores", "notas fiscais de servicos tomados", "comprovantes bancarios", "retencoes aplicaveis")),
+    ("SN-026", ("razao de adiantamentos de clientes", "contratos ou pedidos", "notas fiscais emitidas", "extratos bancarios", "comprovantes de baixa ou liquidacao")),
     ("AN-DOC-325", ("contratos de prestadores", "notas fiscais de servicos tomados", "comprovantes bancarios", "retencoes aplicaveis")),
     ("AN-DOC-MUTUO", ("razao das contas de socios", "extratos bancarios", "contrato de mutuo ou instrumento equivalente", "memoria de calculo do IOF", "guia e comprovante de recolhimento do IOF")),
     ("AN-COM", ("inventario de estoque", "notas fiscais de compra e venda", "memoria de CMV", "PGDAS-D quando aplicavel")),

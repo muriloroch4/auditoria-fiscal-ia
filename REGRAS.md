@@ -10,6 +10,29 @@ Motor para empresas enquadradas no Simples Nacional, com conjuntos para serviço
 | `simples_comercio` | Empresas predominantemente comerciais, com estoques, fornecedores e CMV |
 | `simples_comercio_servicos` | Empresas que combinam venda de mercadorias e prestação de serviços |
 
+## Matriz de pontuação
+
+A pontuação total é a soma dos pesos das regras acionadas no trimestre. A classificação geral também considera a severidade qualitativa do achado: um achado alto torna o risco geral alto, e um achado médio torna o risco geral pelo menos médio.
+
+A opinião sugerida segue a classificação geral: risco baixo tende a `sem_ressalva`, risco médio tende a `com_ressalva` e risco alto tende a `adversa`. Regras compostas de nível médio não forçam opinião adversa isoladamente.
+
+| Faixa / condição | Classificação geral | Interpretação |
+|---|---|---|
+| 0 a 29 pontos, sem achado médio ou alto | Baixo | Pontos de atenção ou validações documentais de baixa materialidade |
+| 30 a 69 pontos, ou qualquer achado médio | Médio | Indícios que exigem validação documental, conciliação ou ajuste contábil |
+| 70 pontos ou mais, ou qualquer achado alto | Alto | Indício relevante com potencial distorção material, desenquadramento, omissão ou inconsistência crítica |
+
+Escala usada nos pesos:
+
+| Peso | Uso recomendado |
+|---:|---|
+| 6 | Alerta documental baixo ou ponto de atenção sem materialidade relevante |
+| 10 a 12 | Alerta operacional/documental relevante, mas ainda limitado |
+| 14 a 18 | Achado médio com materialidade ou impacto contábil/fiscal mais claro |
+| 20 a 28 | Achado alto por inconsistência relevante, omissão, caixa, CMV, estoque ou prejuízo |
+| 32 a 35 | Achado crítico ligado a limite legal ou distribuição de lucros incompatível |
+| 6 a 8 em `SN-COMP-*` | Reforço contextual por combinação de achados correlacionados, sem duplicar integralmente o peso das regras-base |
+
 | Código | Regra | Critério | Risco | Peso |
 |---|---|---|---|---|
 | SN-001A | Receita trimestral anualizada em atenção | Receita do trimestre x 4 acima de 70% do limite anual do Simples Nacional | Médio | 18 |
@@ -55,11 +78,12 @@ Motor para empresas enquadradas no Simples Nacional, com conjuntos para serviço
 | SN-023 | Clientes zerados com receita relevante | Receita >= R$ 200.000 sem saldo ou movimentação em clientes | Baixo | 6 |
 | SN-024 | Validação de ICMS-ST | Créditos fiscais relevantes em contexto comercial com estoque/fornecedores/CMV | Baixo | 6 |
 | SN-025 | Serviços prestados por terceiros | Conta 325/serviços de terceiros >= 20% das despesas e acima de R$ 10.000 | Médio | 12 |
-| SN-COMP-01 | Omissão de receita e despesas elevadas | SN-008 + SN-007 ambos acionados | Alto | 15 |
-| SN-COMP-02 | Prejuízo significativo e caixa negativo | SN-009B + SN-006A ambos acionados | Alto | 15 |
-| SN-COMP-03 | Recebíveis elevados e adiantamentos | SN-010B/C + SN-011A ambos acionados | Médio | 10 |
-| SN-COMP-04 | Estoque incompatível e CMV inconsistente | SN-015 + SN-018 ambos acionados | Alto | 15 |
-| SN-COMP-05 | Receita mista e carga baixa | SN-020 + SN-002 ambos acionados | Alto | 15 |
+| SN-026 | Adiantamento de clientes no passivo | Saldo em `adiantamentos_clientes`; baixo se imaterial, médio se >= R$ 10.000 ou >= 5% da receita | Baixo/Médio | 6/14 |
+| SN-COMP-01 | Omissão de receita e despesas elevadas | SN-008 + SN-007 ambos acionados | Alto | 8 |
+| SN-COMP-02 | Prejuízo significativo e caixa negativo | SN-009B + SN-006A ambos acionados | Alto | 8 |
+| SN-COMP-03 | Recebíveis elevados e adiantamentos | SN-010B/C + SN-011A ambos acionados | Médio | 6 |
+| SN-COMP-04 | Estoque incompatível e CMV inconsistente | SN-015 + SN-018 ambos acionados | Alto | 8 |
+| SN-COMP-05 | Receita mista e carga baixa | SN-020 + SN-002 ambos acionados | Alto | 8 |
 
 Notas de versao 1.6.0:
 
@@ -84,6 +108,19 @@ Notas de versao 1.9.0:
 - A API de upload mantem o JSON trimestral formal `v3.0.0` e adiciona um bloco auxiliar `dashboard` somente para a interface web, com metricas, contexto do regime e totais operacionais.
 - O SQLite local foi versionado como schema `1.1.0` com migracao automatica via `PRAGMA user_version`.
 
+Notas de versao 1.10.0:
+
+- As regras compostas `SN-COMP-*` foram recalibradas como reforço contextual de 6 a 8 pontos, reduzindo a duplicidade de score quando as regras-base já capturam o risco principal.
+- A explicação da pontuação passou a separar score base e pontos de regras compostas quando houver achados `SN-COMP-*`.
+- A opinião sugerida passou a tratar apenas regras compostas de nível alto como fator de opinião adversa; compostas médias seguem como ressalva.
+- A matriz de pontuação foi documentada para facilitar revisão técnica, calibração futura e justificativa do risco geral no parecer.
+
+Notas de versao 1.11.0:
+
+- `SN-026` passou a identificar saldo em contas passivas de adiantamento de clientes, solicitando validação de liquidação, baixa, emissão fiscal, razão contábil, contratos, pedidos e extratos.
+- O achado trata o saldo como possível sinal de sonegação fiscal apenas quando a validação indicar receita já liquidada sem emissão fiscal ou reconhecimento adequado; o motor não conclui irregularidade de forma automática.
+- O dashboard e o JSON auxiliar passaram a expor a métrica `adiantamentos_clientes`, separada dos demais adiantamentos.
+
 ## Observações de cálculo trimestral
 
 - A regra `SN-001` usa a receita do trimestre anualizada (`receita x 4`) como alerta de ritmo; a conclusão legal deve validar a RBT12.
@@ -96,7 +133,8 @@ Notas de versao 1.9.0:
 - Para `SN-005`, a materialidade padrao é: risco médio quando o saldo for maior ou igual a R$ 10.000 ou 5% da receita trimestral; abaixo disso, o achado permanece como risco baixo para revisão documental.
 - A carga tributária efetiva usa `tributos_sobre_receita` e `despesas_tributarias`; para CSVs antigos, cai para o grupo legado `tributos`.
 - A regra `SN-012` usa `tributos_a_recolher`; para CSVs antigos, cai para o grupo legado `tributos`.
-- A regra `SN-011` considera `adiantamentos` e `adiantamentos_clientes`, usando a maior referência entre R$ 10.000 e 10% da receita trimestral.
+- A regra `SN-011` considera adiantamentos gerais (`adiantamentos`), usando a maior referência entre R$ 10.000 e 10% da receita trimestral.
+- A regra `SN-026` trata separadamente adiantamentos de clientes no passivo (`adiantamentos_clientes`) para evitar dupla contagem com a `SN-011`.
 - A regra `SN-010` compara o saldo final patrimonial com a receita trimestral; o achado é um alerta para aging list, prazo médio e baixa posterior, não uma conclusão isolada de irregularidade.
 - As regras `SN-015` a `SN-019` são aplicadas nos conjuntos `simples_comercio` e `simples_comercio_servicos`.
 - A regra `SN-020` é aplicada apenas no conjunto `simples_comercio_servicos` e procura ausência de segregação contábil entre receitas de comércio e receitas de serviços.
@@ -108,10 +146,12 @@ Notas de versao 1.9.0:
 - A regra `SN-024` não recalcula ICMS-ST pelo balancete; ela aciona validação documental de NCM, CFOP, mercadorias sujeitas a substituição tributária, ressarcimentos e créditos fiscais.
 - A regra `SN-025` identifica a conta 325 por codigo ou por descricoes como `servicos prestados por terceiros` e compara o valor com o total de despesas operacionais do trimestre.
 - Para `SN-025`, a evidencia lista as contas encontradas com codigo, descricao, grupo, debito, credito e saldo.
+- A regra `SN-026` rastreia o grupo `adiantamentos_clientes`, normalmente passivo, por grupo informado, inferência de código/descrição ou mapa configurável do plano de contas.
+- Para `SN-026`, a materialidade padrão é: risco médio quando o saldo for maior ou igual a R$ 10.000 ou 5% da receita trimestral; abaixo disso, o achado permanece como risco baixo para revisão documental.
 - O contexto tributário usa `config/simples_anexos.json` para estimar Anexo I, III ou V. Para empresas mistas, o motor informa que a alíquota depende da segregação entre receitas de comércio e serviços.
 - `_active_movement` é calculado apenas com `bancos` e `caixa`, sem `clientes`.
 - `_operational_movement` inclui `bancos`, `caixa` e `clientes` para o cálculo do índice da `SN-008B`.
-- Regras compostas (`SN-COMP-*`) são acionadas quando as regras base correspondentes estão presentes.
+- Regras compostas (`SN-COMP-*`) são acionadas quando as regras base correspondentes estão presentes e funcionam como reforço contextual de baixa pontuação incremental.
 - O parser infere automaticamente o grupo via `_infer_grupo_from_conta` quando o grupo informado não está em `VALID_GRUPOS`.
 
 ## Consolidação anual

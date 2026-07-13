@@ -345,7 +345,7 @@
   "metadados": {
     "conjunto_regras": "simples_servicos",
     "data_analise": "2000-01-01T00:00:00",
-    "versao_regras": "1.9.0",
+    "versao_regras": "1.11.0",
     "versao_schema": "3.0.0"
   },
   "principais_achados": [
@@ -597,6 +597,6 @@
     ],
     "risco_geral": "alto",
     "total_regras_acionadas": 6,
-    "total_regras_verificadas": 21
+    "total_regras_verificadas": 22
   }
 }

@@ -1,5 +1,5 @@
 {
-    "version": "1.9.0",
+    "version": "1.11.0",
     "descricao": "Configurações de regras de auditoria fiscal - Simples Nacional serviços, comércio e misto",
 
     "limites_gerais": {
@@ -12,21 +12,21 @@
         "simples_servicos": [
             "SN-001", "SN-002", "SN-003", "SN-004", "SN-005", "SN-006", "SN-007",
             "SN-008", "SN-009", "SN-010", "SN-011", "SN-012", "SN-013", "SN-014",
-            "SN-021", "SN-022", "SN-023", "SN-025",
+            "SN-021", "SN-022", "SN-023", "SN-025", "SN-026",
             "SN-COMP-01", "SN-COMP-02", "SN-COMP-03"
         ],
         "simples_comercio": [
             "SN-001", "SN-002", "SN-004", "SN-005", "SN-006", "SN-007",
             "SN-008", "SN-009", "SN-010", "SN-011", "SN-012", "SN-013", "SN-014",
             "SN-015", "SN-016", "SN-017", "SN-018", "SN-019",
-            "SN-021", "SN-022", "SN-023", "SN-024", "SN-025",
+            "SN-021", "SN-022", "SN-023", "SN-024", "SN-025", "SN-026",
             "SN-COMP-01", "SN-COMP-02", "SN-COMP-03", "SN-COMP-04"
         ],
         "simples_comercio_servicos": [
             "SN-001", "SN-002", "SN-003", "SN-004", "SN-005", "SN-006", "SN-007",
             "SN-008", "SN-009", "SN-010", "SN-011", "SN-012", "SN-013", "SN-014",
             "SN-015", "SN-016", "SN-017", "SN-018", "SN-019", "SN-020",
-            "SN-021", "SN-022", "SN-023", "SN-024", "SN-025",
+            "SN-021", "SN-022", "SN-023", "SN-024", "SN-025", "SN-026",
             "SN-COMP-01", "SN-COMP-02", "SN-COMP-03", "SN-COMP-04", "SN-COMP-05"
         ]
     },
@@ -237,33 +237,43 @@
         "pontuacao_medio": 12
     },
 
+    "SN-026": {
+        "descricao": "Adiantamento de clientes no passivo com saldo",
+        "limite_medio_absoluto": 10000,
+        "limite_medio_receita": 0.05,
+        "nivel_baixo": "BAIXO",
+        "pontuacao_baixo": 6,
+        "nivel_medio": "MEDIO",
+        "pontuacao_medio": 14
+    },
+
     "SN-COMP-01": {
         "descricao": "Omissão de receita e despesas elevadas",
         "nivel_alto": "ALTO",
-        "pontuacao": 15
+        "pontuacao": 8
     },
 
     "SN-COMP-02": {
         "descricao": "Prejuízo significativo e caixa negativo",
         "nivel_alto": "ALTO",
-        "pontuacao": 15
+        "pontuacao": 8
     },
 
     "SN-COMP-03": {
         "descricao": "Recebíveis elevados e adiantamentos",
         "nivel_medio": "MEDIO",
-        "pontuacao": 10
+        "pontuacao": 6
     },
 
     "SN-COMP-04": {
         "descricao": "Estoque incompatível e CMV inconsistente",
         "nivel_alto": "ALTO",
-        "pontuacao": 15
+        "pontuacao": 8
     },
 
     "SN-COMP-05": {
         "descricao": "Receita mista sem segregação e carga tributária baixa",
         "nivel_alto": "ALTO",
-        "pontuacao": 15
+        "pontuacao": 8
     }
 }

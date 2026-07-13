@@ -230,7 +230,8 @@ Modelos disponíveis em `samples/`.
 | `despesas` / `custos` | Despesas operacionais, custos dos serviços ou CMV |
 | Conta `325` ou descrição `serviços prestados por terceiros` | Monitorada pela regra `SN-025` quando relevante nas despesas |
 | `socios` | Empréstimos, mútuos, contas correntes, contas 616/627 no ativo e 770 no passivo |
-| `adiantamentos` / `adiantamentos_clientes` | Adiantamentos a fornecedores, clientes, empregados e terceiros |
+| `adiantamentos` | Adiantamentos gerais a fornecedores, empregados e terceiros |
+| `adiantamentos_clientes` | Adiantamentos de clientes no passivo, monitorados pela regra `SN-026` |
 | `caixa` / `bancos` | Disponibilidades |
 | `lucros` | Distribuição de lucros |
 | `resultado` | Lucro ou prejuízo apurado |
@@ -242,7 +243,7 @@ O arquivo `config/plano_contas_map.json` permite ajustar o reconhecimento de con
 
 O JSON trimestral inclui o bloco `classificacao_contas`, que resume quantas contas foram classificadas por grupo, origem e nível de confiança, além de listar contas que precisam revisão. Isso ajuda a validar o plano de contas antes de confiar integralmente nos achados do motor.
 
-Esse mapa já inclui a conta `325`/`serviços prestados por terceiros`, contas de sócios/mútuos (`616`, `627` e `770`), bancos, caixa, clientes, estoques, fornecedores, tributos, folha, receitas, deduções e custos/CMV.
+Esse mapa já inclui a conta `325`/`serviços prestados por terceiros`, contas de sócios/mútuos (`616`, `627` e `770`), adiantamentos de clientes, bancos, caixa, clientes, estoques, fornecedores, tributos, folha, receitas, deduções e custos/CMV.
 
 ## Integração com IA
 

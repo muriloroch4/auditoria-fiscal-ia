@@ -426,7 +426,7 @@ def _risk_area_map() -> dict[str, tuple[str, ...]]:
         "Clientes e recebíveis": ("SN-008", "SN-010", "SN-023", "SN-COMP-03"),
         "Estoques e CMV": ("SN-015", "SN-018", "SN-COMP-04"),
         "Fornecedores": ("SN-016",),
-        "Adiantamentos": ("SN-005", "SN-011", "SN-COMP-03"),
+        "Adiantamentos": ("SN-005", "SN-011", "SN-026", "SN-COMP-03"),
         "Obrigações tributárias": ("SN-001", "SN-002", "SN-012", "SN-017", "SN-019", "SN-020", "SN-COMP-05"),
         "Obrigações trabalhistas": ("SN-003", "SN-014"),
         "Movimentação com sócios": ("SN-004", "SN-005"),
@@ -466,6 +466,7 @@ def _first_available_conta(evidencia: dict) -> str:
             "conta", "conta_relacionada", "grupo", "grupo_contabil",
             "saldo_anterior_tributos", "despesas_representacao",
             "despesas_veiculos", "servicos_terceiros", "saldo_contas_socios", "receita", "folha_pro_labore",
+            "adiantamentos_clientes",
         ),
         "[VERIFICAR: conta contábil relacionada]",
     )
@@ -479,7 +480,7 @@ def _first_available_saldo(evidencia: dict) -> str:
             "saldo_anterior_tributos", "valor", "valor_total",
             "receita", "tributos", "despesas_representacao",
             "despesas_veiculos", "servicos_terceiros", "total_despesas",
-            "clientes_recebiveis", "adiantamentos", "saldo_contas_socios",
+            "clientes_recebiveis", "adiantamentos", "adiantamentos_clientes", "saldo_contas_socios",
             "lucro_apurado", "lucros_distribuidos",
             "folha_pro_labore", "provisoes",
         ),
@@ -505,6 +506,7 @@ def _get_risco_identificado_operational_template(finding) -> str:
         "SN-013": "Risco de despesas particulares lançadas na empresa, falta de comprovação fiscal ou indício de distribuição disfarçada de lucros.",
         "SN-014": "Risco trabalhista e previdenciário por ausência de provisões obrigatórias (férias, 13º, FGTS, INSS).",
         "SN-025": "Risco documental por serviços de terceiros relevantes lançados diretamente em despesas sem validação suficiente.",
+        "SN-026": "Risco fiscal por adiantamentos de clientes no passivo que podem ser possível sinal de sonegação fiscal quando representarem valores já liquidados sem baixa, emissão fiscal ou reconhecimento adequado.",
     }
     return riscos.get(
         code,
@@ -568,6 +570,11 @@ def _impacto_fiscal_potencial(finding) -> str:
         "SN-011": (
             "Possível glosa ou reclassificação de valores sem documentação suporte; "
             "necessidade de baixa, comprovação contratual ou reclassificação contábil."
+        ),
+        "SN-026": (
+            "Possível autuação por omissão de receita caso os adiantamentos de clientes já tenham sido liquidados "
+            "sem emissão fiscal, baixa contábil ou reconhecimento da receita; necessidade de conciliação com "
+            "contratos, pedidos, notas fiscais, extratos e comprovantes de recebimento."
         ),
         "SN-012": (
             "Inscrição em dívida ativa e protesto do título; "
