@@ -12,10 +12,11 @@
     "metricas_anual",
     "comparativo_trimestral",
     "achados_anuais",
-    "resumo_evolucao"
+    "resumo_evolucao",
+    "consultivo"
   ],
   "properties": {
-    "_schema_version": { "const": "annual-1.0.0" },
+    "_schema_version": { "const": "annual-1.1.0" },
     "meta": {
       "type": "object",
       "additionalProperties": false,
@@ -27,7 +28,7 @@
         "fontes"
       ],
       "properties": {
-        "versao_schema": { "const": "annual-1.0.0" },
+        "versao_schema": { "const": "annual-1.1.0" },
         "data_analise": { "type": "string" },
         "total_trimestres_informados": { "type": "integer", "minimum": 1, "maximum": 4 },
         "trimestres_ausentes": {
@@ -124,7 +125,8 @@
         },
         "total_achados_anuais": { "type": "integer", "minimum": 0 }
       }
-    }
+    },
+    "consultivo": { "$ref": "#/$defs/consultivo_anual" }
   },
   "$defs": {
     "risco": {
@@ -211,6 +213,52 @@
           "type": "object",
           "additionalProperties": { "type": ["string", "number", "integer", "boolean", "null"] }
         }
+      }
+    },
+    "consultivo_anual": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["leitura_cliente", "proximos_passos", "plano_acao_anual"],
+      "properties": {
+        "leitura_cliente": { "type": "string" },
+        "proximos_passos": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "plano_acao_anual": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/acao_consultiva_anual" }
+        }
+      }
+    },
+    "acao_consultiva_anual": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "codigo",
+        "prioridade",
+        "ponto_atencao",
+        "o_que_significa",
+        "como_solucionar",
+        "documentos_necessarios",
+        "responsavel_sugerido",
+        "prazo_sugerido"
+      ],
+      "properties": {
+        "codigo": { "type": "string" },
+        "prioridade": {
+          "type": "string",
+          "enum": ["alta", "media", "baixa"]
+        },
+        "ponto_atencao": { "type": "string" },
+        "o_que_significa": { "type": "string" },
+        "como_solucionar": { "type": "string" },
+        "documentos_necessarios": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "responsavel_sugerido": { "type": "string" },
+        "prazo_sugerido": { "type": "string" }
       }
     }
   }

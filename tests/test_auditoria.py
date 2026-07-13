@@ -49,7 +49,7 @@ class AuditPrototypeTest(unittest.TestCase):
         payload = audit_result_to_dict(result)
 
         self.assertEqual(result.nivel_geral, RiskLevel.ALTO)
-        self.assertEqual(payload["metadados"]["versao_schema"], "3.0.0")
+        self.assertEqual(payload["metadados"]["versao_schema"], "3.1.0")
         self.assertIn("identificacao_empresa", payload)
         self.assertIn("resumo_analise", payload)
         self.assertIn("principais_achados", payload)
@@ -59,6 +59,8 @@ class AuditPrototypeTest(unittest.TestCase):
         self.assertEqual(payload["resumo_analise"]["risco_geral"], "alto")
         self.assertIn("principais_pontos", payload["resumo_analise"])
         self.assertIn("conclusao_sugerida", payload["conclusao_tecnica"])
+        self.assertIn("consultivo", payload)
+        self.assertIn("plano_acao", payload["consultivo"])
 
     def test_local_markdown_report_uses_consultivo_template(self):
         sample = Path("samples/balancete_simples_servicos.csv")
@@ -69,8 +71,10 @@ class AuditPrototypeTest(unittest.TestCase):
 
         self.assertIn("Parecer técnico contábil consultivo trimestral", report)
         self.assertIn("## 1. Resumo executivo", report)
-        self.assertIn("## 2. Achados e recomendações", report)
-        self.assertIn("## 3. Opinião técnica", report)
+        self.assertIn("## 2. Leitura para o cliente", report)
+        self.assertIn("## 3. Plano de ação consultivo", report)
+        self.assertIn("## 4. Análise técnica para a contabilidade", report)
+        self.assertIn("## 5. Conclusão técnica e próximos passos", report)
         self.assertNotIn("## 4. Assinatura", report)
         self.assertNotIn("[espaço para numeração manual]", report)
         self.assertIn("CNPJ:     12.345.678/0001-90", report)
@@ -439,8 +443,8 @@ class ProjectQualityTest(unittest.TestCase):
 
         self.assertEqual(quarterly["$schema"], "https://json-schema.org/draft/2020-12/schema")
         self.assertIn("identificacao_empresa", quarterly["properties"])
-        self.assertEqual(quarterly["properties"]["metadados"]["properties"]["versao_schema"]["const"], "3.0.0")
-        self.assertEqual(annual["properties"]["_schema_version"]["const"], "annual-1.0.0")
+        self.assertEqual(quarterly["properties"]["metadados"]["properties"]["versao_schema"]["const"], "3.1.0")
+        self.assertEqual(annual["properties"]["_schema_version"]["const"], "annual-1.1.0")
         self.assertIn("achados_anuais", annual["properties"])
 
 
@@ -696,7 +700,7 @@ class MelhoriasMotorFiscalTest(unittest.TestCase):
         finding = next(f for f in result.achados if f.codigo == "SN-026")
         self.assertEqual(finding.nivel, RiskLevel.MEDIO)
         self.assertEqual(finding.pontuacao, 14)
-        self.assertIn("sonegacao fiscal", finding.descricao)
+        self.assertIn("risco fiscal", finding.descricao)
         self.assertIn("liquidados", finding.recomendacao)
         self.assertIn("validacao_documental", finding.evidencia)
         self.assertEqual(result.metricas_valores["adiantamentos"], 0.0)
@@ -1087,13 +1091,15 @@ class SchemaV3ResumoTest(unittest.TestCase):
                 "fundamentacao_tecnica_resumida",
                 "conclusao_tecnica",
                 "recomendacoes_tecnicas",
+                "consultivo",
                 "metadados",
             ],
         )
-        self.assertEqual(payload["metadados"]["versao_schema"], "3.0.0")
+        self.assertEqual(payload["metadados"]["versao_schema"], "3.1.0")
         self.assertEqual(payload["identificacao_empresa"]["regime_tributario"], "Simples Nacional")
         self.assertIn("total_regras_verificadas", payload["resumo_analise"])
         self.assertIn("total_regras_acionadas", payload["resumo_analise"])
+        self.assertIn("leitura_cliente", payload["consultivo"])
         self.assertIn("classificacoes_por_confianca", payload["classificacao_contas"])
         self.assertIn("amostra_classificacoes", payload["classificacao_contas"])
         self.assertNotIn("_schema_version", payload)
@@ -1268,7 +1274,9 @@ class AnnualComparisonTest(unittest.TestCase):
         annual = build_annual_comparison(payloads)
         codes = {finding["codigo"] for finding in annual["achados_anuais"]}
 
-        self.assertEqual(annual["_schema_version"], "annual-1.0.0")
+        self.assertEqual(annual["_schema_version"], "annual-1.1.0")
+        self.assertIn("consultivo", annual)
+        self.assertIn("plano_acao_anual", annual["consultivo"])
         self.assertEqual(annual["identificacao"]["exercicio"], "2026")
         self.assertEqual(annual["meta"]["trimestres_ausentes"], [])
         self.assertIn("AN-REC-SN-007", codes)
@@ -1366,7 +1374,9 @@ class AnnualComparisonTest(unittest.TestCase):
         report = generate_annual_markdown_report(annual)
 
         self.assertIn("Parecer técnico contábil consultivo anual comparativo", report)
-        self.assertIn("## 2. Comparativo trimestral", report)
+        self.assertIn("## 2. Leitura consultiva para o cliente", report)
+        self.assertIn("## 3. Plano de ação anual", report)
+        self.assertIn("## 4. Comparativo trimestral", report)
         self.assertIn("AN-REC-SN-007", report)
 
     def _quarter_payload(self, periodo: str, revenue: int, expenses: int) -> dict:

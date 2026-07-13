@@ -11,7 +11,7 @@ from .evidence import structured_evidence
 from .schema_validator import validate_payload_against_schema
 from .utils import format_brl, format_percent
 
-ANNUAL_SCHEMA_VERSION = "annual-1.0.0"
+ANNUAL_SCHEMA_VERSION = "annual-1.1.0"
 SIMPLES_ANNUAL_LIMIT = Decimal("4800000")
 
 
@@ -25,6 +25,7 @@ def build_annual_comparison(quarterly_payloads: list[dict[str, Any]]) -> dict[st
     findings = _annual_findings(quarters, totals)
     risk = _annual_risk(quarters, findings)
     identificacao = _annual_identification(quarters)
+    evolution = _evolution_summary(quarters, totals, findings)
 
     payload = {
         "_schema_version": ANNUAL_SCHEMA_VERSION,
@@ -40,7 +41,8 @@ def build_annual_comparison(quarterly_payloads: list[dict[str, Any]]) -> dict[st
         "metricas_anual": totals,
         "comparativo_trimestral": quarters,
         "achados_anuais": findings,
-        "resumo_evolucao": _evolution_summary(quarters, totals, findings),
+        "resumo_evolucao": evolution,
+        "consultivo": _annual_consultivo(risk, totals, quarters, findings, evolution),
     }
     validate_payload_against_schema(payload, "anual")
     return payload
@@ -70,10 +72,12 @@ def generate_annual_markdown_report(payload: dict[str, Any]) -> str:
             f"Exercício:{identificacao.get('exercicio', '')}\n"
             f"Emissão:  {str(meta['data_analise']).split('T', 1)[0]}",
             "## 1. Resumo executivo\n\n" + _render_annual_summary(payload),
-            "## 2. Comparativo trimestral\n\n" + _render_quarter_table(payload),
-            "## 3. Achados anuais e recorrências\n\n" + _render_annual_findings(findings),
-            "## 4. Indicadores consolidados\n\n" + _render_annual_metrics(metricas, evolution),
-            "## 5. Opinião técnica anual\n\n" + _render_annual_opinion(payload),
+            "## 2. Leitura consultiva para o cliente\n\n" + _render_annual_client_guidance(payload),
+            "## 3. Plano de ação anual\n\n" + _render_annual_action_plan(payload),
+            "## 4. Comparativo trimestral\n\n" + _render_quarter_table(payload),
+            "## 5. Achados anuais e recorrências\n\n" + _render_annual_findings(findings),
+            "## 6. Indicadores consolidados\n\n" + _render_annual_metrics(metricas, evolution),
+            "## 7. Conclusão técnica anual e próximos passos\n\n" + _render_annual_opinion(payload),
         ]
     )
 
@@ -620,6 +624,87 @@ def _evolution_summary(quarters: list[dict[str, Any]], totals: dict[str, Any], f
     }
 
 
+def _annual_consultivo(
+    risk: dict[str, Any],
+    totals: dict[str, Any],
+    quarters: list[dict[str, Any]],
+    findings: list[dict[str, Any]],
+    evolution: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "leitura_cliente": _annual_consultivo_leitura_cliente(risk, totals, findings, evolution),
+        "proximos_passos": _annual_next_steps(risk, quarters, findings, evolution),
+        "plano_acao_anual": [_annual_consultivo_item(finding, evolution) for finding in findings],
+    }
+
+
+def _annual_consultivo_leitura_cliente(
+    risk: dict[str, Any],
+    totals: dict[str, Any],
+    findings: list[dict[str, Any]],
+    evolution: dict[str, Any],
+) -> str:
+    recurrent = evolution.get("achados_recorrentes") or []
+    recurrent_text = ", ".join(f"{item['codigo']} ({item['trimestres']} trimestres)" for item in recurrent[:5])
+    if not recurrent_text:
+        recurrent_text = "sem recorrência material indicada pelo motor"
+    main_findings = "; ".join(f"{item['codigo']} - {item['titulo']}" for item in findings[:4]) or "nenhum achado anual adicional"
+    return (
+        f"A análise anual consolidou receita de {totals['receita_servicos_total']['formatado']} e resultado de "
+        f"{totals['lucro_apurado_total']['formatado']}. O risco anual foi classificado como {risk['nivel_geral']}, "
+        f"com tendência de {evolution.get('tendencia_risco', 'insuficiente')} e recorrências em {recurrent_text}. "
+        f"Principais pontos para orientação ao cliente: {main_findings}."
+    )
+
+
+def _annual_next_steps(
+    risk: dict[str, Any],
+    quarters: list[dict[str, Any]],
+    findings: list[dict[str, Any]],
+    evolution: dict[str, Any],
+) -> list[str]:
+    steps = [
+        "validar os achados anuais com balancetes, razões contábeis, documentos fiscais e extratos",
+        "registrar responsável e prazo para cada providência do plano de ação anual",
+        "acompanhar a baixa das pendências no primeiro fechamento trimestral do próximo exercício",
+    ]
+    if risk.get("nivel_geral") == "alto":
+        steps.insert(0, "priorizar a regularização antes de distribuição de lucros, tomada de crédito ou decisões societárias")
+    if len(quarters) < 4:
+        steps.append("complementar os trimestres ausentes antes de emitir conclusão anual definitiva")
+    if evolution.get("achados_recorrentes"):
+        steps.append("criar rotina preventiva para achados recorrentes, evitando repetição nos próximos trimestres")
+    if not findings:
+        steps.append("manter documentação suporte e conciliações periódicas mesmo sem achados anuais adicionais")
+    return steps
+
+
+def _annual_consultivo_item(finding: dict[str, Any], evolution: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "codigo": finding["codigo"],
+        "prioridade": _annual_priority_label(finding["nivel"]),
+        "ponto_atencao": finding["titulo"],
+        "o_que_significa": _annual_meaning(finding, evolution),
+        "como_solucionar": finding["recomendacao"],
+        "documentos_necessarios": _annual_documents_for_finding(finding),
+        "responsavel_sugerido": _annual_owner(finding),
+        "prazo_sugerido": _annual_deadline(finding["nivel"]),
+    }
+
+
+def _annual_priority_label(level: str) -> str:
+    labels = {"alto": "alta", "medio": "media", "baixo": "baixa"}
+    return labels.get(str(level).lower(), "media")
+
+
+def _annual_deadline(level: str) -> str:
+    if str(level).lower() == "alto":
+        return "imediato, antes do próximo fechamento societário ou fiscal relevante"
+    if str(level).lower() == "medio":
+        return "até o primeiro fechamento trimestral do próximo exercício"
+    return "acompanhar no próximo ciclo anual"
+
+
 def _risk_trend(quarters: list[dict[str, Any]]) -> str:
     if len(quarters) < 2:
         return "insuficiente"
@@ -678,6 +763,87 @@ def _render_annual_summary(payload: dict[str, Any]) -> str:
     )
 
 
+def _render_annual_client_guidance(payload: dict[str, Any]) -> str:
+    consultivo = payload.get("consultivo") or {}
+    if consultivo.get("leitura_cliente"):
+        steps = consultivo.get("proximos_passos") or []
+        if steps:
+            return consultivo["leitura_cliente"] + "\n\n**Próximos passos:**\n\n" + "\n".join(f"- {step}" for step in steps)
+        return consultivo["leitura_cliente"]
+
+    risco = payload["risco_anual"]
+    evolution = payload["resumo_evolucao"]
+    findings = payload["achados_anuais"]
+    level = str(risco.get("nivel_geral") or "baixo").lower()
+    priority = {
+        "alto": "regularização prioritária antes de decisões externas, distribuição de lucros ou fechamento final",
+        "medio": "correção e documentação dos pontos recorrentes no início do próximo exercício",
+        "baixo": "manutenção dos controles e acompanhamento trimestral preventivo",
+    }.get(level, "acompanhamento preventivo")
+    recurrent = evolution.get("achados_recorrentes") or []
+    recurrent_text = ", ".join(f"{item['codigo']} ({item['trimestres']} trimestres)" for item in recurrent[:6])
+    if not recurrent_text:
+        recurrent_text = "sem recorrência relevante informada pelo motor"
+    main_findings = "; ".join(f"{item['codigo']} - {item['titulo']}" for item in findings[:4])
+    if not main_findings:
+        main_findings = "nenhum achado anual adicional identificado"
+
+    return (
+        f"A leitura anual indica {priority}. A tendência de risco foi classificada como "
+        f"{evolution.get('tendencia_risco', 'insuficiente')}, com recorrências em {recurrent_text}. "
+        f"Os principais pontos para explicar ao cliente são: {main_findings}. "
+        "A recomendação consultiva é transformar esses pontos em plano de ação documentado, com responsáveis, "
+        "prazo de regularização e conferência já no primeiro trimestre do próximo exercício."
+    )
+
+
+def _render_annual_action_plan(payload: dict[str, Any]) -> str:
+    consultivo = payload.get("consultivo") or {}
+    plano = consultivo.get("plano_acao_anual") or []
+    if plano:
+        lines = []
+        for index, item in enumerate(plano, start=1):
+            lines.extend(
+                [
+                    f"### {index}. {item['codigo']} — {item['ponto_atencao']}",
+                    "",
+                    f"- **Prioridade:** {_risk_label(item['prioridade'])}",
+                    f"- **O que significa:** {item['o_que_significa']}",
+                    f"- **Como solucionar:** {item['como_solucionar']}",
+                    f"- **Documentos necessários:** {', '.join(item['documentos_necessarios'])}",
+                    f"- **Responsável sugerido:** {item['responsavel_sugerido']}",
+                    f"- **Prazo sugerido:** {item['prazo_sugerido']}",
+                    "",
+                ]
+            )
+        return "\n".join(lines).strip()
+
+    findings = payload["achados_anuais"]
+    evolution = payload["resumo_evolucao"]
+    if not findings:
+        return (
+            "Nenhuma ação anual corretiva adicional foi indicada pela consolidação. Manter conciliações trimestrais, "
+            "guarda documental e acompanhamento do limite do Simples Nacional no próximo exercício."
+        )
+
+    lines = []
+    for index, finding in enumerate(findings, start=1):
+        docs = _annual_documents_for_finding(finding)
+        lines.extend(
+            [
+                f"### {index}. {finding['codigo']} — {finding['titulo']}",
+                "",
+                f"- **Prioridade:** {_risk_label(finding['nivel'])}",
+                f"- **O que significa:** {_annual_meaning(finding, evolution)}",
+                f"- **Como solucionar:** {finding['recomendacao']}",
+                f"- **Documentos necessários:** {', '.join(docs)}",
+                f"- **Responsável sugerido:** {_annual_owner(finding)}",
+                "",
+            ]
+        )
+    return "\n".join(lines).strip()
+
+
 def _render_quarter_table(payload: dict[str, Any]) -> str:
     lines = [
         "| Trimestre | Período | Receita | Resultado | Risco | Achados |",
@@ -698,20 +864,24 @@ def _render_annual_findings(findings: list[dict[str, Any]]) -> str:
     if not findings:
         return "Nenhum achado anual adicional foi identificado a partir da consolidação dos trimestres."
 
-    lines = [
-        "| Código | Achado | Nível | Evidência | Fonte | Confiança | Documentos recomendados | Recomendação |",
-        "|--------|--------|-------|-----------|-------|-----------|--------------------------|--------------|",
-    ]
+    lines = []
     for finding in findings:
         structured = finding["evidencia"]
         extracted = structured.get("campos_extraidos") or {}
         evidence = "; ".join(f"{key}: {value}" for key, value in extracted.items()) or "Não aplicável"
         documents = ", ".join(structured.get("documentos_recomendados") or [])
-        lines.append(
-            "| "
-            f"{finding['codigo']} | {finding['titulo']} | {_risk_label(finding['nivel'])} | "
-            f"{evidence} | {structured.get('fonte_dado', '')} | {_risk_label(structured.get('confianca', ''))} | "
-            f"{documents} | {finding['recomendacao']} |"
+        lines.extend(
+            [
+                f"### {finding['codigo']} — {finding['titulo']}",
+                "",
+                f"- **Nível:** {_risk_label(finding['nivel'])}",
+                f"- **Evidência:** {evidence}",
+                f"- **Fonte:** {structured.get('fonte_dado', '') or '[VERIFICAR: fonte]'}",
+                f"- **Confiança:** {_risk_label(structured.get('confianca', ''))}",
+                f"- **Documentos recomendados:** {documents or '[VERIFICAR: documentos recomendados]'}",
+                f"- **Recomendação técnica:** {finding['recomendacao']}",
+                "",
+            ]
         )
     return "\n".join(lines)
 
@@ -749,11 +919,73 @@ def _render_annual_opinion(payload: dict[str, Any]) -> str:
     codes = ", ".join(f["codigo"] for f in findings) or "nenhum achado anual adicional"
     return (
         f"Com base na consolidação dos trimestres do exercício {identificacao.get('exercicio')}, "
-        f"emito opinião técnica anual {_opinion_label(risco['modalidade_opiniao_sugerida'])} para o conjunto analisado. "
+        f"a orientação técnica anual é {_annual_orientation(risco['modalidade_opiniao_sugerida'])}. "
         f"Os principais achados anuais considerados foram: {codes}. A conclusão anual não substitui "
         "auditoria independente completa e deve ser lida em conjunto com os pareceres trimestrais que "
-        "serviram de base para esta consolidação."
+        "serviram de base para esta consolidação. Para o próximo exercício, recomenda-se manter fechamento "
+        "trimestral, documentação suporte por achado e acompanhamento das providências até sua baixa."
     )
+
+
+def _annual_orientation(value: str) -> str:
+    if value == "sem_ressalva":
+        return "manter controles e documentação suporte sem ressalvas relevantes adicionais"
+    if value == "com_ressalva":
+        return "regularizar ou documentar os pontos ressalvados antes do próximo fechamento anual"
+    if value == "adversa":
+        return "priorizar a regularização dos achados relevantes antes de usar os dados para crédito, distribuição de lucros ou decisões societárias"
+    if value == "abstencao_opiniao":
+        return "obter documentação complementar antes de concluir sobre o exercício"
+    return str(value).replace("_", " ")
+
+
+def _annual_meaning(finding: dict[str, Any], evolution: dict[str, Any]) -> str:
+    code = str(finding.get("codigo") or "")
+    if code.startswith("AN-REC"):
+        return "O mesmo tipo de achado apareceu em mais de um trimestre, indicando que o ponto não foi apenas pontual e precisa de rotina de correção."
+    if code.startswith("AN-SN-001"):
+        return "A receita anual exige acompanhamento do limite do Simples Nacional e validação do enquadramento fiscal."
+    if code.startswith("AN-LUC"):
+        return "A distribuição de lucros precisa ser conciliada com o resultado anual, lucros acumulados e documentação societária."
+    if code.startswith("AN-MAR"):
+        return "A margem anual elevada pode indicar despesas, custos ou apropriações de competência não reconhecidos."
+    if code.startswith("AN-DOC-MUTUO"):
+        return "Saldos finais com sócios exigem contrato, conciliação financeira e validação de IOF quando houver mútuo."
+    if code.startswith("AN-COM"):
+        return "A operação comercial precisa de validação de estoque, fornecedores, CMV e créditos fiscais."
+    if code.startswith("AN-TRIB"):
+        return "Há ponto tributário acumulado que deve ser conciliado com DAS, parcelamentos, guias e saldos fiscais."
+    if code.startswith("AN-TEND"):
+        return f"A evolução anual indica tendência de {evolution.get('tendencia_risco', 'risco não informada')}, exigindo acompanhamento no próximo exercício."
+    return str(finding.get("descricao") or "O achado anual requer validação documental e acompanhamento no próximo exercício.")
+
+
+def _annual_documents_for_finding(finding: dict[str, Any]) -> list[str]:
+    evidence = finding.get("evidencia") or {}
+    docs = evidence.get("documentos_recomendados") or []
+    if docs:
+        return [str(item) for item in docs]
+    code = str(finding.get("codigo") or "")
+    if code.startswith("AN-LUC"):
+        return ["balancete anual", "DRE", "razão de lucros", "comprovantes de distribuição"]
+    if code.startswith("AN-DOC-MUTUO"):
+        return ["razão das contas de sócios", "extratos bancários", "contrato de mútuo", "guia/comprovante de IOF"]
+    if code.startswith("AN-COM"):
+        return ["inventário", "relatório de estoque", "notas de compra e venda", "memória do CMV"]
+    if code.startswith("AN-TRIB"):
+        return ["PGDAS-D", "DAS", "parcelamentos", "razão de tributos a recolher"]
+    return ["JSONs trimestrais", "balancetes", "razões contábeis", "documentos fiscais e extratos"]
+
+
+def _annual_owner(finding: dict[str, Any]) -> str:
+    code = str(finding.get("codigo") or "")
+    if code.startswith(("AN-SN", "AN-TRIB")):
+        return "Fiscal + contabilidade"
+    if code.startswith(("AN-LUC", "AN-DOC-MUTUO")):
+        return "Sócios/administradores + contabilidade"
+    if code.startswith("AN-COM"):
+        return "Cliente/estoque/financeiro + contabilidade"
+    return "Cliente + contabilidade"
 
 
 def _metric(metricas: dict[str, Any], key: str) -> Decimal:
@@ -764,7 +996,7 @@ def _metric(metricas: dict[str, Any], key: str) -> Decimal:
 
 
 def _risk_label(value: str) -> str:
-    labels = {"alto": "Alto", "medio": "Médio", "baixo": "Baixo"}
+    labels = {"alto": "Alto", "medio": "Médio", "baixo": "Baixo", "alta": "Alta", "media": "Média", "baixa": "Baixa"}
     return labels.get(str(value).lower(), str(value).capitalize())
 
 

@@ -9,7 +9,7 @@ from .models import AuditResult, RiskLevel, RuleFinding
 from .risk import suggest_opinion_type
 from .schema_validator import validate_payload_against_schema
 
-SCHEMA_VERSION = "3.0.0"
+SCHEMA_VERSION = "3.1.0"
 VERIFY = "[VERIFICAR: dado necessário]"
 
 _NORMA_LABELS = {
@@ -77,6 +77,7 @@ def audit_result_to_dict(result: AuditResult) -> dict[str, Any]:
             "texto_conclusivo": _texto_conclusivo(result, opinion, findings),
         },
         "recomendacoes_tecnicas": _recomendacoes_tecnicas(findings),
+        "consultivo": _consultivo_trimestral(result, findings, severity_counts, opinion),
         "metadados": {
             "data_analise": datetime.datetime.now().isoformat(timespec="seconds"),
             "versao_schema": SCHEMA_VERSION,
@@ -86,6 +87,73 @@ def audit_result_to_dict(result: AuditResult) -> dict[str, Any]:
     }
     validate_payload_against_schema(payload, "trimestral")
     return payload
+
+
+def _consultivo_trimestral(
+    result: AuditResult,
+    findings: list[RuleFinding],
+    severity_counts: dict[str, int],
+    opinion: str,
+) -> dict[str, Any]:
+    return {
+        "resumo_orientativo": _consultivo_resumo_orientativo(result, findings, severity_counts, opinion),
+        "leitura_cliente": _consultivo_leitura_cliente(result, findings),
+        "plano_acao": [_consultivo_item(finding) for finding in findings],
+    }
+
+
+def _consultivo_resumo_orientativo(
+    result: AuditResult,
+    findings: list[RuleFinding],
+    severity_counts: dict[str, int],
+    opinion: str,
+) -> str:
+    if not findings:
+        return (
+            "A análise não acionou regras de risco no período. Recomenda-se manter conciliações, documentação fiscal "
+            "e controles auxiliares organizados para conferência futura."
+        )
+
+    prioridade = _orientacao_por_opiniao(opinion)
+    return (
+        f"O trimestre apresenta risco {result.nivel_geral.value}, com {len(findings)} achado(s) acionado(s), "
+        f"sendo {severity_counts.get('alta', 0)} de prioridade alta, {severity_counts.get('media', 0)} de prioridade média "
+        f"e {severity_counts.get('baixa', 0)} de prioridade baixa. Orientação consultiva: {prioridade}."
+    )
+
+
+def _consultivo_leitura_cliente(result: AuditResult, findings: list[RuleFinding]) -> str:
+    if not findings:
+        return (
+            "Não foram identificados pontos automáticos de atenção no JSON analisado. A empresa deve manter a guarda "
+            "dos documentos do período e continuar o acompanhamento trimestral preventivo."
+        )
+
+    principais = "; ".join(
+        f"{finding.codigo} - {_client_safe_text(_shorten(finding.titulo, 90))}"
+        for finding in findings[:3]
+    )
+    return (
+        f"Foram identificados pontos que exigem validação documental antes do fechamento definitivo. "
+        f"Principais mensagens para o cliente: {principais}. A orientação é separar documentos, validar saldos "
+        "com a contabilidade e registrar as providências adotadas."
+    )
+
+
+def _consultivo_item(finding: RuleFinding) -> dict[str, Any]:
+    evidence = structured_finding_evidence(finding)
+    documents = evidence.get("documentos_recomendados") or _documents_for_finding(finding.codigo)
+    return {
+        "codigo": finding.codigo or VERIFY,
+        "prioridade": _severity_label(finding.nivel),
+        "area_relacionada": _area_relacionada(finding.codigo),
+        "ponto_atencao": _client_safe_text(_shorten(finding.titulo or finding.descricao or VERIFY, 180)),
+        "o_que_significa": _consultivo_significado(finding),
+        "como_solucionar": _consultivo_solucao(finding),
+        "documentos_necessarios": [str(item) for item in documents],
+        "responsavel_sugerido": _responsavel_sugerido(finding.codigo),
+        "prazo_sugerido": _prazo_sugerido(finding.nivel),
+    }
 
 
 def _finding_to_summary_dict(finding: RuleFinding) -> dict[str, Any]:
@@ -206,6 +274,111 @@ def _texto_conclusivo(result: AuditResult, opinion: str, findings: list[RuleFind
     )
 
 
+def _orientacao_por_opiniao(opinion: str) -> str:
+    if opinion == "adversa":
+        return "regularizar os achados relevantes antes de usar os dados para decisões externas ou fechamento anual"
+    if opinion == "com_ressalva":
+        return "corrigir ou documentar os pontos ressalvados antes do fechamento definitivo"
+    if opinion == "abstencao_opiniao":
+        return "obter documentação complementar antes de concluir a análise"
+    return "manter a documentação suporte e acompanhar os controles nos próximos trimestres"
+
+
+def _client_safe_text(value: str) -> str:
+    return (
+        _clean_text(value)
+        .replace("possivel sinal de sonegacao fiscal", "risco de receita nao reconhecida ou tratamento fiscal pendente")
+        .replace("possível sinal de sonegação fiscal", "risco de receita não reconhecida ou tratamento fiscal pendente")
+        .replace("sonegacao fiscal", "risco fiscal")
+        .replace("sonegação fiscal", "risco fiscal")
+        .replace("omissao de receita", "receita possivelmente nao reconhecida")
+        .replace("omissão de receita", "receita possivelmente não reconhecida")
+        .replace("fraude", "irregularidade")
+    )
+
+
+def _consultivo_significado(finding: RuleFinding) -> str:
+    code = finding.codigo
+    if code.startswith("SN-004"):
+        return "A distribuição de lucros precisa ter lastro contábil suficiente antes de ser mantida como isenta."
+    if code.startswith("SN-005"):
+        return "Saldos com sócios exigem contrato, conciliação financeira e validação de IOF quando houver mútuo."
+    if code.startswith(("SN-006", "SN-022")):
+        return "O saldo de caixa ou bancos deve ser compatível com a operação e com os comprovantes financeiros."
+    if code.startswith("SN-008"):
+        return "A movimentação financeira pode não estar totalmente conciliada com o faturamento reconhecido."
+    if code.startswith(("SN-010", "SN-023")):
+        return "Os recebíveis precisam refletir valores efetivamente pendentes, com baixas e controles auxiliares consistentes."
+    if code.startswith(("SN-015", "SN-018")):
+        return "Estoque, CMV e margem devem estar coerentes com compras, vendas e controles internos."
+    if code.startswith("SN-025"):
+        return "Serviços de terceiros relevantes precisam comprovar natureza, competência e vínculo com a atividade."
+    if code.startswith("SN-026"):
+        return "Adiantamentos de clientes podem ser legítimos, mas precisam comprovar se ainda estão pendentes ou se já deveriam ter sido baixados."
+    return _client_safe_text(_shorten(finding.descricao or "O achado indica ponto que deve ser validado antes do fechamento definitivo.", 260))
+
+
+def _consultivo_solucao(finding: RuleFinding) -> str:
+    code = finding.codigo
+    if code.startswith("SN-004"):
+        return "Reconciliar resultado, lucros acumulados, reservas e comprovantes de distribuição."
+    if code.startswith("SN-005"):
+        return "Conferir razão e extratos, formalizar contrato de mútuo quando aplicável e validar IOF, prazo, juros e liquidação."
+    if code.startswith(("SN-006", "SN-022")):
+        return "Conciliar extratos, caixa físico e lançamentos de sócios; reclassificar valores sem natureza de disponibilidade."
+    if code.startswith("SN-008"):
+        return "Comparar notas fiscais, extratos, faturamento e recebimentos para identificar lançamentos ausentes ou em competência incorreta."
+    if code.startswith(("SN-010", "SN-023")):
+        return "Validar relatório de clientes, aging list, recebimentos posteriores e baixas do período seguinte."
+    if code.startswith(("SN-015", "SN-018")):
+        return "Confrontar inventário, compras, vendas e memória do CMV; ajustar baixas ou reclassificações necessárias."
+    if code.startswith("SN-025"):
+        return "Conferir a conta 325 com notas fiscais, contratos, comprovantes bancários e retenções aplicáveis."
+    if code.startswith("SN-026"):
+        return "Validar contrato, pedido, nota fiscal, extrato e baixa posterior; regularizar valores já liquidados que permaneçam como adiantamento."
+    return _client_safe_text(_shorten(finding.recomendacao or VERIFY, 320))
+
+
+def _documents_for_finding(code: str) -> list[str]:
+    if code.startswith("SN-004"):
+        return ["balancete", "razão contábil", "DRE", "comprovantes de distribuição"]
+    if code.startswith("SN-005"):
+        return ["razão das contas de sócios", "extratos bancários", "contrato de mútuo", "comprovante de IOF quando aplicável"]
+    if code.startswith(("SN-006", "SN-022")):
+        return ["conciliação bancária", "extratos bancários", "livro/controle de caixa", "comprovantes de pagamentos e recebimentos"]
+    if code.startswith("SN-008"):
+        return ["notas fiscais emitidas", "extratos bancários", "relatório de faturamento", "PGDAS-D/DAS do período"]
+    if code.startswith(("SN-010", "SN-023")):
+        return ["relatório de contas a receber", "aging list", "notas fiscais", "comprovantes de baixa e recebimento"]
+    if code.startswith(("SN-015", "SN-018")):
+        return ["inventário", "notas de compra e venda", "relatório de estoque", "memória de cálculo do CMV"]
+    if code.startswith("SN-025"):
+        return ["razão da conta 325", "notas fiscais de serviços tomados", "contratos", "comprovantes bancários e retenções"]
+    if code.startswith("SN-026"):
+        return ["contratos ou pedidos", "notas fiscais", "extratos e recibos", "razão contábil e baixas posteriores"]
+    return ["balancete", "razão contábil", "documentos fiscais", "extratos e relatórios auxiliares"]
+
+
+def _responsavel_sugerido(code: str) -> str:
+    if code.startswith(("SN-003", "SN-014")):
+        return "departamento pessoal e contabilidade"
+    if code.startswith(("SN-004", "SN-005")):
+        return "sócios/administradores e contabilidade"
+    if code.startswith(("SN-001", "SN-002", "SN-019", "SN-020")):
+        return "fiscal e contabilidade"
+    if code.startswith(("SN-015", "SN-016", "SN-018", "SN-024")):
+        return "cliente/estoque/financeiro e contabilidade"
+    return "cliente e contabilidade"
+
+
+def _prazo_sugerido(level: RiskLevel) -> str:
+    if level == RiskLevel.ALTO:
+        return "antes do fechamento definitivo do período"
+    if level == RiskLevel.MEDIO:
+        return "até o próximo fechamento trimestral"
+    return "acompanhar no próximo trimestre"
+
+
 def _impacto_tecnico(finding: RuleFinding) -> str:
     code = finding.codigo[:6]
     prefix = _classificacao_tecnica(finding)
@@ -234,7 +407,7 @@ def _impacto_tecnico(finding: RuleFinding) -> str:
         "SN-022": "Risco de saldo de caixa físico sem suporte operacional, bancário ou documental compatível.",
         "SN-023": "Ponto de atenção sobre recebimento à vista, baixa de recebíveis ou ausência de controle de clientes.",
         "SN-024": "Ponto de atencao documental sobre ICMS-ST, creditos fiscais, ressarcimentos ou saldos recuperaveis em operacao comercial.",
-        "SN-026": "Possivel sinal de sonegacao fiscal se houver receita ja liquidada sem baixa, emissao fiscal ou reconhecimento contabil/fiscal adequado.",
+        "SN-026": "Risco fiscal e documental se houver receita ja liquidada sem baixa, emissao fiscal ou reconhecimento contabil/fiscal adequado.",
         "SN-COM": "Risco composto por combinação de achados, exigindo análise prioritária integrada.",
     }
     impacts["SN-025"] = "Ponto de atencao documental sobre pagamentos e servicos de terceiros lancados diretamente em despesas."

@@ -24,11 +24,19 @@ Emissão:  {emissao}
 
 {resumo_executivo}
 
-## 2. Achados e recomendações
+## 2. Leitura para o cliente
+
+{leitura_cliente}
+
+## 3. Plano de ação consultivo
+
+{plano_acao}
+
+## 4. Análise técnica para a contabilidade
 
 {achados_recomendacoes}
 
-## 3. Opinião técnica
+## 5. Conclusão técnica e próximos passos
 
 {opiniao_tecnica}
 """.strip()
@@ -87,6 +95,8 @@ def _generate_local_report(
         periodo=identificacao["periodo_analisado"],
         emissao=str(meta["data_analise"]).split("T", 1)[0],
         resumo_executivo=_render_consultivo_resumo(payload),
+        leitura_cliente=_render_consultivo_leitura_cliente(payload),
+        plano_acao=_render_consultivo_plano_acao(payload),
         achados_recomendacoes=_render_consultivo_achados(payload),
         opiniao_tecnica=_render_consultivo_opiniao(payload),
     )
@@ -209,6 +219,87 @@ def _render_consultivo_achados(payload: dict[str, Any]) -> str:
     return "\n".join(linhas)
 
 
+def _render_consultivo_leitura_cliente(payload: dict[str, Any]) -> str:
+    consultivo = payload.get("consultivo") or {}
+    if consultivo.get("leitura_cliente"):
+        resumo = consultivo.get("resumo_orientativo")
+        return "\n\n".join(item for item in (consultivo["leitura_cliente"], resumo) if item)
+
+    resumo = payload["resumo_analise"]
+    achados = payload["principais_achados"]
+    risco = str(resumo.get("risco_geral") or "baixo").lower()
+    prioridade = {
+        "alto": "prioridade imediata",
+        "medio": "prioridade de curto prazo",
+        "baixo": "acompanhamento preventivo",
+    }.get(risco, "acompanhamento preventivo")
+    principais = achados[:3]
+    if principais:
+        bullets = "\n".join(
+            f"- {_client_safe_text(item.get('achado') or item.get('codigo') or '[VERIFICAR: achado]')}"
+            for item in principais
+        )
+    else:
+        bullets = "- Nenhum achado foi acionado pelo motor; manter documentação e conciliações em dia."
+
+    return (
+        f"O resultado do trimestre indica **{prioridade}**. A leitura consultiva para o cliente é que "
+        "os pontos abaixo devem orientar a organização documental, a regularização contábil e o acompanhamento "
+        "dos próximos fechamentos.\n\n"
+        "**Principais mensagens para o cliente:**\n\n"
+        f"{bullets}\n\n"
+        "**Como conduzir:** separar documentos de suporte, validar saldos com razão contábil e extratos, "
+        "corrigir lançamentos ou baixas pendentes e registrar a providência adotada para acompanhamento."
+    )
+
+
+def _render_consultivo_plano_acao(payload: dict[str, Any]) -> str:
+    consultivo = payload.get("consultivo") or {}
+    plano = consultivo.get("plano_acao") or []
+    if plano:
+        linhas = []
+        for index, item in enumerate(plano, start=1):
+            linhas.extend(
+                [
+                    f"### {index}. {item.get('codigo', '[VERIFICAR: código]')} — {_client_safe_text(item.get('ponto_atencao') or '[VERIFICAR: ponto de atenção]')}",
+                    "",
+                    f"- **Prioridade:** {_level_label(item.get('prioridade') or 'media')}",
+                    f"- **O que significa:** {item.get('o_que_significa') or '[VERIFICAR: significado]'}",
+                    f"- **Como solucionar:** {item.get('como_solucionar') or '[VERIFICAR: solução]'}",
+                    f"- **Documentos necessários:** {', '.join(item.get('documentos_necessarios') or []) or '[VERIFICAR: documentos necessários]'}",
+                    f"- **Responsável sugerido:** {item.get('responsavel_sugerido') or '[VERIFICAR: responsável]'}",
+                    f"- **Prazo sugerido:** {item.get('prazo_sugerido') or '[VERIFICAR: prazo]'}",
+                    "",
+                ]
+            )
+        return "\n".join(linhas).strip()
+
+    achados = payload["principais_achados"]
+    recomendacoes = payload.get("recomendacoes_tecnicas") or []
+    if not achados:
+        return (
+            "Nenhuma ação corretiva prioritária foi indicada pelo motor. Recomenda-se manter conciliações, "
+            "documentação fiscal e controles auxiliares atualizados para os próximos trimestres."
+        )
+
+    linhas = []
+    for index, achado in enumerate(achados, start=1):
+        recomendacao = _recommendation_for_finding(recomendacoes, achado, index - 1)
+        linhas.extend(
+            [
+                f"### {index}. {achado.get('codigo', '[VERIFICAR: código]')} — {_client_safe_text(achado.get('achado') or '[VERIFICAR: achado]')}",
+                "",
+                f"- **Prioridade:** {_level_label(achado.get('severidade') or 'media')}",
+                f"- **O que significa:** {_consultative_meaning(achado)}",
+                f"- **Como solucionar:** {_consultative_solution(achado, recomendacao)}",
+                f"- **Documentos necessários:** {', '.join(_documents_for_finding(achado))}",
+                f"- **Responsável sugerido:** {_suggested_owner(achado)}",
+                "",
+            ]
+        )
+    return "\n".join(linhas).strip()
+
+
 def _render_consultivo_opiniao(payload: dict[str, Any]) -> str:
     identificacao = payload["identificacao_empresa"]
     resumo = payload["resumo_analise"]
@@ -235,6 +326,104 @@ def _render_consultivo_opiniao(payload: dict[str, Any]) -> str:
         "com a NBC PG 100 (R1) de 2018, NBC TA 700 (R1), NBC TG 26 (R3) = CPC 26 R1 e Resolução CFC n.º 1.244/2009."
     )
     return "\n\n".join([abertura, bloco, encerramento])
+
+
+def _recommendation_for_finding(recommendations: list[dict[str, Any]], achado: dict[str, Any], index: int) -> str:
+    code = str(achado.get("codigo") or "")
+    for item in recommendations:
+        description = str(item.get("descricao") or "")
+        if code and code in description:
+            return description
+    if index < len(recommendations):
+        return str(recommendations[index].get("descricao") or "")
+    return str(achado.get("impacto_tecnico") or "[VERIFICAR: recomendação técnica]")
+
+
+def _client_safe_text(value: str) -> str:
+    return (
+        str(value or "")
+        .replace("possível sinal de sonegação fiscal", "risco de receita não reconhecida ou tratamento fiscal pendente")
+        .replace("Possível sinal de sonegação fiscal", "Risco de receita não reconhecida ou tratamento fiscal pendente")
+        .replace("sonegação fiscal", "risco fiscal")
+        .replace("Sonegação fiscal", "Risco fiscal")
+        .replace("omissão de receita", "receita possivelmente não reconhecida")
+        .replace("Omissão de receita", "Receita possivelmente não reconhecida")
+        .replace("fraude", "irregularidade")
+        .replace("Fraude", "Irregularidade")
+    )
+
+
+def _consultative_meaning(achado: dict[str, Any]) -> str:
+    code = str(achado.get("codigo") or "")
+    impact = _client_safe_text(str(achado.get("impacto_tecnico") or ""))
+    if code.startswith("SN-004"):
+        return "A distribuição de lucros precisa ter lastro contábil suficiente antes de ser mantida como isenta."
+    if code.startswith("SN-005"):
+        return "Saldos com sócios exigem contrato, conciliação financeira e validação de IOF quando houver mútuo."
+    if code.startswith(("SN-006", "SN-022")):
+        return "O saldo de caixa ou bancos deve ser compatível com a operação e com os comprovantes financeiros."
+    if code.startswith("SN-008"):
+        return "A movimentação financeira pode não estar totalmente conciliada com o faturamento reconhecido."
+    if code.startswith(("SN-010", "SN-023")):
+        return "Os recebíveis precisam refletir valores efetivamente pendentes, com baixas e controles auxiliares consistentes."
+    if code.startswith(("SN-015", "SN-018")):
+        return "Estoque, CMV e margem devem estar coerentes com compras, vendas e controles internos."
+    if code.startswith("SN-025"):
+        return "Serviços de terceiros relevantes precisam comprovar natureza, competência e vínculo com a atividade."
+    if code.startswith("SN-026"):
+        return "Adiantamentos de clientes podem ser legítimos, mas precisam comprovar se ainda estão pendentes ou se já deveriam ter sido baixados."
+    return impact or "O achado indica ponto que deve ser validado antes do fechamento definitivo."
+
+
+def _consultative_solution(achado: dict[str, Any], recommendation: str) -> str:
+    code = str(achado.get("codigo") or "")
+    if code.startswith("SN-004"):
+        return "Reconciliar resultado, lucros acumulados, reservas e comprovantes de distribuição."
+    if code.startswith("SN-005"):
+        return "Conferir razão e extratos, formalizar contrato de mútuo quando aplicável e validar IOF, prazo, juros e liquidação."
+    if code.startswith(("SN-006", "SN-022")):
+        return "Conciliar extratos, caixa físico e lançamentos de sócios; reclassificar valores sem natureza de disponibilidade."
+    if code.startswith("SN-008"):
+        return "Comparar notas fiscais, extratos, faturamento e recebimentos para identificar lançamentos ausentes ou em competência incorreta."
+    if code.startswith(("SN-010", "SN-023")):
+        return "Validar relatório de clientes, aging list, recebimentos posteriores e baixas do período seguinte."
+    if code.startswith(("SN-015", "SN-018")):
+        return "Confrontar inventário, compras, vendas e memória do CMV; ajustar baixas ou reclassificações necessárias."
+    if code.startswith("SN-025"):
+        return "Conferir a conta 325 com notas fiscais, contratos, comprovantes bancários e retenções aplicáveis."
+    if code.startswith("SN-026"):
+        return "Validar contrato, pedido, nota fiscal, extrato e baixa posterior; regularizar valores já liquidados que permaneçam como adiantamento."
+    return _client_safe_text(recommendation or "Validar documentos, conciliar saldos e registrar a providência adotada.")
+
+
+def _documents_for_finding(achado: dict[str, Any]) -> list[str]:
+    evidence = achado.get("evidencia") or {}
+    docs = evidence.get("documentos_recomendados") or []
+    if docs:
+        return [str(item) for item in docs]
+    code = str(achado.get("codigo") or "")
+    if code.startswith("SN-004"):
+        return ["balancete", "razão contábil", "DRE", "comprovantes de distribuição"]
+    if code.startswith("SN-005"):
+        return ["razão das contas de sócios", "extratos bancários", "contrato de mútuo", "comprovante de IOF quando aplicável"]
+    if code.startswith("SN-025"):
+        return ["razão da conta 325", "notas fiscais", "contratos", "comprovantes bancários"]
+    if code.startswith("SN-026"):
+        return ["contratos ou pedidos", "notas fiscais", "extratos", "razão contábil e baixas posteriores"]
+    return ["balancete", "razão contábil", "documentos fiscais", "extratos e relatórios auxiliares"]
+
+
+def _suggested_owner(achado: dict[str, Any]) -> str:
+    code = str(achado.get("codigo") or "")
+    if code.startswith(("SN-003", "SN-014")):
+        return "Departamento pessoal + contabilidade"
+    if code.startswith(("SN-004", "SN-005")):
+        return "Sócios/administradores + contabilidade"
+    if code.startswith(("SN-001", "SN-002", "SN-019", "SN-020")):
+        return "Fiscal + contabilidade"
+    if code.startswith(("SN-015", "SN-016", "SN-018", "SN-024")):
+        return "Cliente/estoque/financeiro + contabilidade"
+    return "Cliente + contabilidade"
 
 
 def _metric_value(metricas: dict[str, Any], key: str) -> str | None:
@@ -506,7 +695,7 @@ def _get_risco_identificado_operational_template(finding) -> str:
         "SN-013": "Risco de despesas particulares lançadas na empresa, falta de comprovação fiscal ou indício de distribuição disfarçada de lucros.",
         "SN-014": "Risco trabalhista e previdenciário por ausência de provisões obrigatórias (férias, 13º, FGTS, INSS).",
         "SN-025": "Risco documental por serviços de terceiros relevantes lançados diretamente em despesas sem validação suficiente.",
-        "SN-026": "Risco fiscal por adiantamentos de clientes no passivo que podem ser possível sinal de sonegação fiscal quando representarem valores já liquidados sem baixa, emissão fiscal ou reconhecimento adequado.",
+        "SN-026": "Risco fiscal e documental por adiantamentos de clientes no passivo quando representarem valores já liquidados sem baixa, emissão fiscal ou reconhecimento adequado.",
     }
     return riscos.get(
         code,
@@ -622,7 +811,7 @@ def _build_prompt_data(result: AuditResult, cnpj: str | None = None) -> dict[str
 
 def _format_user_message(data: dict[str, Any]) -> str:
     return (
-        "Redija o parecer técnico consultivo trimestral seguindo exatamente o system prompt. "
+        "Redija o relatório consultivo trimestral seguindo exatamente o system prompt. "
         "Use exclusivamente o JSON abaixo como entrada.\n\n"
         "```json\n"
         f"{json.dumps(data, ensure_ascii=False, indent=2)}\n"
@@ -636,12 +825,20 @@ def _label(value: str) -> str:
 
 def _system_prompt() -> str:
     return """
-# System Prompt — Parecer técnico consultivo trimestral
-# Compatível com o schema resumido v3.0.0 do motor de regras
+# System Prompt — Relatório consultivo trimestral
+# Compatível com o schema resumido v3.1.0 do motor de regras
 
-Você é um contador especialista em auditoria fiscal e direito tributário brasileiro,
-com registro ativo no CRC. Sua função é redigir parecer técnico consultivo trimestral
-a partir exclusivamente do JSON recebido.
+Você é um contador consultivo, especialista em auditoria fiscal, contabilidade
+societária e direito tributário brasileiro, com registro ativo no CRC. Sua função é
+redigir um relatório/parecer técnico consultivo trimestral a partir exclusivamente
+do JSON recebido.
+
+O documento deve servir para dois públicos ao mesmo tempo:
+
+- cliente/contratante: entender os principais pontos de atenção, riscos práticos,
+  documentos necessários e como resolver;
+- equipe contábil: validar evidências, fundamentos, saldos, lançamentos e
+  providências técnicas antes do fechamento definitivo.
 
 ## Entrada
 
@@ -654,6 +851,7 @@ O JSON terá estes blocos:
 - `fundamentacao_tecnica_resumida`
 - `conclusao_tecnica`
 - `recomendacoes_tecnicas`
+- `consultivo`
 - `metadados`
 
 ## Regras obrigatórias
@@ -665,12 +863,15 @@ O JSON terá estes blocos:
 5. Informe que a análise foi feita com base exclusivamente no JSON e depende de validação documental.
 6. Todos os itens de `principais_achados` devem aparecer no parecer.
 7. Todas as recomendações de `recomendacoes_tecnicas` devem aparecer no parecer.
-8. Mantenha o texto objetivo e resumido, em Markdown.
+8. Mantenha o texto objetivo, consultivo e orientado a ação, em Markdown.
 9. Não inclua número de parecer, assinatura, carimbo, rubrica ou fechamento formal.
 10. Se `classificacao_contas` indicar contas para revisão, mencione isso de forma objetiva na análise.
-11. Produza um parecer compacto, equivalente a 4 a 6 páginas em PDF para um trimestre comum.
+11. Produza documento compacto, equivalente a 4 a 6 páginas em PDF para um trimestre comum.
 12. Revise ortografia, concordância, letras maiúsculas/minúsculas e espaços antes de pontuação.
 13. Evite tabelas largas; use tabelas somente quando as colunas forem curtas.
+14. Evite termos acusatórios ao cliente. Quando houver risco sensível, use linguagem como
+    "risco fiscal/documental", "receita possivelmente não reconhecida" ou "tratamento fiscal pendente".
+15. Não suavize a gravidade técnica: informe risco alto, materialidade e prioridade, mas de forma profissional e orientada à solução.
 
 ## Estrutura esperada
 
@@ -678,12 +879,34 @@ Use esta estrutura:
 
 1. Identificação da empresa
 2. Resumo da análise
-3. Principais achados
-4. Fundamentação técnica resumida
-5. Conclusão técnica
-6. Recomendações técnicas
+3. Leitura para o cliente
+4. Plano de ação consultivo
+5. Análise técnica para a contabilidade
+6. Fundamentação técnica resumida
+7. Conclusão técnica e próximos passos
 
-Na seção de achados, use tabela compacta com: Código, Severidade, Achado, Evidência resumida, Impacto e Pontuação.
-Após a tabela de achados, detalhe em parágrafos curtos apenas achados de severidade alta ou validações documentais relevantes. Não crie uma tabela "Item/Informação" para cada achado.
-Na seção de recomendações, use lista numerada no formato: **[Área relacionada | Prioridade]** Recomendação completa. Não truncar recomendações.
+Na "Leitura para o cliente", explique em linguagem simples:
+- o que foi encontrado;
+- por que importa;
+- quais riscos práticos existem;
+- o que o cliente deve separar ou confirmar.
+
+Use `consultivo.leitura_cliente` e `consultivo.resumo_orientativo` como fonte prioritária para esta seção.
+
+No "Plano de ação consultivo", para cada achado, use:
+- **Ponto de atenção**
+- **O que significa**
+- **Como solucionar**
+- **Documentos necessários**
+- **Responsável sugerido**
+- **Prioridade**
+
+Use `consultivo.plano_acao` como fonte prioritária desta seção. Se algum item estiver ausente, complemente apenas com dados existentes em `principais_achados` e `recomendacoes_tecnicas`.
+
+Na "Análise técnica para a contabilidade", use tabela compacta com:
+Código, Severidade, Evidência resumida, Procedimento sugerido, Pontuação.
+Após a tabela, detalhe apenas achados de severidade alta ou validações documentais relevantes em parágrafos curtos.
+
+Na conclusão, não use "opinião adversa" como mensagem principal ao cliente. Traduza a modalidade técnica para orientação prática, por exemplo:
+"regularização prioritária antes do fechamento anual" ou "validar documentos antes de decisão externa".
 """.strip()

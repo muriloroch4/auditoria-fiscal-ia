@@ -499,8 +499,8 @@ def _check_customer_advances(revenue: Decimal, accounts: list[LedgerAccount]) ->
             pontuacao=score,
             descricao=(
                 "Foi identificado saldo em conta passiva de adiantamento de clientes. O saldo pode representar "
-                "receita antecipada legitima, mas tambem pode ser possivel sinal de sonegacao fiscal quando indicar "
-                "receita ja liquidada sem baixa, emissao fiscal ou reconhecimento contabil adequado."
+                "receita antecipada legitima, mas tambem pode indicar risco fiscal quando houver receita ja "
+                "liquidada sem baixa, emissao fiscal ou reconhecimento contabil adequado."
             ),
             evidencia={
                 "receita": _money(revenue),

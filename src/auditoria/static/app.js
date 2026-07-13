@@ -92,6 +92,7 @@ function normalizeAuditPayload(data) {
       total_regras_verificadas: dashboardMeta.total_regras_verificadas ?? summary.total_regras_verificadas ?? 0,
       total_regras_acionadas: dashboardMeta.total_regras_acionadas ?? summary.total_regras_acionadas ?? findings.length,
     },
+    consultivo: data.consultivo || dashboard.consultivo || {},
     classificacao_contas: classificationData,
   };
 }
@@ -365,6 +366,7 @@ function buildDashboardHtml(data, options = {}) {
   const metrics = data.metricas || {};
   const context = data.contexto_regime || {};
   const meta = data.meta || {};
+  const consultivo = data.consultivo || {};
   const findings = sortedFindings(data.achados || []);
   const classification = risk.classificacao || {};
   const level = normalizeLevel(risk.nivel_geral);
@@ -989,9 +991,9 @@ function buildPrintDocumentHtml(data) {
     <article class="pdf-document">
       <header class="pdf-cover ${level}">
         <div>
-          <span class="pdf-kicker">Pré-auditoria fiscal</span>
-          <h1>Relatório de análise trimestral</h1>
-          <p>Documento gerado a partir do motor de regras e do JSON de auditoria fiscal para apoio à revisão contábil e tributária.</p>
+          <span class="pdf-kicker">Pré-auditoria fiscal consultiva</span>
+          <h1>Relatório consultivo trimestral</h1>
+          <p>Documento gerado a partir do motor de regras e do JSON de auditoria fiscal para orientar a contabilidade, apresentar os principais pontos de atenção ao cliente e priorizar ações de regularização.</p>
         </div>
         <div class="pdf-risk-card">
           <span>Risco geral</span>
@@ -1022,6 +1024,8 @@ function buildPrintDocumentHtml(data) {
         </div>
       </section>
 
+      ${renderClientGuidanceSection(level, findings, counts, consultivo)}
+      ${renderConsultativeActionPlan(findings, consultivo)}
       ${renderPrintMetricSection(metrics, context)}
       ${renderPrintContextSection(context)}
       ${renderPrintFindingsSection(findings)}
@@ -1031,6 +1035,9 @@ function buildPrintDocumentHtml(data) {
         <h2>Observação metodológica</h2>
         <p>A análise é automatizada e foi elaborada com base exclusivamente nos dados estruturados recebidos no JSON de auditoria. A conclusão final deve ser validada com balancete, razão contábil, documentos fiscais, extratos, contratos e demais evidências aplicáveis ao período.</p>
       </section>
+      <footer class="pdf-footer">
+        Relatório consultivo gerado pelo motor de regras. Uso recomendado: revisão interna, orientação ao cliente e acompanhamento de providências.
+      </footer>
     </article>
   `;
 }
@@ -1045,9 +1052,9 @@ function renderPrintMetaItem(label, value) {
 }
 
 function renderPrintSummaryText(level, risk, triggeredRules, checkedRules, counts) {
-  const opinion = opinionLabel(risk.modalidade_opiniao_sugerida);
+  const orientation = consultativeOpinionText(risk.modalidade_opiniao_sugerida);
   const score = formatNumberPtBr(risk.pontuacao_total ?? 0);
-  return `Foram verificadas ${esc(checkedRules)} regras, das quais ${esc(triggeredRules)} foram acionadas. O risco geral foi classificado como ${levelLabel(level).toLowerCase()}, com pontuação total de ${esc(score)} ponto(s). A conclusão sugerida pelo motor é: ${esc(opinion)}. A distribuição dos achados foi de ${counts.alto} alto(s), ${counts.medio} médio(s) e ${counts.baixo} baixo(s).`;
+  return `Foram verificadas ${esc(checkedRules)} regras, das quais ${esc(triggeredRules)} foram acionadas. O risco geral foi classificado como ${levelLabel(level).toLowerCase()}, com pontuação total de ${esc(score)} ${pluralize(Number(risk.pontuacao_total ?? 0), "ponto", "pontos")}. A orientação consultiva é: ${esc(orientation)}. A distribuição dos achados foi de ${findingCountText(counts)}. Este relatório deve ser usado como roteiro de revisão, validação documental e orientação ao cliente.`;
 }
 
 function renderPrintSummaryCard(label, value) {
@@ -1057,6 +1064,252 @@ function renderPrintSummaryCard(label, value) {
       <strong>${esc(formatCountDisplay(value))}</strong>
     </div>
   `;
+}
+
+function pluralize(value, singular, plural) {
+  return Math.abs(Number(value || 0)) === 1 ? singular : plural;
+}
+
+function findingCountText(counts) {
+  const parts = [
+    `${counts.alto} ${pluralize(counts.alto, "achado alto", "achados altos")}`,
+    `${counts.medio} ${pluralize(counts.medio, "achado médio", "achados médios")}`,
+    `${counts.baixo} ${pluralize(counts.baixo, "achado baixo", "achados baixos")}`,
+  ];
+  return parts.join(", ");
+}
+
+function consultativeOpinionText(value) {
+  if (value === "sem_ressalva") {
+    return "manter a documentação suporte e acompanhar os controles nos próximos trimestres";
+  }
+  if (value === "com_ressalva") {
+    return "corrigir ou documentar os pontos destacados antes do fechamento definitivo";
+  }
+  if (value === "adversa") {
+    return "priorizar a regularização dos achados relevantes antes de usar os dados para decisões externas ou fechamento anual";
+  }
+  if (value === "abstencao_opiniao") {
+    return "obter documentação complementar antes de concluir a análise";
+  }
+  return "validar os achados com documentação de suporte e registrar as providências adotadas";
+}
+
+function renderClientGuidanceSection(level, findings, counts, consultivo = {}) {
+  const priority = level === "alto"
+    ? "prioridade imediata"
+    : level === "medio"
+      ? "prioridade de acompanhamento no curto prazo"
+      : "prioridade de manutenção e conferência preventiva";
+  const mainText = consultivo.leitura_cliente || `O resultado indica ${priority}. A análise não substitui a conferência documental, mas mostra os pontos que merecem atenção para reduzir riscos fiscais, contábeis, trabalhistas e societários.`;
+  const orientativeSummary = consultivo.resumo_orientativo
+    ? `<p class="pdf-consultive-note">${esc(consultivo.resumo_orientativo)}</p>`
+    : "";
+  const topFindings = findings.slice(0, 3)
+    .map((finding) => `<li>${esc(clientSafeText(finding.titulo || finding.codigo))}</li>`)
+    .join("");
+  const noFindings = "<li>Nenhum achado foi acionado, mas recomenda-se manter a documentação organizada para conferência futura.</li>";
+
+  return `
+    <section class="pdf-section pdf-client-section">
+      <h2>Leitura para o cliente</h2>
+      <p>${esc(mainText)}</p>
+      <div class="pdf-client-grid">
+        <div>
+          <h3>Principais mensagens</h3>
+          <ul class="pdf-list">${topFindings || noFindings}</ul>
+        </div>
+        <div>
+          <h3>Como conduzir</h3>
+          <ul class="pdf-list">
+            <li>Separar os documentos que comprovam cada lançamento apontado.</li>
+            <li>Validar saldos com razão contábil, extratos, notas fiscais, contratos e relatórios auxiliares.</li>
+            <li>Regularizar lançamentos, baixas ou reclassificações antes do fechamento definitivo.</li>
+            <li>Manter registro da providência tomada para acompanhamento nos próximos trimestres.</li>
+          </ul>
+        </div>
+      </div>
+      ${orientativeSummary}
+      <p class="pdf-consultive-note">Leitura de risco: ${counts.alto > 0 ? "há pontos que devem ser tratados antes de decisões como distribuição de lucros, obtenção de crédito ou fechamento anual." : "os pontos identificados devem ser acompanhados para evitar acúmulo de pendências no fechamento anual."}</p>
+    </section>
+  `;
+}
+
+function renderConsultativeActionPlan(findings, consultivo = {}) {
+  const structuredPlan = Array.isArray(consultivo.plano_acao) ? consultivo.plano_acao : [];
+  if (structuredPlan.length) {
+    const cards = structuredPlan.map(renderStructuredConsultativeActionCard).join("");
+    return `
+      <section class="pdf-section pdf-action-section">
+        <h2>Plano de ação consultivo</h2>
+        <p>Roteiro prático estruturado a partir do JSON consultivo para orientar o cliente e apoiar a equipe contábil.</p>
+        <div class="pdf-action-list">${cards}</div>
+      </section>
+    `;
+  }
+
+  if (!findings.length) {
+    return `
+      <section class="pdf-section pdf-action-section">
+        <h2>Plano de ação consultivo</h2>
+        <div class="pdf-action-empty">
+          <strong>Nenhuma ação corretiva prioritária foi indicada pelo motor.</strong>
+          <span>Manter conciliações, documentação fiscal e controles auxiliares atualizados para os próximos trimestres.</span>
+        </div>
+      </section>
+    `;
+  }
+
+  const visibleFindings = findings.slice(0, 8);
+  const cards = visibleFindings.map(renderConsultativeActionCard).join("");
+  const hiddenCount = findings.length - visibleFindings.length;
+  const footer = hiddenCount > 0
+    ? `<p class="pdf-consultive-note">Além dos itens acima, existem ${hiddenCount} ${pluralize(hiddenCount, "achado adicional", "achados adicionais")} ${pluralize(hiddenCount, "detalhado", "detalhados")} na análise técnica.</p>`
+    : "";
+
+  return `
+    <section class="pdf-section pdf-action-section">
+      <h2>Plano de ação consultivo</h2>
+      <p>Roteiro prático para orientar o cliente e apoiar a equipe contábil na correção ou validação dos pontos identificados.</p>
+      <div class="pdf-action-list">${cards}</div>
+      ${footer}
+    </section>
+  `;
+}
+
+function renderStructuredConsultativeActionCard(item) {
+  const level = severityToLevel(item.prioridade);
+  const documents = Array.isArray(item.documentos_necessarios)
+    ? item.documentos_necessarios.map((doc) => `<li>${esc(doc)}</li>`).join("")
+    : "";
+  return `
+    <article class="pdf-action-card ${level}">
+      <header>
+        <span class="finding-code">${esc(item.codigo)}</span>
+        <span class="chip ${level}">${priorityLabel(level)}</span>
+      </header>
+      <h3>${esc(clientSafeText(item.ponto_atencao || "Ponto de atenção"))}</h3>
+      <div class="pdf-action-grid">
+        <div>
+          <span>O que significa</span>
+          <p>${esc(item.o_que_significa || "[VERIFICAR: significado]")}</p>
+        </div>
+        <div>
+          <span>Como solucionar</span>
+          <p>${esc(item.como_solucionar || "[VERIFICAR: solução]")}</p>
+        </div>
+        <div>
+          <span>Documentos necessários</span>
+          <ul>${documents || "<li>[VERIFICAR: documentos necessários]</li>"}</ul>
+        </div>
+        <div>
+          <span>Responsável e prazo</span>
+          <p>${esc(item.responsavel_sugerido || "[VERIFICAR: responsável]")}</p>
+          <p>${esc(item.prazo_sugerido || "[VERIFICAR: prazo]")}</p>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderConsultativeActionCard(finding) {
+  const level = normalizeLevel(finding.nivel);
+  const documents = requiredDocumentsForFinding(finding)
+    .map((item) => `<li>${esc(item)}</li>`)
+    .join("");
+  return `
+    <article class="pdf-action-card ${level}">
+      <header>
+        <span class="finding-code">${esc(finding.codigo)}</span>
+        <span class="chip ${level}">${priorityLabel(level)}</span>
+      </header>
+      <h3>${esc(clientSafeText(finding.titulo || "Ponto de atenção"))}</h3>
+      <div class="pdf-action-grid">
+        <div>
+          <span>O que significa</span>
+          <p>${esc(consultativeMeaning(finding))}</p>
+        </div>
+        <div>
+          <span>Como solucionar</span>
+          <p>${esc(consultativeSolution(finding))}</p>
+        </div>
+        <div>
+          <span>Documentos necessários</span>
+          <ul>${documents}</ul>
+        </div>
+        <div>
+          <span>Responsável sugerido</span>
+          <p>${esc(suggestedOwner(finding))}</p>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function priorityLabel(level) {
+  if (level === "alto") return "Prioridade alta";
+  if (level === "medio") return "Prioridade média";
+  if (level === "baixo") return "Prioridade baixa";
+  return "Acompanhar";
+}
+
+function clientSafeText(value) {
+  return String(value || "")
+    .replace(/poss[ií]vel sinal de sonega[cç][aã]o fiscal/gi, "risco de receita não reconhecida ou tratamento fiscal pendente")
+    .replace(/sonega[cç][aã]o fiscal/gi, "risco fiscal")
+    .replace(/omiss[aã]o de receita/gi, "receita possivelmente não reconhecida")
+    .replace(/fraude/gi, "irregularidade")
+    .replace(/adversa/gi, "risco elevado");
+}
+
+function consultativeMeaning(finding) {
+  const code = String(finding.codigo || "");
+  const text = clientSafeText(finding.descricao || "");
+  if (code.startsWith("SN-004")) return "A distribuição de lucros precisa ter lastro contábil suficiente. Sem suporte, pode gerar questionamentos fiscais e societários.";
+  if (code.startsWith("SN-005")) return "Saldos com sócios indicam movimentações que precisam de contrato, conciliação e validação tributária, especialmente quando houver mútuo.";
+  if (code.startsWith("SN-006") || code.startsWith("SN-022")) return "O saldo de caixa ou bancos precisa ser compatível com a operação e com os comprovantes financeiros disponíveis.";
+  if (code.startsWith("SN-008")) return "A movimentação financeira pode não estar totalmente alinhada ao faturamento reconhecido no período.";
+  if (code.startsWith("SN-010") || code.startsWith("SN-023")) return "Os recebíveis precisam refletir vendas ou serviços efetivamente pendentes de recebimento, com baixas e controles auxiliares consistentes.";
+  if (code.startsWith("SN-015") || code.startsWith("SN-018")) return "Estoque, CMV e margem precisam estar coerentes com a atividade, compras, vendas e controles internos.";
+  if (code.startsWith("SN-025")) return "Serviços de terceiros relevantes em despesas exigem comprovação documental para confirmar natureza, competência e vínculo com a atividade.";
+  if (code.startsWith("SN-026")) return "Adiantamentos de clientes no passivo podem ser legítimos, mas precisam comprovar se ainda estão pendentes ou se já deveriam ter sido baixados e reconhecidos.";
+  return clientSafeText(text || "O achado indica um ponto que deve ser validado antes do fechamento contábil definitivo.");
+}
+
+function consultativeSolution(finding) {
+  const code = String(finding.codigo || "");
+  const fallback = clientSafeText(finding.recomendacao || "Validar documentos, conciliar saldos e registrar a providência adotada.");
+  if (code.startsWith("SN-004")) return "Reconciliar resultado, lucros acumulados, reservas e atas/decisões de distribuição antes de manter a distribuição como isenta.";
+  if (code.startsWith("SN-005")) return "Levantar extratos e razão das contas de sócios, formalizar contrato de mútuo quando aplicável e verificar IOF, juros, prazo e liquidação.";
+  if (code.startsWith("SN-006") || code.startsWith("SN-022")) return "Conciliar extratos bancários, caixa físico e lançamentos de sócios; reclassificar valores que não representem disponibilidade real.";
+  if (code.startsWith("SN-008")) return "Comparar faturamento, extratos, notas fiscais e recebimentos para identificar lançamentos ausentes, duplicados ou em competência incorreta.";
+  if (code.startsWith("SN-010") || code.startsWith("SN-023")) return "Validar relatório de clientes, aging list, recebimentos posteriores e baixas realizadas no período seguinte.";
+  if (code.startsWith("SN-015") || code.startsWith("SN-018")) return "Confrontar estoque, compras, vendas, inventário e CMV; ajustar baixas ou reclassificações quando necessário.";
+  if (code.startsWith("SN-025")) return "Conferir a conta 325 com notas fiscais, contratos, comprovantes bancários e retenções; reclassificar lançamentos sem suporte adequado.";
+  if (code.startsWith("SN-026")) return "Validar contrato, pedido, nota fiscal, extrato e baixa posterior; regularizar valores já liquidados que ainda permanecem como adiantamento.";
+  return fallback;
+}
+
+function requiredDocumentsForFinding(finding) {
+  const code = String(finding.codigo || "");
+  if (code.startsWith("SN-004")) return ["Balancete e razão contábil", "Demonstração do resultado", "Lucros acumulados/reservas", "Comprovantes de distribuição"];
+  if (code.startsWith("SN-005")) return ["Razão das contas de sócios", "Extratos bancários", "Contrato de mútuo ou instrumento equivalente", "Comprovante de IOF, quando aplicável"];
+  if (code.startsWith("SN-006") || code.startsWith("SN-022")) return ["Conciliação bancária", "Extratos bancários", "Livro/controle de caixa", "Comprovantes de pagamentos e recebimentos"];
+  if (code.startsWith("SN-008")) return ["Notas fiscais emitidas", "Extratos bancários", "Relatório de faturamento", "PGDAS-D/DAS do período"];
+  if (code.startsWith("SN-010") || code.startsWith("SN-023")) return ["Relatório de contas a receber", "Aging list", "Notas fiscais", "Comprovantes de baixa e recebimento"];
+  if (code.startsWith("SN-015") || code.startsWith("SN-018")) return ["Inventário", "Notas de compra e venda", "Relatório de estoque", "Memória de cálculo do CMV"];
+  if (code.startsWith("SN-025")) return ["Razão da conta 325", "Notas fiscais de serviços tomados", "Contratos", "Comprovantes bancários e retenções"];
+  if (code.startsWith("SN-026")) return ["Contratos ou pedidos", "Notas fiscais", "Extratos e recibos", "Razão contábil e baixas posteriores"];
+  return ["Balancete", "Razão contábil", "Documentos fiscais", "Extratos e relatórios auxiliares"];
+}
+
+function suggestedOwner(finding) {
+  const code = String(finding.codigo || "");
+  if (code.startsWith("SN-003") || code.startsWith("SN-014")) return "Departamento pessoal + contabilidade";
+  if (code.startsWith("SN-005") || code.startsWith("SN-004")) return "Sócios/administradores + contabilidade";
+  if (code.startsWith("SN-015") || code.startsWith("SN-016") || code.startsWith("SN-018") || code.startsWith("SN-024")) return "Cliente/financeiro/estoque + contabilidade";
+  if (code.startsWith("SN-001") || code.startsWith("SN-002") || code.startsWith("SN-019") || code.startsWith("SN-020")) return "Fiscal + contabilidade";
+  return "Cliente + contabilidade";
 }
 
 function renderPrintMetricSection(metrics, context) {
@@ -1133,8 +1386,8 @@ function renderPrintContextSection(context) {
 function renderPrintFindingsSection(findings) {
   if (!findings.length) {
     return `
-      <section class="pdf-section">
-        <h2>Principais achados</h2>
+      <section class="pdf-section pdf-technical-section">
+        <h2>Análise técnica para a contabilidade</h2>
         <p>Nenhum achado foi acionado pelo motor de regras para o período analisado.</p>
       </section>
     `;
@@ -1142,8 +1395,8 @@ function renderPrintFindingsSection(findings) {
 
   const cards = findings.map(renderPrintFindingCard).join("");
   return `
-    <section class="pdf-section">
-      <h2>Principais achados</h2>
+    <section class="pdf-section pdf-technical-section">
+      <h2>Análise técnica para a contabilidade</h2>
       <div class="pdf-finding-list">${cards}</div>
     </section>
   `;
@@ -1163,14 +1416,14 @@ function renderPrintFindingCard(finding) {
         <span class="chip ${level}">${levelLabel(level)}</span>
         <span class="pdf-score">Pontuação ${esc(formatNumberPtBr(finding.pontuacao ?? 0))}</span>
       </header>
-      <h3>${esc(finding.titulo || "Achado sem título")}</h3>
+      <h3>${esc(clientSafeText(finding.titulo || "Achado sem título"))}</h3>
       <dl>
         <dt>Evidência</dt>
-        <dd>${esc(truncateText(evidence, 220))}</dd>
+        <dd>${esc(truncateText(clientSafeText(evidence), 220))}</dd>
         <dt>Impacto técnico</dt>
-        <dd>${esc(truncateText(finding.descricao || "[VERIFICAR: impacto técnico]", 240))}</dd>
-        <dt>Recomendação</dt>
-        <dd>${esc(truncateText(finding.recomendacao || "[VERIFICAR: recomendação técnica]", 260))}</dd>
+        <dd>${esc(truncateText(clientSafeText(finding.descricao || "[VERIFICAR: impacto técnico]"), 240))}</dd>
+        <dt>Procedimento sugerido</dt>
+        <dd>${esc(truncateText(clientSafeText(finding.recomendacao || "[VERIFICAR: recomendação técnica]"), 260))}</dd>
         <dt>Fundamento</dt>
         <dd>${esc(truncateText(norms, 260))}</dd>
       </dl>
@@ -1207,7 +1460,7 @@ function renderPrintAccountSection(classification) {
   `).join("");
 
   return `
-    <section class="pdf-section">
+    <section class="pdf-section pdf-account-section">
       <h2>Classificação das contas</h2>
       <p>Foram analisadas ${esc(formatNumberPtBr(classification.total_contas || 0))} conta(s). Total indicado para revisão: ${esc(formatNumberPtBr(classification.total_contas_revisao || 0))}.</p>
       ${rows ? `<ul class="pdf-account-list">${rows}</ul>` : "<p>Nenhuma conta foi marcada para revisão de classificação.</p>"}
@@ -1247,7 +1500,7 @@ function printDashboardPdf() {
 
   const viewData = normalizeAuditPayload(lastData);
   const ident = viewData.identificacao || {};
-  const title = `Relatório de pré-auditoria fiscal - ${ident.cliente || "cliente"} - ${ident.periodo || "periodo"}`;
+  const title = `Relatório consultivo de pré-auditoria fiscal - ${ident.cliente || "cliente"} - ${ident.periodo || "periodo"}`;
   const content = buildPrintDocumentHtml(viewData);
   const styleUrl = `${window.location.origin}/static/styles.css`;
   const printWindow = window.open("", "_blank");

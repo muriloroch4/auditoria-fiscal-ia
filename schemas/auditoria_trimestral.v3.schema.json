@@ -12,6 +12,7 @@
     "fundamentacao_tecnica_resumida",
     "conclusao_tecnica",
     "recomendacoes_tecnicas",
+    "consultivo",
     "metadados"
   ],
   "properties": {
@@ -98,13 +99,14 @@
       "type": "array",
       "items": { "$ref": "#/$defs/recomendacao" }
     },
+    "consultivo": { "$ref": "#/$defs/consultivo_trimestral" },
     "metadados": {
       "type": "object",
       "additionalProperties": false,
       "required": ["data_analise", "versao_schema", "versao_regras", "conjunto_regras"],
       "properties": {
         "data_analise": { "type": "string" },
-        "versao_schema": { "const": "3.0.0" },
+        "versao_schema": { "const": "3.1.0" },
         "versao_regras": { "type": "string" },
         "conjunto_regras": {
           "type": "string",
@@ -259,6 +261,51 @@
           "enum": ["fiscal", "contabil", "contábil", "trabalhista", "societaria", "societária", "financeira", "documental"]
         },
         "prioridade": { "$ref": "#/$defs/severidade" }
+      }
+    },
+    "consultivo_trimestral": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resumo_orientativo", "leitura_cliente", "plano_acao"],
+      "properties": {
+        "resumo_orientativo": { "type": "string" },
+        "leitura_cliente": { "type": "string" },
+        "plano_acao": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/acao_consultiva_trimestral" }
+        }
+      }
+    },
+    "acao_consultiva_trimestral": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "codigo",
+        "prioridade",
+        "area_relacionada",
+        "ponto_atencao",
+        "o_que_significa",
+        "como_solucionar",
+        "documentos_necessarios",
+        "responsavel_sugerido",
+        "prazo_sugerido"
+      ],
+      "properties": {
+        "codigo": { "$ref": "#/$defs/texto_ou_verificar" },
+        "prioridade": { "$ref": "#/$defs/severidade" },
+        "area_relacionada": {
+          "type": "string",
+          "enum": ["fiscal", "contabil", "contábil", "trabalhista", "societaria", "societária", "financeira", "documental"]
+        },
+        "ponto_atencao": { "$ref": "#/$defs/texto_ou_verificar" },
+        "o_que_significa": { "$ref": "#/$defs/texto_ou_verificar" },
+        "como_solucionar": { "$ref": "#/$defs/texto_ou_verificar" },
+        "documentos_necessarios": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "responsavel_sugerido": { "$ref": "#/$defs/texto_ou_verificar" },
+        "prazo_sugerido": { "$ref": "#/$defs/texto_ou_verificar" }
       }
     }
   }

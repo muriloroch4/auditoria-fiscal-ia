@@ -303,6 +303,106 @@
     "risco_geral": "alto",
     "texto_conclusivo": "Com base exclusivamente no JSON de auditoria trimestral, os achados indicam risco t\u00e9cnico elevado e requerem regulariza\u00e7\u00e3o priorit\u00e1ria. A conclus\u00e3o n\u00e3o representa auditoria independente definitiva e depende da valida\u00e7\u00e3o documental dos fatos identificados."
   },
+  "consultivo": {
+    "leitura_cliente": "Foram identificados pontos que exigem valida\u00e7\u00e3o documental antes do fechamento definitivo. Principais mensagens para o cliente: SN-001B - Receita trimestral anualizada acima de 90% do limite do Simples; SN-004A - Distribui\u00e7\u00e3o de lucros acima do lucro dispon\u00edvel identificado; SN-002B - Carga tribut\u00e1ria abaixo de 3% da receita. A orienta\u00e7\u00e3o \u00e9 separar documentos, validar saldos com a contabilidade e registrar as provid\u00eancias adotadas.",
+    "plano_acao": [
+      {
+        "area_relacionada": "fiscal",
+        "codigo": "SN-001B",
+        "como_solucionar": "Validar a receita bruta acumulada dos \u00faltimos 12 meses (RBT12), projetar os pr\u00f3ximos trimestres e avaliar risco de sublimite, desenquadramento ou excesso de receita.",
+        "documentos_necessarios": [
+          "PGDAS-D",
+          "receita bruta acumulada dos ultimos 12 meses",
+          "relatorio de faturamento por competencia"
+        ],
+        "o_que_significa": "A receita do trimestre, quando anualizada para fins de alerta, fica pr\u00f3xima do limite anual do Simples Nacional.",
+        "ponto_atencao": "Receita trimestral anualizada acima de 90% do limite do Simples",
+        "prazo_sugerido": "antes do fechamento definitivo do per\u00edodo",
+        "prioridade": "alta",
+        "responsavel_sugerido": "fiscal e contabilidade"
+      },
+      {
+        "area_relacionada": "societ\u00e1ria",
+        "codigo": "SN-004A",
+        "como_solucionar": "Reconciliar resultado, lucros acumulados, reservas e comprovantes de distribui\u00e7\u00e3o.",
+        "documentos_necessarios": [
+          "balancete de verificacao",
+          "razao contabil de lucros",
+          "ata/contrato de distribuicao de lucros"
+        ],
+        "o_que_significa": "A distribui\u00e7\u00e3o de lucros precisa ter lastro cont\u00e1bil suficiente antes de ser mantida como isenta.",
+        "ponto_atencao": "Distribui\u00e7\u00e3o de lucros acima do lucro dispon\u00edvel identificado",
+        "prazo_sugerido": "antes do fechamento definitivo do per\u00edodo",
+        "prioridade": "alta",
+        "responsavel_sugerido": "s\u00f3cios/administradores e contabilidade"
+      },
+      {
+        "area_relacionada": "fiscal",
+        "codigo": "SN-002B",
+        "como_solucionar": "Conferir apura\u00e7\u00e3o do DAS, anexo aplicado, reten\u00e7\u00f5es, compet\u00eancia e poss\u00edveis lan\u00e7amentos ausentes.",
+        "documentos_necessarios": [
+          "PGDAS-D",
+          "DAS apurado e pago",
+          "livro fiscal de receitas"
+        ],
+        "o_que_significa": "Os impostos registrados representam menos de 3% da receita do per\u00edodo, indicando poss\u00edvel subapura\u00e7\u00e3o ou diverg\u00eancia fiscal a validar.",
+        "ponto_atencao": "Carga tribut\u00e1ria abaixo de 3% da receita",
+        "prazo_sugerido": "antes do fechamento definitivo do per\u00edodo",
+        "prioridade": "alta",
+        "responsavel_sugerido": "fiscal e contabilidade"
+      },
+      {
+        "area_relacionada": "societ\u00e1ria",
+        "codigo": "SN-005",
+        "como_solucionar": "Conferir raz\u00e3o e extratos, formalizar contrato de m\u00fatuo quando aplic\u00e1vel e validar IOF, prazo, juros e liquida\u00e7\u00e3o.",
+        "documentos_necessarios": [
+          "razao das contas de socios",
+          "extratos bancarios",
+          "contrato de mutuo ou instrumento equivalente",
+          "memoria de calculo do IOF",
+          "guia e comprovante de recolhimento do IOF"
+        ],
+        "o_que_significa": "Saldos com s\u00f3cios exigem contrato, concilia\u00e7\u00e3o financeira e valida\u00e7\u00e3o de IOF quando houver m\u00fatuo.",
+        "ponto_atencao": "Saldos em contas de socios exigem validacao de mutuo e IOF",
+        "prazo_sugerido": "at\u00e9 o pr\u00f3ximo fechamento trimestral",
+        "prioridade": "media",
+        "responsavel_sugerido": "s\u00f3cios/administradores e contabilidade"
+      },
+      {
+        "area_relacionada": "trabalhista",
+        "codigo": "SN-003",
+        "como_solucionar": "Revisar folha, pr\u00f3-labore dos s\u00f3cios e apura\u00e7\u00e3o do Fator R com base acumulada de 12 meses antes de concluir sobre o anexo aplic\u00e1vel.",
+        "documentos_necessarios": [
+          "folha de pagamento",
+          "pro-labore",
+          "eSocial",
+          "PGDAS-D para calculo oficial do Fator R"
+        ],
+        "o_que_significa": "A folha e o pr\u00f3-labore do trimestre representam percentual baixo da receita trimestral, funcionando como indicador preliminar para valida\u00e7\u00e3o do Fator R.",
+        "ponto_atencao": "Folha e pr\u00f3-labore trimestrais baixos para empresa de servi\u00e7os",
+        "prazo_sugerido": "at\u00e9 o pr\u00f3ximo fechamento trimestral",
+        "prioridade": "media",
+        "responsavel_sugerido": "departamento pessoal e contabilidade"
+      },
+      {
+        "area_relacionada": "documental",
+        "codigo": "SN-025",
+        "como_solucionar": "Conferir a conta 325 com notas fiscais, contratos, comprovantes banc\u00e1rios e reten\u00e7\u00f5es aplic\u00e1veis.",
+        "documentos_necessarios": [
+          "contratos de prestadores",
+          "notas fiscais de servicos tomados",
+          "comprovantes bancarios",
+          "retencoes aplicaveis"
+        ],
+        "o_que_significa": "Servi\u00e7os de terceiros relevantes precisam comprovar natureza, compet\u00eancia e v\u00ednculo com a atividade.",
+        "ponto_atencao": "Servicos prestados por terceiros relevantes nas despesas",
+        "prazo_sugerido": "at\u00e9 o pr\u00f3ximo fechamento trimestral",
+        "prioridade": "media",
+        "responsavel_sugerido": "cliente e contabilidade"
+      }
+    ],
+    "resumo_orientativo": "O trimestre apresenta risco alto, com 6 achado(s) acionado(s), sendo 3 de prioridade alta, 3 de prioridade m\u00e9dia e 0 de prioridade baixa. Orienta\u00e7\u00e3o consultiva: regularizar os achados relevantes antes de usar os dados para decis\u00f5es externas ou fechamento anual."
+  },
   "fundamentacao_tecnica_resumida": {
     "normas_aplicaveis": [
       "Resolu\u00e7\u00e3o CFC n.\u00ba 1.244/2009",
@@ -346,7 +446,7 @@
     "conjunto_regras": "simples_servicos",
     "data_analise": "2000-01-01T00:00:00",
     "versao_regras": "1.11.0",
-    "versao_schema": "3.0.0"
+    "versao_schema": "3.1.0"
   },
   "principais_achados": [
     {
