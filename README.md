@@ -304,9 +304,11 @@ Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`.
 - `config/rules.json` — configuração de pesos e limites das regras
 - `config/simples_anexos.json` — tabelas dos Anexos I, III e V usadas na estimativa tributária
 - `config/plano_contas_map.json` — mapa configurável de reconhecimento de contas contábeis
+- `config/consultivo_por_regra.json` — textos consultivos, documentos, responsáveis e prazos por regra
 - `schemas/` — contratos JSON Schema versionados para integrações com chats/IA
 - `requirements.txt` / `requirements-dev.txt` — dependências de runtime e ferramentas de desenvolvimento
 - `.github/workflows/ci.yml` — pipeline de CI com validação de JSON, compile, testes e mypy
 - `REGRAS.md` — tabela das regras fiscais configuradas
 - `docs/PROMPTS_IA.md` — prompts para chats externos de parecer trimestral e anual
+- `docs/legado/` — materiais antigos preservados apenas como histórico
 - `tests/` — suíte de testes unitários e de integração leve

@@ -309,52 +309,52 @@
       {
         "area_relacionada": "fiscal",
         "codigo": "SN-001B",
-        "como_solucionar": "Validar a receita bruta acumulada dos \u00faltimos 12 meses (RBT12), projetar os pr\u00f3ximos trimestres e avaliar risco de sublimite, desenquadramento ou excesso de receita.",
+        "como_solucionar": "Validar RBT12, PGDAS-D, faturamento por competencia e simulacao de enquadramento antes do fechamento.",
         "documentos_necessarios": [
           "PGDAS-D",
           "receita bruta acumulada dos ultimos 12 meses",
           "relatorio de faturamento por competencia"
         ],
-        "o_que_significa": "A receita do trimestre, quando anualizada para fins de alerta, fica pr\u00f3xima do limite anual do Simples Nacional.",
+        "o_que_significa": "A receita exige acompanhamento do limite do Simples Nacional e do risco de sublimite ou desenquadramento.",
         "ponto_atencao": "Receita trimestral anualizada acima de 90% do limite do Simples",
-        "prazo_sugerido": "antes do fechamento definitivo do per\u00edodo",
+        "prazo_sugerido": "antes da proxima apuracao do DAS",
         "prioridade": "alta",
         "responsavel_sugerido": "fiscal e contabilidade"
       },
       {
         "area_relacionada": "societ\u00e1ria",
         "codigo": "SN-004A",
-        "como_solucionar": "Reconciliar resultado, lucros acumulados, reservas e comprovantes de distribui\u00e7\u00e3o.",
+        "como_solucionar": "Reconciliar resultado, lucros acumulados, reservas e comprovantes de distribuicao.",
         "documentos_necessarios": [
           "balancete de verificacao",
           "razao contabil de lucros",
           "ata/contrato de distribuicao de lucros"
         ],
-        "o_que_significa": "A distribui\u00e7\u00e3o de lucros precisa ter lastro cont\u00e1bil suficiente antes de ser mantida como isenta.",
+        "o_que_significa": "A distribuicao de lucros precisa ter lastro contabil suficiente antes de ser mantida como isenta.",
         "ponto_atencao": "Distribui\u00e7\u00e3o de lucros acima do lucro dispon\u00edvel identificado",
-        "prazo_sugerido": "antes do fechamento definitivo do per\u00edodo",
+        "prazo_sugerido": "antes de nova distribuicao de lucros",
         "prioridade": "alta",
-        "responsavel_sugerido": "s\u00f3cios/administradores e contabilidade"
+        "responsavel_sugerido": "socios/administradores e contabilidade"
       },
       {
         "area_relacionada": "fiscal",
         "codigo": "SN-002B",
-        "como_solucionar": "Conferir apura\u00e7\u00e3o do DAS, anexo aplicado, reten\u00e7\u00f5es, compet\u00eancia e poss\u00edveis lan\u00e7amentos ausentes.",
+        "como_solucionar": "Conferir anexo, receita tributavel, retencoes, DAS apurado e guias pagas no periodo.",
         "documentos_necessarios": [
           "PGDAS-D",
           "DAS apurado e pago",
           "livro fiscal de receitas"
         ],
-        "o_que_significa": "Os impostos registrados representam menos de 3% da receita do per\u00edodo, indicando poss\u00edvel subapura\u00e7\u00e3o ou diverg\u00eancia fiscal a validar.",
+        "o_que_significa": "A carga tributaria registrada pode estar incompat\u00edvel com a receita do periodo.",
         "ponto_atencao": "Carga tribut\u00e1ria abaixo de 3% da receita",
-        "prazo_sugerido": "antes do fechamento definitivo do per\u00edodo",
+        "prazo_sugerido": "antes da proxima apuracao do DAS",
         "prioridade": "alta",
         "responsavel_sugerido": "fiscal e contabilidade"
       },
       {
         "area_relacionada": "societ\u00e1ria",
         "codigo": "SN-005",
-        "como_solucionar": "Conferir raz\u00e3o e extratos, formalizar contrato de m\u00fatuo quando aplic\u00e1vel e validar IOF, prazo, juros e liquida\u00e7\u00e3o.",
+        "como_solucionar": "Conferir razao e extratos, formalizar contrato de mutuo quando aplicavel e validar IOF, prazo, juros e liquidacao.",
         "documentos_necessarios": [
           "razao das contas de socios",
           "extratos bancarios",
@@ -362,41 +362,42 @@
           "memoria de calculo do IOF",
           "guia e comprovante de recolhimento do IOF"
         ],
-        "o_que_significa": "Saldos com s\u00f3cios exigem contrato, concilia\u00e7\u00e3o financeira e valida\u00e7\u00e3o de IOF quando houver m\u00fatuo.",
+        "o_que_significa": "Saldos com socios exigem contrato, conciliacao financeira e validacao de IOF quando houver mutuo.",
         "ponto_atencao": "Saldos em contas de socios exigem validacao de mutuo e IOF",
-        "prazo_sugerido": "at\u00e9 o pr\u00f3ximo fechamento trimestral",
+        "prazo_sugerido": "imediato, antes do fechamento definitivo do periodo",
         "prioridade": "media",
-        "responsavel_sugerido": "s\u00f3cios/administradores e contabilidade"
+        "responsavel_sugerido": "socios/administradores e contabilidade"
       },
       {
         "area_relacionada": "trabalhista",
         "codigo": "SN-003",
-        "como_solucionar": "Revisar folha, pr\u00f3-labore dos s\u00f3cios e apura\u00e7\u00e3o do Fator R com base acumulada de 12 meses antes de concluir sobre o anexo aplic\u00e1vel.",
+        "como_solucionar": "Validar folha, pro-labore, eSocial e calculo oficial do Fator R acumulado dos ultimos 12 meses.",
         "documentos_necessarios": [
           "folha de pagamento",
           "pro-labore",
           "eSocial",
           "PGDAS-D para calculo oficial do Fator R"
         ],
-        "o_que_significa": "A folha e o pr\u00f3-labore do trimestre representam percentual baixo da receita trimestral, funcionando como indicador preliminar para valida\u00e7\u00e3o do Fator R.",
+        "o_que_significa": "Folha e pro-labore impactam o Fator R e podem alterar o anexo tributario aplicavel.",
         "ponto_atencao": "Folha e pr\u00f3-labore trimestrais baixos para empresa de servi\u00e7os",
-        "prazo_sugerido": "at\u00e9 o pr\u00f3ximo fechamento trimestral",
+        "prazo_sugerido": "antes da apuracao mensal do Simples Nacional",
         "prioridade": "media",
         "responsavel_sugerido": "departamento pessoal e contabilidade"
       },
       {
         "area_relacionada": "documental",
         "codigo": "SN-025",
-        "como_solucionar": "Conferir a conta 325 com notas fiscais, contratos, comprovantes banc\u00e1rios e reten\u00e7\u00f5es aplic\u00e1veis.",
+        "como_solucionar": "Conferir a conta 325 com notas fiscais, contratos, comprovantes bancarios e retencoes aplicaveis.",
         "documentos_necessarios": [
+          "razao da conta 325",
           "contratos de prestadores",
           "notas fiscais de servicos tomados",
           "comprovantes bancarios",
           "retencoes aplicaveis"
         ],
-        "o_que_significa": "Servi\u00e7os de terceiros relevantes precisam comprovar natureza, compet\u00eancia e v\u00ednculo com a atividade.",
+        "o_que_significa": "Servicos de terceiros relevantes precisam comprovar natureza, competencia e vinculo com a atividade.",
         "ponto_atencao": "Servicos prestados por terceiros relevantes nas despesas",
-        "prazo_sugerido": "at\u00e9 o pr\u00f3ximo fechamento trimestral",
+        "prazo_sugerido": "antes do fechamento definitivo do periodo",
         "prioridade": "media",
         "responsavel_sugerido": "cliente e contabilidade"
       }
@@ -622,6 +623,7 @@
         },
         "confianca": "media",
         "documentos_recomendados": [
+          "razao da conta 325",
           "contratos de prestadores",
           "notas fiscais de servicos tomados",
           "comprovantes bancarios",

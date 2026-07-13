@@ -4,6 +4,7 @@ import json
 import logging
 from typing import Any
 
+from .consultivo import consultivo_for_code
 from .models import AuditResult
 
 _logger = logging.getLogger(__name__)
@@ -355,6 +356,9 @@ def _client_safe_text(value: str) -> str:
 
 def _consultative_meaning(achado: dict[str, Any]) -> str:
     code = str(achado.get("codigo") or "")
+    consultive = consultivo_for_code(code)
+    if consultive.get("matched") and consultive.get("o_que_significa"):
+        return _client_safe_text(str(consultive["o_que_significa"]))
     impact = _client_safe_text(str(achado.get("impacto_tecnico") or ""))
     if code.startswith("SN-004"):
         return "A distribuição de lucros precisa ter lastro contábil suficiente antes de ser mantida como isenta."
@@ -377,6 +381,9 @@ def _consultative_meaning(achado: dict[str, Any]) -> str:
 
 def _consultative_solution(achado: dict[str, Any], recommendation: str) -> str:
     code = str(achado.get("codigo") or "")
+    consultive = consultivo_for_code(code)
+    if consultive.get("matched") and consultive.get("como_solucionar"):
+        return _client_safe_text(str(consultive["como_solucionar"]))
     if code.startswith("SN-004"):
         return "Reconciliar resultado, lucros acumulados, reservas e comprovantes de distribuição."
     if code.startswith("SN-005"):
@@ -402,6 +409,9 @@ def _documents_for_finding(achado: dict[str, Any]) -> list[str]:
     if docs:
         return [str(item) for item in docs]
     code = str(achado.get("codigo") or "")
+    consultive = consultivo_for_code(code)
+    if consultive.get("matched") and consultive.get("documentos_necessarios"):
+        return [str(item) for item in consultive["documentos_necessarios"]]
     if code.startswith("SN-004"):
         return ["balancete", "razão contábil", "DRE", "comprovantes de distribuição"]
     if code.startswith("SN-005"):
@@ -415,6 +425,9 @@ def _documents_for_finding(achado: dict[str, Any]) -> list[str]:
 
 def _suggested_owner(achado: dict[str, Any]) -> str:
     code = str(achado.get("codigo") or "")
+    consultive = consultivo_for_code(code)
+    if consultive.get("matched") and consultive.get("responsavel_sugerido"):
+        return str(consultive["responsavel_sugerido"])
     if code.startswith(("SN-003", "SN-014")):
         return "Departamento pessoal + contabilidade"
     if code.startswith(("SN-004", "SN-005")):

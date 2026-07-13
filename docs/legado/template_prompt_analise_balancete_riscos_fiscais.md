@@ -1,3 +1,5 @@
+> **Legado:** este prompt recebia balancete direto e foi preservado apenas como historico. O fluxo atual usa JSON estruturado e os prompts em `docs/PROMPTS_IA.md`.
+
 # TEMPLATE PADRÃO – PROMPT PARA ANÁLISE DE BALANCETE COM FOCO EM RISCOS FISCAIS
 
 ## Objetivo do prompt

@@ -78,6 +78,10 @@ function normalizeAuditPayload(data) {
       aliquota_efetiva_esperada: dashboardContext.aliquota_efetiva_esperada || "",
       aliquota_nominal_estimada: dashboardContext.aliquota_nominal_estimada || "",
       parcela_deduzir_estimada: dashboardContext.parcela_deduzir_estimada || "",
+      base_calculo_estimativa: dashboardContext.base_calculo_estimativa || "",
+      receita_rbt12_utilizada: dashboardContext.receita_rbt12_utilizada || "",
+      rbt12_disponivel: dashboardContext.rbt12_disponivel,
+      origem_rbt12: dashboardContext.origem_rbt12 || "",
       fator_r_calculado: dashboardContext.fator_r_calculado || "",
       fator_r_threshold: dashboardContext.fator_r_threshold || "",
       sublimite_risco: Boolean(dashboardContext.sublimite_risco),
@@ -129,6 +133,101 @@ function esc(value) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function displayText(value) {
+  return esc(polishPortugueseText(value));
+}
+
+function polishPortugueseText(value) {
+  let text = String(value ?? "");
+  const replacements = [
+    [/\brelatorio\b/gi, "relatório"],
+    [/\banalise\b/gi, "análise"],
+    [/\bacao\b/gi, "ação"],
+    [/\bacoes\b/gi, "ações"],
+    [/\batencao\b/gi, "atenção"],
+    [/\bdecisao\b/gi, "decisão"],
+    [/\bdecisoes\b/gi, "decisões"],
+    [/\bsocios\b/gi, "sócios"],
+    [/\bsocio\b/gi, "sócio"],
+    [/\bvalidacao\b/gi, "validação"],
+    [/\bmutuo\b/gi, "mútuo"],
+    [/\brazao\b/gi, "razão"],
+    [/\bcalculo\b/gi, "cálculo"],
+    [/\bmemoria\b/gi, "memória"],
+    [/\bproximo\b/gi, "próximo"],
+    [/\bproximos\b/gi, "próximos"],
+    [/\bperiodo\b/gi, "período"],
+    [/\bretencoes\b/gi, "retenções"],
+    [/\bservicos\b/gi, "serviços"],
+    [/\bservico\b/gi, "serviço"],
+    [/\bnao\b/gi, "não"],
+    [/\bate\b/gi, "até"],
+    [/\bja\b/gi, "já"],
+    [/\bcompetencia\b/gi, "competência"],
+    [/\bcompetencias\b/gi, "competências"],
+    [/\bdistribuicao\b/gi, "distribuição"],
+    [/\bdocumentacao\b/gi, "documentação"],
+    [/\bapuracao\b/gi, "apuração"],
+    [/\bcontabil\b/gi, "contábil"],
+    [/\bcontabeis\b/gi, "contábeis"],
+    [/\blancamento\b/gi, "lançamento"],
+    [/\blancamentos\b/gi, "lançamentos"],
+    [/\bbancario\b/gi, "bancário"],
+    [/\bbancarios\b/gi, "bancários"],
+    [/\bliquidacao\b/gi, "liquidação"],
+    [/\bfisico\b/gi, "físico"],
+    [/\bcompativel\b/gi, "compatível"],
+    [/\boperacao\b/gi, "operação"],
+    [/\boperacoes\b/gi, "operações"],
+    [/\bnumerario\b/gi, "numerário"],
+    [/\bespecie\b/gi, "espécie"],
+    [/\bconciliacao\b/gi, "conciliação"],
+    [/\bsaida\b/gi, "saída"],
+    [/\bsaidas\b/gi, "saídas"],
+    [/\baplicavel\b/gi, "aplicável"],
+    [/\baplicaveis\b/gi, "aplicáveis"],
+    [/\bultimos\b/gi, "últimos"],
+    [/\bultimo\b/gi, "último"],
+    [/\bcontraprestacao\b/gi, "contraprestação"],
+    [/\bapropriacao\b/gi, "apropriação"],
+    [/\bapropriacoes\b/gi, "apropriações"],
+    [/\bcomprovacao\b/gi, "comprovação"],
+    [/\brevisao\b/gi, "revisão"],
+    [/\bevidencia\b/gi, "evidência"],
+    [/\bevidencias\b/gi, "evidências"],
+    [/\btributario\b/gi, "tributário"],
+    [/\btributaria\b/gi, "tributária"],
+    [/\btecnico\b/gi, "técnico"],
+    [/\btecnica\b/gi, "técnica"],
+    [/\bclassificacao\b/gi, "classificação"],
+    [/\brecebiveis\b/gi, "recebíveis"],
+    [/\bemissao\b/gi, "emissão"],
+    [/\bpossivel\b/gi, "possível"],
+    [/\bnecessario\b/gi, "necessário"],
+    [/\bnecessarios\b/gi, "necessários"],
+    [/\bpro-labore\b/gi, "pró-labore"],
+    [/\bmedia\b/gi, "média"],
+    [/\bmedio\b/gi, "médio"],
+  ];
+
+  replacements.forEach(([pattern, replacement]) => {
+    text = text.replace(pattern, (match) => matchCase(match, replacement));
+  });
+
+  return text
+    .replace(/\s+([,.;:])/g, "$1")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function matchCase(match, replacement) {
+  if (match === match.toUpperCase()) return replacement.toUpperCase();
+  if (match.charAt(0) === match.charAt(0).toUpperCase()) {
+    return replacement.charAt(0).toUpperCase() + replacement.slice(1);
+  }
+  return replacement;
 }
 
 function normalizeLevel(level) {
@@ -187,12 +286,42 @@ function formatCurrencyPtBr(value) {
   });
 }
 
+function numericValue(value) {
+  if (value && typeof value === "object" && value.valor !== undefined) {
+    return numericValue(value.valor);
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+  const text = String(value ?? "").trim();
+  if (!text) return 0;
+  const normalized = text
+    .replace(/[^\d,.-]/g, "")
+    .replace(/\.(?=\d{3}(?:\D|$))/g, "")
+    .replace(",", ".");
+  const number = Number(normalized);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function percentValue(value) {
+  const number = numericValue(value);
+  if (String(value ?? "").includes("%")) return number;
+  if (Math.abs(number) <= 1) return number * 100;
+  return number;
+}
+
+function clampPercent(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 0;
+  return Math.max(0, Math.min(100, number));
+}
+
 function formatMetricDisplay(key, value) {
   if (value && typeof value === "object" && value.formatado) {
     return esc(value.formatado);
   }
-  if (typeof value === "number" && monetaryMetricKeys().has(key)) {
-    return esc(formatCurrencyPtBr(value));
+  if (monetaryMetricKeys().has(key)) {
+    return esc(formatCurrencyPtBr(numericValue(value)));
   }
   return fmt(value);
 }
@@ -366,7 +495,6 @@ function buildDashboardHtml(data, options = {}) {
   const metrics = data.metricas || {};
   const context = data.contexto_regime || {};
   const meta = data.meta || {};
-  const consultivo = data.consultivo || {};
   const findings = sortedFindings(data.achados || []);
   const classification = risk.classificacao || {};
   const level = normalizeLevel(risk.nivel_geral);
@@ -377,6 +505,7 @@ function buildDashboardHtml(data, options = {}) {
     <div class="dashboard-stack">
       ${renderRiskPanel(risk, findings, meta, level)}
       ${renderExecutiveSummary(data, metrics, findings, meta, context, classification)}
+      ${renderVisualSummary(risk, findings, metrics, context)}
       ${renderAnalysisGrid(context, findings, meta, filter, printMode)}
       ${renderMetricGroups(metrics)}
       ${renderIndicators(metrics.indicadores_derivados)}
@@ -495,6 +624,123 @@ function renderExecutiveMetric(key, label, value) {
   `;
 }
 
+function renderVisualSummary(risk, findings, metrics, context) {
+  const counts = countFindings(findings);
+  const indicators = metrics.indicadores_derivados || {};
+  const score = Number(risk.pontuacao_total ?? 0);
+  const scoreTone = score >= 60 ? "alto" : score >= 30 ? "medio" : "baixo";
+  const rbt12Value = numericValue(context.receita_rbt12_utilizada);
+  const rbt12Percent = rbt12Value ? (rbt12Value / 4800000) * 100 : 0;
+  const rbt12Tone = rbt12Percent >= 90 ? "alto" : rbt12Percent >= 75 ? "medio" : "baixo";
+  const rbt12Label = rbt12Value ? formatCurrencyPtBr(rbt12Value) : "Não informado";
+  const rbt12Detail = context.rbt12_disponivel === false
+    ? "Usar como alerta: RBT12 completo não foi informado"
+    : context.origem_rbt12 || context.base_calculo_estimativa || "Base tributária informada pelo motor";
+  const factor = context.fator_r_calculado ? percentValue(context.fator_r_calculado) : null;
+  const factorCard = factor === null ? "" : renderVisualProgressCard(
+    "Fator R",
+    context.fator_r_calculado,
+    clampPercent(factor),
+    `Referência ${context.fator_r_threshold || "28%"}`,
+    factor < 28 ? "medio" : "baixo",
+  );
+
+  return `
+    <section class="section visual-section">
+      <div class="section-header">
+        <h3 class="section-title">Visualização executiva</h3>
+        <span class="section-note">Leitura rápida dos principais indicadores</span>
+      </div>
+      <div class="visual-grid">
+        ${renderVisualProgressCard("Pontuação de risco", formatNumberPtBr(score), clampPercent(score), "Escala operacional de 0 a 100 pontos", scoreTone)}
+        ${renderSeverityBars(counts)}
+        ${renderVisualProgressCard("RBT12 / limite do Simples", rbt12Label, clampPercent(rbt12Percent), rbt12Detail, rbt12Tone)}
+        ${factorCard || renderIndicatorMiniBars(indicators)}
+        ${factorCard ? renderIndicatorMiniBars(indicators) : ""}
+      </div>
+    </section>
+  `;
+}
+
+function renderVisualProgressCard(title, value, width, detail, tone = "info") {
+  return `
+    <article class="visual-card ${tone}">
+      <div class="visual-card-header">
+        <span>${esc(title)}</span>
+        <strong>${esc(value)}</strong>
+      </div>
+      <div class="visual-track" aria-hidden="true">
+        <span style="width: ${clampPercent(width)}%"></span>
+      </div>
+      <p>${esc(detail)}</p>
+    </article>
+  `;
+}
+
+function renderSeverityBars(counts) {
+  const total = Math.max(1, counts.alto + counts.medio + counts.baixo);
+  const rows = [
+    ["alto", "Alto", counts.alto],
+    ["medio", "Médio", counts.medio],
+    ["baixo", "Baixo", counts.baixo],
+  ].map(([level, label, value]) => {
+    const width = (Number(value || 0) / total) * 100;
+    return `
+      <div class="visual-bar-row ${level}">
+        <span>${esc(label)}</span>
+        <div class="visual-bar-track"><i style="width: ${clampPercent(width)}%"></i></div>
+        <strong>${esc(value)}</strong>
+      </div>
+    `;
+  }).join("");
+
+  return `
+    <article class="visual-card">
+      <div class="visual-card-header">
+        <span>Severidade dos achados</span>
+        <strong>${esc(counts.all)}</strong>
+      </div>
+      <div class="visual-bars">${rows}</div>
+      <p>Distribuição dos achados acionados no período.</p>
+    </article>
+  `;
+}
+
+function renderIndicatorMiniBars(indicators) {
+  const items = [
+    ["percentual_despesas_sobre_receita", "Despesas/receita"],
+    ["percentual_servicos_terceiros_sobre_despesas", "Terceiros/despesas"],
+    ["percentual_cmv_sobre_receita", "CMV/receita"],
+  ].filter(([key]) => hasDisplayValue(indicators[key]));
+
+  if (!items.length) {
+    return renderVisualProgressCard("Indicadores percentuais", "Sem dados", 0, "Indicadores derivados não informados no JSON.", "info");
+  }
+
+  const rows = items.map(([key, label]) => {
+    const value = indicators[key];
+    const percent = percentValue(value);
+    return `
+      <div class="visual-bar-row info">
+        <span>${esc(label)}</span>
+        <div class="visual-bar-track"><i style="width: ${clampPercent(percent)}%"></i></div>
+        <strong>${esc(value)}</strong>
+      </div>
+    `;
+  }).join("");
+
+  return `
+    <article class="visual-card">
+      <div class="visual-card-header">
+        <span>Indicadores percentuais</span>
+        <strong>${esc(items.length)}</strong>
+      </div>
+      <div class="visual-bars">${rows}</div>
+      <p>Percentuais que ajudam a explicar margem, custos e despesas.</p>
+    </article>
+  `;
+}
+
 function executiveHighlights(findings) {
   if (!findings.length) {
     return `
@@ -515,8 +761,8 @@ function executiveHighlights(findings) {
       <div class="priority-item ${level}">
         <span class="priority-code">${esc(finding.codigo)}</span>
         <div>
-          <strong>${esc(finding.titulo || "Achado sem título")}</strong>
-          <p>${esc(detail)}</p>
+          <strong>${displayText(finding.titulo || "Achado sem título")}</strong>
+          <p>${displayText(detail)}</p>
         </div>
       </div>
     `;
@@ -852,8 +1098,8 @@ function renderFindingRow(finding, index, prefix = "finding-detail", expanded = 
     <tr class="${composite ? "finding-composite" : ""}">
       <td class="finding-code">${esc(finding.codigo)}</td>
       <td>
-        <span class="finding-title">${esc(finding.titulo)}</span>
-        <span class="finding-impact-summary">${esc(finding.descricao || "Impacto técnico não informado.")}</span>
+        <span class="finding-title">${displayText(finding.titulo)}</span>
+        <span class="finding-impact-summary">${displayText(finding.descricao || "Impacto técnico não informado.")}</span>
       </td>
       <td><span class="chip ${normalizeLevel(finding.nivel)}">${levelLabel(finding.nivel)}</span></td>
       <td><strong>${esc(finding.pontuacao ?? 0)}</strong></td>
@@ -874,7 +1120,7 @@ function findingDetailId(finding, index, prefix) {
 
 function renderFindingDetail(finding) {
   const norms = Array.isArray(finding.normas_aplicaveis) && finding.normas_aplicaveis.length
-    ? finding.normas_aplicaveis.map((item) => `<li>${esc(item)}</li>`).join("")
+    ? finding.normas_aplicaveis.map((item) => `<li>${displayText(item)}</li>`).join("")
     : `<li>[VERIFICAR: fundamento normativo]</li>`;
   const evidence = renderEvidenceList(finding.evidencia);
 
@@ -887,7 +1133,7 @@ function renderFindingDetail(finding) {
       ${renderStructuredEvidence(finding.evidencia_estruturada)}
       <div>
         <span class="detail-label">Impacto técnico</span>
-        <p>${esc(finding.descricao || "[VERIFICAR: impacto técnico]")}</p>
+        <p>${displayText(finding.descricao || "[VERIFICAR: impacto técnico]")}</p>
       </div>
       <div>
         <span class="detail-label">Normas e fundamentos</span>
@@ -895,7 +1141,7 @@ function renderFindingDetail(finding) {
       </div>
       <div>
         <span class="detail-label">Recomendação técnica</span>
-        <p>${esc(finding.recomendacao || "[VERIFICAR: recomendação]")}</p>
+        <p>${displayText(finding.recomendacao || "[VERIFICAR: recomendação]")}</p>
       </div>
     </div>
   `;
@@ -905,24 +1151,24 @@ function renderStructuredEvidence(evidence) {
   if (!evidence || typeof evidence !== "object" || !Object.keys(evidence).length) return "";
 
   const docs = Array.isArray(evidence.documentos_recomendados)
-    ? evidence.documentos_recomendados.map((item) => `<li>${esc(item)}</li>`).join("")
+    ? evidence.documentos_recomendados.map((item) => `<li>${displayText(item)}</li>`).join("")
     : "";
   const fields = evidence.campos_extraidos && typeof evidence.campos_extraidos === "object"
     ? Object.entries(evidence.campos_extraidos)
-      .map(([key, value]) => `<li><strong>${esc(key)}:</strong> ${esc(evidenceValue(value))}</li>`)
+      .map(([key, value]) => `<li><strong>${displayText(humanizeKey(key))}:</strong> ${displayText(evidenceValue(value))}</li>`)
       .join("")
     : "";
 
   return `
     <div>
-      <span class="detail-label">Evidencia estruturada</span>
+      <span class="detail-label">Evidência estruturada</span>
       <ul>
-        <li><strong>Fonte:</strong> ${esc(evidence.fonte_dado || "[VERIFICAR: fonte]")}</li>
-        <li><strong>Confianca:</strong> ${esc(evidence.confianca || "[VERIFICAR: confianca]")}</li>
-        <li><strong>Necessita documento:</strong> ${evidence.necessita_documento ? "Sim" : "Nao"}</li>
+        <li><strong>Fonte:</strong> ${displayText(evidence.fonte_dado || "[VERIFICAR: fonte]")}</li>
+        <li><strong>Confiança:</strong> ${displayText(evidence.confianca || "[VERIFICAR: confiança]")}</li>
+        <li><strong>Necessita documento:</strong> ${evidence.necessita_documento ? "Sim" : "Não"}</li>
       </ul>
       ${docs ? `<span class="detail-label">Documentos recomendados</span><ul>${docs}</ul>` : ""}
-      ${fields ? `<span class="detail-label">Campos extraidos</span><ul>${fields}</ul>` : ""}
+      ${fields ? `<span class="detail-label">Campos extraídos</span><ul>${fields}</ul>` : ""}
     </div>
   `;
 }
@@ -932,7 +1178,7 @@ function renderEvidence(evidence) {
   const text = Object.entries(evidence)
     .map(([key, value]) => `${key}: ${evidenceValue(value)}`)
     .join(" | ");
-  return `<span class="finding-evidence">${esc(text)}</span>`;
+  return `<span class="finding-evidence">${displayText(text)}</span>`;
 }
 
 function renderEvidenceList(evidence) {
@@ -940,7 +1186,7 @@ function renderEvidenceList(evidence) {
     return `<p>[VERIFICAR: evidência]</p>`;
   }
   const items = Object.entries(evidence)
-    .map(([key, value]) => `<li><strong>${esc(key)}:</strong> ${esc(evidenceValue(value))}</li>`)
+    .map(([key, value]) => `<li><strong>${displayText(humanizeKey(key))}:</strong> ${displayText(evidenceValue(value))}</li>`)
     .join("");
   return `<ul>${items}</ul>`;
 }
@@ -955,7 +1201,7 @@ function renderScoreExplanation(lines, expanded = false) {
         <button class="toggle-button" type="button" data-toggle-target="score-detail">Mostrar ou ocultar</button>
       </div>
       <div id="score-detail" class="${detailClass}">
-        ${lines.map((line) => `<p>${esc(line)}</p>`).join("")}
+        ${lines.map((line) => `<p>${displayText(line)}</p>`).join("")}
       </div>
     </section>
   `;
@@ -979,6 +1225,7 @@ function buildPrintDocumentHtml(data) {
   const metrics = data.metricas || {};
   const context = data.contexto_regime || {};
   const meta = data.meta || {};
+  const consultivo = data.consultivo || {};
   const findings = sortedFindings(data.achados || []);
   const classification = risk.classificacao || {};
   const level = normalizeLevel(risk.nivel_geral);
@@ -1022,6 +1269,7 @@ function buildPrintDocumentHtml(data) {
           ${renderPrintSummaryCard("Achados de risco baixo", counts.baixo)}
           ${renderPrintSummaryCard("Achados compostos", classification.achados_compostos || 0)}
         </div>
+        ${renderPrintVisualSummary(risk, counts, context)}
       </section>
 
       ${renderClientGuidanceSection(level, findings, counts, consultivo)}
@@ -1066,6 +1314,46 @@ function renderPrintSummaryCard(label, value) {
   `;
 }
 
+function renderPrintVisualSummary(risk, counts, context) {
+  const score = Number(risk.pontuacao_total ?? 0);
+  const rbt12Value = numericValue(context.receita_rbt12_utilizada);
+  const rbt12Percent = rbt12Value ? (rbt12Value / 4800000) * 100 : 0;
+  const totalFindings = Math.max(1, counts.alto + counts.medio + counts.baixo);
+  const severityRows = [
+    ["alto", "Alta", counts.alto],
+    ["medio", "Média", counts.medio],
+    ["baixo", "Baixa", counts.baixo],
+  ].map(([level, label, value]) => {
+    const width = (Number(value || 0) / totalFindings) * 100;
+    return `
+      <div class="pdf-severity-row ${level}">
+        <span>${esc(label)}</span>
+        <i><b style="width: ${clampPercent(width)}%"></b></i>
+        <strong>${esc(value)}</strong>
+      </div>
+    `;
+  }).join("");
+
+  return `
+    <div class="pdf-visual-grid">
+      <div class="pdf-visual-card">
+        <span>Pontuação</span>
+        <strong>${esc(formatNumberPtBr(score))}</strong>
+        <div class="pdf-progress"><i style="width: ${clampPercent(score)}%"></i></div>
+      </div>
+      <div class="pdf-visual-card">
+        <span>RBT12 / limite</span>
+        <strong>${esc(rbt12Value ? formatCurrencyPtBr(rbt12Value) : "Não informado")}</strong>
+        <div class="pdf-progress"><i style="width: ${clampPercent(rbt12Percent)}%"></i></div>
+      </div>
+      <div class="pdf-visual-card pdf-severity-card">
+        <span>Severidade</span>
+        ${severityRows}
+      </div>
+    </div>
+  `;
+}
+
 function pluralize(value, singular, plural) {
   return Math.abs(Number(value || 0)) === 1 ? singular : plural;
 }
@@ -1103,17 +1391,17 @@ function renderClientGuidanceSection(level, findings, counts, consultivo = {}) {
       : "prioridade de manutenção e conferência preventiva";
   const mainText = consultivo.leitura_cliente || `O resultado indica ${priority}. A análise não substitui a conferência documental, mas mostra os pontos que merecem atenção para reduzir riscos fiscais, contábeis, trabalhistas e societários.`;
   const orientativeSummary = consultivo.resumo_orientativo
-    ? `<p class="pdf-consultive-note">${esc(consultivo.resumo_orientativo)}</p>`
+    ? `<p class="pdf-consultive-note">${displayText(consultivo.resumo_orientativo)}</p>`
     : "";
   const topFindings = findings.slice(0, 3)
-    .map((finding) => `<li>${esc(clientSafeText(finding.titulo || finding.codigo))}</li>`)
+    .map((finding) => `<li>${displayText(clientSafeText(finding.titulo || finding.codigo))}</li>`)
     .join("");
   const noFindings = "<li>Nenhum achado foi acionado, mas recomenda-se manter a documentação organizada para conferência futura.</li>";
 
   return `
     <section class="pdf-section pdf-client-section">
       <h2>Leitura para o cliente</h2>
-      <p>${esc(mainText)}</p>
+      <p>${displayText(mainText)}</p>
       <div class="pdf-client-grid">
         <div>
           <h3>Principais mensagens</h3>
@@ -1180,7 +1468,7 @@ function renderConsultativeActionPlan(findings, consultivo = {}) {
 function renderStructuredConsultativeActionCard(item) {
   const level = severityToLevel(item.prioridade);
   const documents = Array.isArray(item.documentos_necessarios)
-    ? item.documentos_necessarios.map((doc) => `<li>${esc(doc)}</li>`).join("")
+    ? item.documentos_necessarios.map((doc) => `<li>${displayText(doc)}</li>`).join("")
     : "";
   return `
     <article class="pdf-action-card ${level}">
@@ -1188,15 +1476,15 @@ function renderStructuredConsultativeActionCard(item) {
         <span class="finding-code">${esc(item.codigo)}</span>
         <span class="chip ${level}">${priorityLabel(level)}</span>
       </header>
-      <h3>${esc(clientSafeText(item.ponto_atencao || "Ponto de atenção"))}</h3>
+      <h3>${displayText(clientSafeText(item.ponto_atencao || "Ponto de atenção"))}</h3>
       <div class="pdf-action-grid">
         <div>
           <span>O que significa</span>
-          <p>${esc(item.o_que_significa || "[VERIFICAR: significado]")}</p>
+          <p>${displayText(item.o_que_significa || "[VERIFICAR: significado]")}</p>
         </div>
         <div>
           <span>Como solucionar</span>
-          <p>${esc(item.como_solucionar || "[VERIFICAR: solução]")}</p>
+          <p>${displayText(item.como_solucionar || "[VERIFICAR: solução]")}</p>
         </div>
         <div>
           <span>Documentos necessários</span>
@@ -1204,8 +1492,8 @@ function renderStructuredConsultativeActionCard(item) {
         </div>
         <div>
           <span>Responsável e prazo</span>
-          <p>${esc(item.responsavel_sugerido || "[VERIFICAR: responsável]")}</p>
-          <p>${esc(item.prazo_sugerido || "[VERIFICAR: prazo]")}</p>
+          <p>${displayText(item.responsavel_sugerido || "[VERIFICAR: responsável]")}</p>
+          <p>${displayText(item.prazo_sugerido || "[VERIFICAR: prazo]")}</p>
         </div>
       </div>
     </article>
@@ -1215,7 +1503,7 @@ function renderStructuredConsultativeActionCard(item) {
 function renderConsultativeActionCard(finding) {
   const level = normalizeLevel(finding.nivel);
   const documents = requiredDocumentsForFinding(finding)
-    .map((item) => `<li>${esc(item)}</li>`)
+    .map((item) => `<li>${displayText(item)}</li>`)
     .join("");
   return `
     <article class="pdf-action-card ${level}">
@@ -1223,15 +1511,15 @@ function renderConsultativeActionCard(finding) {
         <span class="finding-code">${esc(finding.codigo)}</span>
         <span class="chip ${level}">${priorityLabel(level)}</span>
       </header>
-      <h3>${esc(clientSafeText(finding.titulo || "Ponto de atenção"))}</h3>
+      <h3>${displayText(clientSafeText(finding.titulo || "Ponto de atenção"))}</h3>
       <div class="pdf-action-grid">
         <div>
           <span>O que significa</span>
-          <p>${esc(consultativeMeaning(finding))}</p>
+          <p>${displayText(consultativeMeaning(finding))}</p>
         </div>
         <div>
           <span>Como solucionar</span>
-          <p>${esc(consultativeSolution(finding))}</p>
+          <p>${displayText(consultativeSolution(finding))}</p>
         </div>
         <div>
           <span>Documentos necessários</span>
@@ -1239,7 +1527,7 @@ function renderConsultativeActionCard(finding) {
         </div>
         <div>
           <span>Responsável sugerido</span>
-          <p>${esc(suggestedOwner(finding))}</p>
+          <p>${displayText(suggestedOwner(finding))}</p>
         </div>
       </div>
     </article>
@@ -1370,7 +1658,7 @@ function renderPrintContextSection(context) {
     : [];
   if (!observations.length && !context.sublimite_risco) return "";
 
-  const items = observations.map((item) => `<li>${esc(item)}</li>`).join("");
+  const items = observations.map((item) => `<li>${displayText(item)}</li>`).join("");
   const sublimit = context.sublimite_risco
     ? "<li>Receita estimada em faixa de atenção para sublimite, exigindo validação documental e tributária.</li>"
     : "";
@@ -1416,16 +1704,16 @@ function renderPrintFindingCard(finding) {
         <span class="chip ${level}">${levelLabel(level)}</span>
         <span class="pdf-score">Pontuação ${esc(formatNumberPtBr(finding.pontuacao ?? 0))}</span>
       </header>
-      <h3>${esc(clientSafeText(finding.titulo || "Achado sem título"))}</h3>
+      <h3>${displayText(clientSafeText(finding.titulo || "Achado sem título"))}</h3>
       <dl>
         <dt>Evidência</dt>
-        <dd>${esc(truncateText(clientSafeText(evidence), 220))}</dd>
+        <dd>${displayText(truncateText(clientSafeText(evidence), 220))}</dd>
         <dt>Impacto técnico</dt>
-        <dd>${esc(truncateText(clientSafeText(finding.descricao || "[VERIFICAR: impacto técnico]"), 240))}</dd>
+        <dd>${displayText(truncateText(clientSafeText(finding.descricao || "[VERIFICAR: impacto técnico]"), 240))}</dd>
         <dt>Procedimento sugerido</dt>
-        <dd>${esc(truncateText(clientSafeText(finding.recomendacao || "[VERIFICAR: recomendação técnica]"), 260))}</dd>
+        <dd>${displayText(truncateText(clientSafeText(finding.recomendacao || "[VERIFICAR: recomendação técnica]"), 260))}</dd>
         <dt>Fundamento</dt>
-        <dd>${esc(truncateText(norms, 260))}</dd>
+        <dd>${displayText(truncateText(norms, 260))}</dd>
       </dl>
     </article>
   `;
@@ -1698,6 +1986,7 @@ function renderAnnualResult(data) {
         </div>
         <p class="context-observation">O arquivo anual foi baixado automaticamente. O JSON completo também está abaixo para conferência.</p>
       </section>
+      ${renderAnnualTrendSection(data)}
       ${renderAnnualFindingsSection(findings)}
       <section class="section">
         <div class="section-header">
@@ -1709,6 +1998,60 @@ function renderAnnualResult(data) {
     </div>
   `;
   bindDynamicControls();
+}
+
+function renderAnnualTrendSection(data) {
+  const quarters = Array.isArray(data.comparativo_trimestral) ? data.comparativo_trimestral : [];
+  if (!quarters.length) return "";
+
+  const width = 560;
+  const height = 180;
+  const padding = 28;
+  const scores = quarters.map((quarter) => Number(quarter.pontuacao ?? quarter.score ?? 0));
+  const maxScore = Math.max(10, ...scores);
+  const points = quarters.map((quarter, index) => {
+    const x = quarters.length === 1
+      ? width / 2
+      : padding + (index / (quarters.length - 1)) * (width - padding * 2);
+    const score = Number(quarter.pontuacao ?? quarter.score ?? 0);
+    const y = height - padding - (score / maxScore) * (height - padding * 2);
+    return { x, y, score, quarter };
+  });
+  const polyline = points.map((point) => `${point.x},${point.y}`).join(" ");
+  const markers = points.map((point) => `
+    <g>
+      <circle cx="${point.x}" cy="${point.y}" r="5" class="trend-point ${normalizeLevel(point.quarter.risco)}"></circle>
+      <text x="${point.x}" y="${height - 7}" text-anchor="middle">${esc(point.quarter.trimestre || quarterLabel(point.quarter.periodo) || "")}</text>
+    </g>
+  `).join("");
+  const cards = quarters.map((quarter) => {
+    const codes = Array.isArray(quarter.achados_codigos) ? quarter.achados_codigos : [];
+    return `
+      <article class="annual-trend-card ${normalizeLevel(quarter.risco)}">
+        <span>${esc(quarter.trimestre || quarterLabel(quarter.periodo))}</span>
+        <strong>${esc(formatNumberPtBr(quarter.pontuacao ?? 0))} pts</strong>
+        <small>Risco ${levelLabel(quarter.risco).toLowerCase()} | ${esc(codes.length)} achado(s)</small>
+      </article>
+    `;
+  }).join("");
+
+  return `
+    <section class="section annual-trend-section">
+      <div class="section-header">
+        <h3 class="section-title">Tendência trimestral</h3>
+        <span class="section-note">Pontuação de risco ao longo do exercício</span>
+      </div>
+      <div class="trend-layout">
+        <svg class="trend-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Tendência de pontuação por trimestre">
+          <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" class="trend-axis"></line>
+          <line x1="${padding}" y1="${padding}" x2="${padding}" y2="${height - padding}" class="trend-axis"></line>
+          <polyline points="${polyline}" class="trend-line"></polyline>
+          ${markers}
+        </svg>
+        <div class="annual-trend-grid">${cards}</div>
+      </div>
+    </section>
+  `;
 }
 
 function renderAnnualFindingsSection(findings) {

@@ -6,6 +6,7 @@ from collections import Counter, defaultdict
 from decimal import Decimal
 from typing import Any
 
+from .consultivo import consultivo_for_code
 from .config_loader import get_rule_config
 from .evidence import structured_evidence
 from .schema_validator import validate_payload_against_schema
@@ -680,15 +681,33 @@ def _annual_next_steps(
 
 
 def _annual_consultivo_item(finding: dict[str, Any], evolution: dict[str, Any]) -> dict[str, Any]:
+    consultive = consultivo_for_code(str(finding.get("codigo") or ""), severity=str(finding.get("nivel") or ""))
+    has_consultive_mapping = bool(consultive.get("matched"))
     return {
         "codigo": finding["codigo"],
         "prioridade": _annual_priority_label(finding["nivel"]),
         "ponto_atencao": finding["titulo"],
-        "o_que_significa": _annual_meaning(finding, evolution),
-        "como_solucionar": finding["recomendacao"],
+        "o_que_significa": (
+            str(consultive.get("o_que_significa") or "")
+            if has_consultive_mapping
+            else _annual_meaning(finding, evolution)
+        ),
+        "como_solucionar": (
+            str(consultive.get("como_solucionar") or "")
+            if has_consultive_mapping
+            else finding["recomendacao"]
+        ),
         "documentos_necessarios": _annual_documents_for_finding(finding),
-        "responsavel_sugerido": _annual_owner(finding),
-        "prazo_sugerido": _annual_deadline(finding["nivel"]),
+        "responsavel_sugerido": (
+            str(consultive.get("responsavel_sugerido") or "")
+            if has_consultive_mapping
+            else _annual_owner(finding)
+        ),
+        "prazo_sugerido": (
+            str(consultive.get("prazo_sugerido") or "")
+            if has_consultive_mapping
+            else _annual_deadline(finding["nivel"])
+        ),
     }
 
 
@@ -965,6 +984,9 @@ def _annual_documents_for_finding(finding: dict[str, Any]) -> list[str]:
     docs = evidence.get("documentos_recomendados") or []
     if docs:
         return [str(item) for item in docs]
+    consultive = consultivo_for_code(str(finding.get("codigo") or ""), severity=str(finding.get("nivel") or ""))
+    if consultive.get("matched") and consultive.get("documentos_necessarios"):
+        return [str(item) for item in consultive["documentos_necessarios"]]
     code = str(finding.get("codigo") or "")
     if code.startswith("AN-LUC"):
         return ["balancete anual", "DRE", "razão de lucros", "comprovantes de distribuição"]

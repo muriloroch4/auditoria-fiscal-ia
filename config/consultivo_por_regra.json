@@ -1,0 +1,316 @@
+{
+  "version": "1.0.0",
+  "defaults": {
+    "documentos_necessarios": [
+      "balancete de verificacao",
+      "razao contabil",
+      "documentos de suporte dos lancamentos"
+    ],
+    "o_que_significa": "O achado indica ponto que deve ser validado antes do fechamento definitivo.",
+    "como_solucionar": "Validar documentos, conciliar saldos e registrar a providencia adotada.",
+    "responsavel_sugerido": "cliente e contabilidade",
+    "prazo_por_severidade": {
+      "alta": "antes do fechamento definitivo do periodo",
+      "media": "ate o proximo fechamento trimestral",
+      "baixa": "acompanhar no proximo trimestre"
+    }
+  },
+  "por_prefixo": [
+    {
+      "prefixo": "SN-COMP",
+      "documentos_necessarios": ["balancete de verificacao", "razao contabil", "documentos de suporte dos achados combinados"],
+      "o_que_significa": "A combinacao de achados aumenta a prioridade de revisao, pois os pontos podem reforcar o mesmo risco contabil ou fiscal.",
+      "como_solucionar": "Revisar os achados relacionados em conjunto, conciliando saldos, documentos fiscais, extratos e registros auxiliares.",
+      "responsavel_sugerido": "contabilidade e fiscal",
+      "prazo_sugerido": "antes do fechamento definitivo do periodo"
+    },
+    {
+      "prefixo": "SN-001",
+      "documentos_necessarios": ["PGDAS-D", "receita bruta acumulada dos ultimos 12 meses", "relatorio de faturamento por competencia"],
+      "o_que_significa": "A receita exige acompanhamento do limite do Simples Nacional e do risco de sublimite ou desenquadramento.",
+      "como_solucionar": "Validar RBT12, PGDAS-D, faturamento por competencia e simulacao de enquadramento antes do fechamento.",
+      "responsavel_sugerido": "fiscal e contabilidade",
+      "prazo_sugerido": "antes da proxima apuracao do DAS"
+    },
+    {
+      "prefixo": "SN-002",
+      "documentos_necessarios": ["PGDAS-D", "DAS apurado e pago", "livro fiscal de receitas"],
+      "o_que_significa": "A carga tributaria registrada pode estar incompatível com a receita do periodo.",
+      "como_solucionar": "Conferir anexo, receita tributavel, retencoes, DAS apurado e guias pagas no periodo.",
+      "responsavel_sugerido": "fiscal e contabilidade",
+      "prazo_sugerido": "antes da proxima apuracao do DAS"
+    },
+    {
+      "prefixo": "SN-003",
+      "documentos_necessarios": ["folha de pagamento", "pro-labore", "eSocial", "PGDAS-D para calculo oficial do Fator R"],
+      "o_que_significa": "Folha e pro-labore impactam o Fator R e podem alterar o anexo tributario aplicavel.",
+      "como_solucionar": "Validar folha, pro-labore, eSocial e calculo oficial do Fator R acumulado dos ultimos 12 meses.",
+      "responsavel_sugerido": "departamento pessoal e contabilidade",
+      "prazo_sugerido": "antes da apuracao mensal do Simples Nacional"
+    },
+    {
+      "prefixo": "SN-004",
+      "documentos_necessarios": ["balancete de verificacao", "razao contabil de lucros", "ata/contrato de distribuicao de lucros"],
+      "o_que_significa": "A distribuicao de lucros precisa ter lastro contabil suficiente antes de ser mantida como isenta.",
+      "como_solucionar": "Reconciliar resultado, lucros acumulados, reservas e comprovantes de distribuicao.",
+      "responsavel_sugerido": "socios/administradores e contabilidade",
+      "prazo_sugerido": "antes de nova distribuicao de lucros"
+    },
+    {
+      "prefixo": "SN-005",
+      "documentos_necessarios": ["razao das contas de socios", "extratos bancarios", "contrato de mutuo ou instrumento equivalente", "memoria de calculo do IOF", "guia e comprovante de recolhimento do IOF"],
+      "o_que_significa": "Saldos com socios exigem contrato, conciliacao financeira e validacao de IOF quando houver mutuo.",
+      "como_solucionar": "Conferir razao e extratos, formalizar contrato de mutuo quando aplicavel e validar IOF, prazo, juros e liquidacao.",
+      "responsavel_sugerido": "socios/administradores e contabilidade",
+      "prazo_sugerido": "imediato, antes do fechamento definitivo do periodo"
+    },
+    {
+      "prefixo": "SN-006",
+      "documentos_necessarios": ["extratos bancarios", "conciliacao bancaria", "boletim de caixa"],
+      "o_que_significa": "O saldo de caixa ou bancos deve ser compativel com a operacao e com os comprovantes financeiros.",
+      "como_solucionar": "Conciliar extratos, caixa fisico e lancamentos de socios; reclassificar valores sem natureza de disponibilidade.",
+      "responsavel_sugerido": "financeiro e contabilidade",
+      "prazo_sugerido": "antes do fechamento definitivo do periodo"
+    },
+    {
+      "prefixo": "SN-007",
+      "documentos_necessarios": ["razao das despesas", "notas fiscais de servicos tomados", "contratos e comprovantes de pagamento"],
+      "o_que_significa": "Despesas elevadas ou sem suporte podem distorcer o resultado e exigir comprovacao operacional.",
+      "como_solucionar": "Conferir razao, notas fiscais, contratos, competencia e vinculo das despesas com a atividade.",
+      "responsavel_sugerido": "cliente e contabilidade",
+      "prazo_sugerido": "ate o proximo fechamento trimestral"
+    },
+    {
+      "prefixo": "SN-008",
+      "documentos_necessarios": ["notas fiscais emitidas", "extratos bancarios", "relatorio de recebimentos"],
+      "o_que_significa": "A movimentacao financeira pode nao estar totalmente conciliada com o faturamento reconhecido.",
+      "como_solucionar": "Comparar notas fiscais, extratos, faturamento e recebimentos para identificar lancamentos ausentes ou em competencia incorreta.",
+      "responsavel_sugerido": "fiscal e contabilidade",
+      "prazo_sugerido": "antes do fechamento definitivo do periodo"
+    },
+    {
+      "prefixo": "SN-009",
+      "documentos_necessarios": ["balancete de verificacao", "DRE", "memoria de apropriacao de custos e despesas"],
+      "o_que_significa": "Resultado negativo ou fragilidade economica pode exigir acompanhamento de continuidade e recomposicao financeira.",
+      "como_solucionar": "Validar DRE, custos, despesas, passivos acumulados e medidas de viabilidade operacional.",
+      "responsavel_sugerido": "cliente e contabilidade",
+      "prazo_sugerido": "ate o proximo fechamento trimestral"
+    },
+    {
+      "prefixo": "SN-010",
+      "documentos_necessarios": ["razao de clientes", "relatorio de contas a receber", "baixas e comprovantes de recebimento"],
+      "o_que_significa": "Os recebiveis precisam refletir valores efetivamente pendentes, com baixas e controles auxiliares consistentes.",
+      "como_solucionar": "Validar relatorio de clientes, aging list, recebimentos posteriores e baixas do periodo seguinte.",
+      "responsavel_sugerido": "cliente/financeiro e contabilidade",
+      "prazo_sugerido": "ate o proximo fechamento trimestral"
+    },
+    {
+      "prefixo": "SN-011",
+      "documentos_necessarios": ["contratos", "notas fiscais", "razao de adiantamentos", "comprovantes de baixa"],
+      "o_que_significa": "Adiantamentos precisam ter origem, contraprestacao e baixa esperada documentadas.",
+      "como_solucionar": "Conferir contratos, notas fiscais, razao de adiantamentos e baixas posteriores.",
+      "responsavel_sugerido": "cliente e contabilidade",
+      "prazo_sugerido": "ate o proximo fechamento trimestral"
+    },
+    {
+      "prefixo": "SN-012",
+      "documentos_necessarios": ["guias de tributos", "parcelamentos", "extratos fiscais", "DAS pago"],
+      "o_que_significa": "Passivos tributarios acumulados podem afetar regularidade fiscal e certidoes.",
+      "como_solucionar": "Conciliar saldos tributarios com guias, parcelamentos, extratos fiscais e pagamentos realizados.",
+      "responsavel_sugerido": "fiscal e contabilidade",
+      "prazo_sugerido": "antes da emissao de certidoes ou fechamento mensal seguinte"
+    },
+    {
+      "prefixo": "SN-013",
+      "documentos_necessarios": ["notas fiscais de despesas", "politica de reembolso", "comprovantes de pagamento"],
+      "o_que_significa": "Despesas sem comprovacao ou gastos particulares podem distorcer o resultado e exigir reclassificacao.",
+      "como_solucionar": "Validar notas fiscais, comprovantes, politica de reembolso e necessidade operacional das despesas.",
+      "responsavel_sugerido": "cliente e contabilidade",
+      "prazo_sugerido": "ate o proximo fechamento trimestral"
+    },
+    {
+      "prefixo": "SN-014",
+      "documentos_necessarios": ["folha de pagamento", "provisoes trabalhistas", "eSocial", "relatorio de ferias e 13o salario"],
+      "o_que_significa": "Ausencia de provisoes trabalhistas pode subavaliar passivos e distorcer o resultado.",
+      "como_solucionar": "Constituir ou validar provisoes de ferias, 13o, FGTS, INSS e conciliacao com eSocial.",
+      "responsavel_sugerido": "departamento pessoal e contabilidade",
+      "prazo_sugerido": "ate o proximo fechamento mensal"
+    },
+    {
+      "prefixo": "SN-015",
+      "documentos_necessarios": ["inventario de estoque", "notas fiscais de compra e venda", "relatorio de giro de estoque"],
+      "o_que_significa": "Estoque elevado ou inconsistente pode indicar baixa pendente, giro baixo ou classificacao incorreta.",
+      "como_solucionar": "Confrontar inventario, compras, vendas, devolucoes e relatorio de giro.",
+      "responsavel_sugerido": "cliente/estoque/financeiro e contabilidade",
+      "prazo_sugerido": "antes do inventario ou fechamento trimestral"
+    },
+    {
+      "prefixo": "SN-016",
+      "documentos_necessarios": ["razao de fornecedores", "duplicatas", "notas fiscais de compra", "pagamentos subsequentes"],
+      "o_que_significa": "Fornecedores relevantes exigem conciliacao com compras, duplicatas e pagamentos posteriores.",
+      "como_solucionar": "Conciliar razao de fornecedores, notas de compra, duplicatas e baixas posteriores.",
+      "responsavel_sugerido": "cliente/financeiro e contabilidade",
+      "prazo_sugerido": "ate o proximo fechamento trimestral"
+    },
+    {
+      "prefixo": "SN-017",
+      "documentos_necessarios": ["composicao de creditos fiscais", "documentos fiscais", "memoria de recuperabilidade"],
+      "o_que_significa": "Creditos fiscais precisam ter suporte documental e compatibilidade com o regime tributario.",
+      "como_solucionar": "Validar composicao, origem, recuperabilidade e compatibilidade dos creditos com o Simples Nacional.",
+      "responsavel_sugerido": "fiscal e contabilidade",
+      "prazo_sugerido": "antes de compensacao ou fechamento fiscal"
+    },
+    {
+      "prefixo": "SN-018",
+      "documentos_necessarios": ["memoria de CMV", "inventario", "notas fiscais de compra", "criterio de custo medio"],
+      "o_que_significa": "CMV e margem devem estar coerentes com compras, vendas, estoque e criterio de custo.",
+      "como_solucionar": "Confrontar inventario, notas de compra, vendas e memoria do CMV; ajustar baixas ou reclassificacoes necessarias.",
+      "responsavel_sugerido": "cliente/estoque/financeiro e contabilidade",
+      "prazo_sugerido": "antes do fechamento trimestral"
+    },
+    {
+      "prefixo": "SN-019",
+      "documentos_necessarios": ["PGDAS-D", "receita acumulada por UF", "apuracao de ICMS/ISS fora do DAS quando aplicavel"],
+      "o_que_significa": "Receita em faixa de sublimite pode exigir apuracao de ICMS/ISS fora do DAS.",
+      "como_solucionar": "Validar RBT12, sublimite estadual, receita por UF e apuracao segregada quando aplicavel.",
+      "responsavel_sugerido": "fiscal e contabilidade",
+      "prazo_sugerido": "antes da proxima apuracao do DAS"
+    },
+    {
+      "prefixo": "SN-020",
+      "documentos_necessarios": ["relatorio de receitas por natureza", "NFS-e", "NF-e", "PGDAS-D segregado por anexo"],
+      "o_que_significa": "Empresas mistas precisam segregar receitas para aplicar anexos, ISS/ICMS e DAS corretamente.",
+      "como_solucionar": "Separar receitas de comercio e servicos, conferir notas fiscais e validar PGDAS-D por anexo.",
+      "responsavel_sugerido": "fiscal e contabilidade",
+      "prazo_sugerido": "antes da proxima apuracao do DAS"
+    },
+    {
+      "prefixo": "SN-021",
+      "documentos_necessarios": ["DRE", "razao de custos e despesas", "documentos de apropriacao por competencia"],
+      "o_que_significa": "Margem elevada pode indicar despesas, custos ou apropriacoes de competencia nao reconhecidas.",
+      "como_solucionar": "Revisar custos, despesas, folha, servicos tomados e apropriacoes por competencia.",
+      "responsavel_sugerido": "cliente e contabilidade",
+      "prazo_sugerido": "ate o proximo fechamento trimestral"
+    },
+    {
+      "prefixo": "SN-022",
+      "documentos_necessarios": ["boletim de caixa", "comprovantes de entradas e saidas", "conciliacao com bancos"],
+      "o_que_significa": "Saldo de caixa fisico relevante precisa ser compativel com a operacao e com comprovantes.",
+      "como_solucionar": "Validar numerario real, recebimentos pendentes, pagamentos em especie e conciliacao com bancos.",
+      "responsavel_sugerido": "financeiro e contabilidade",
+      "prazo_sugerido": "antes do fechamento definitivo do periodo"
+    },
+    {
+      "prefixo": "SN-023",
+      "documentos_necessarios": ["relatorio de contas a receber", "comprovantes de recebimento", "meios de pagamento"],
+      "o_que_significa": "Clientes zerados podem estar corretos, mas exigem validacao de recebimento a vista ou baixa no mesmo periodo.",
+      "como_solucionar": "Conferir notas, meios de pagamento, extratos e baixas de recebiveis.",
+      "responsavel_sugerido": "cliente/financeiro e contabilidade",
+      "prazo_sugerido": "ate o proximo fechamento trimestral"
+    },
+    {
+      "prefixo": "SN-024",
+      "documentos_necessarios": ["NF-e por NCM/CFOP/CST", "PGDAS-D", "memoria de ICMS-ST e ressarcimentos"],
+      "o_que_significa": "Operacoes com ICMS-ST ou creditos fiscais precisam de validacao fiscal especifica.",
+      "como_solucionar": "Conferir NCM, CFOP, CST, PGDAS-D, memoria de ST e eventual ressarcimento.",
+      "responsavel_sugerido": "fiscal e contabilidade",
+      "prazo_sugerido": "antes do fechamento fiscal"
+    },
+    {
+      "prefixo": "SN-025",
+      "documentos_necessarios": ["razao da conta 325", "contratos de prestadores", "notas fiscais de servicos tomados", "comprovantes bancarios", "retencoes aplicaveis"],
+      "o_que_significa": "Servicos de terceiros relevantes precisam comprovar natureza, competencia e vinculo com a atividade.",
+      "como_solucionar": "Conferir a conta 325 com notas fiscais, contratos, comprovantes bancarios e retencoes aplicaveis.",
+      "responsavel_sugerido": "cliente e contabilidade",
+      "prazo_sugerido": "antes do fechamento definitivo do periodo"
+    },
+    {
+      "prefixo": "SN-026",
+      "documentos_necessarios": ["razao de adiantamentos de clientes", "contratos ou pedidos", "notas fiscais emitidas", "extratos bancarios", "comprovantes de baixa ou liquidacao"],
+      "o_que_significa": "Adiantamentos de clientes podem ser legitimos, mas precisam comprovar se ainda estao pendentes ou se ja deveriam ter sido baixados.",
+      "como_solucionar": "Validar contrato, pedido, nota fiscal, extrato e baixa posterior; regularizar valores ja liquidados que permanencam como adiantamento.",
+      "responsavel_sugerido": "cliente/financeiro e contabilidade",
+      "prazo_sugerido": "antes do fechamento definitivo do periodo"
+    },
+    {
+      "prefixo": "AN-REC",
+      "documentos_necessarios": ["JSONs trimestrais consolidados", "balancetes trimestrais", "documentos de suporte dos achados recorrentes"],
+      "o_que_significa": "A recorrencia de achados indica que o ponto nao foi apenas pontual e precisa de rotina preventiva.",
+      "como_solucionar": "Criar plano de acao para eliminar a causa recorrente e acompanhar a baixa nos proximos trimestres.",
+      "responsavel_sugerido": "cliente e contabilidade",
+      "prazo_sugerido": "ate o primeiro fechamento trimestral do proximo exercicio"
+    },
+    {
+      "prefixo": "AN-DOC-325",
+      "documentos_necessarios": ["contratos de prestadores", "notas fiscais de servicos tomados", "comprovantes bancarios", "retencoes aplicaveis"],
+      "o_que_significa": "Servicos de terceiros relevantes no ano exigem comprovacao documental acumulada.",
+      "como_solucionar": "Revisar prestadores recorrentes, contratos, notas fiscais, pagamentos e retencoes do exercicio.",
+      "responsavel_sugerido": "cliente e contabilidade",
+      "prazo_sugerido": "antes do fechamento anual definitivo"
+    },
+    {
+      "prefixo": "AN-DOC-MUTUO",
+      "documentos_necessarios": ["razao das contas de socios", "extratos bancarios", "contrato de mutuo ou instrumento equivalente", "memoria de calculo do IOF", "guia e comprovante de recolhimento do IOF"],
+      "o_que_significa": "Saldos finais com socios exigem contrato, conciliacao financeira e validacao de IOF quando houver mutuo.",
+      "como_solucionar": "Conferir razao, extratos, contrato de mutuo, IOF, prazo, juros e liquidacao.",
+      "responsavel_sugerido": "socios/administradores e contabilidade",
+      "prazo_sugerido": "imediato, antes do fechamento anual definitivo"
+    },
+    {
+      "prefixo": "AN-COM",
+      "documentos_necessarios": ["inventario de estoque", "notas fiscais de compra e venda", "memoria de CMV", "PGDAS-D quando aplicavel"],
+      "o_que_significa": "A operacao comercial precisa de validacao anual de estoque, fornecedores, CMV e creditos fiscais.",
+      "como_solucionar": "Confrontar inventario, compras, vendas, fornecedores, memoria de CMV e apuracoes fiscais.",
+      "responsavel_sugerido": "cliente/estoque/financeiro e contabilidade",
+      "prazo_sugerido": "antes do fechamento anual definitivo"
+    },
+    {
+      "prefixo": "AN-TRIB",
+      "documentos_necessarios": ["PGDAS-D", "DAS", "parcelamentos", "razao de tributos a recolher"],
+      "o_que_significa": "Pontos tributarios acumulados podem afetar regularidade fiscal e certidoes.",
+      "como_solucionar": "Conciliar DAS, parcelamentos, razao de tributos a recolher e regularidade fiscal.",
+      "responsavel_sugerido": "fiscal e contabilidade",
+      "prazo_sugerido": "antes do fechamento anual definitivo"
+    },
+    {
+      "prefixo": "AN-LUC",
+      "documentos_necessarios": ["balancete anual", "DRE", "razao de lucros", "comprovantes de distribuicao"],
+      "o_que_significa": "A distribuicao anual de lucros precisa ser conciliada com resultado, lucros acumulados e documentacao societaria.",
+      "como_solucionar": "Reconciliar lucro anual, lucros acumulados, reservas, atas e comprovantes de distribuicao.",
+      "responsavel_sugerido": "socios/administradores e contabilidade",
+      "prazo_sugerido": "antes de nova distribuicao de lucros"
+    },
+    {
+      "prefixo": "AN-MAR",
+      "documentos_necessarios": ["DRE anual", "razao de custos e despesas", "memoria de apropriacao por competencia"],
+      "o_que_significa": "Margem anual elevada pode indicar despesas, custos ou apropriacoes de competencia nao reconhecidos.",
+      "como_solucionar": "Revisar custos, despesas, folha, servicos tomados e apropriacoes por competencia no ano.",
+      "responsavel_sugerido": "cliente e contabilidade",
+      "prazo_sugerido": "antes do fechamento anual definitivo"
+    },
+    {
+      "prefixo": "AN-SN",
+      "documentos_necessarios": ["RBT12", "PGDAS-D", "relatorio de faturamento anual", "simulacao de limite do Simples Nacional"],
+      "o_que_significa": "A receita anual exige acompanhamento do limite do Simples Nacional e validacao do enquadramento fiscal.",
+      "como_solucionar": "Validar receita acumulada, PGDAS-D, sublimites e impacto no enquadramento do proximo exercicio.",
+      "responsavel_sugerido": "fiscal e contabilidade",
+      "prazo_sugerido": "antes do inicio do proximo exercicio"
+    },
+    {
+      "prefixo": "AN-TEND",
+      "documentos_necessarios": ["comparativo trimestral", "JSONs trimestrais", "plano de acao dos achados recorrentes"],
+      "o_que_significa": "A tendencia anual indica mudanca relevante no risco ou desempenho ao longo do exercicio.",
+      "como_solucionar": "Investigar causas da tendencia, priorizar recorrencias e acompanhar plano de acao no proximo trimestre.",
+      "responsavel_sugerido": "cliente e contabilidade",
+      "prazo_sugerido": "ate o primeiro fechamento trimestral do proximo exercicio"
+    },
+    {
+      "prefixo": "AN-",
+      "documentos_necessarios": ["JSONs trimestrais consolidados", "balancetes trimestrais", "documentos de suporte dos achados recorrentes"],
+      "o_que_significa": "O achado anual requer validacao documental e acompanhamento no proximo exercicio.",
+      "como_solucionar": "Validar documentos anuais, consolidar providencias e acompanhar a baixa no proximo ciclo.",
+      "responsavel_sugerido": "cliente e contabilidade",
+      "prazo_sugerido": "ate o primeiro fechamento trimestral do proximo exercicio"
+    }
+  ]
+}

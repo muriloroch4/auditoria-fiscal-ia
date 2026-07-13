@@ -430,6 +430,8 @@ class ProjectQualityTest(unittest.TestCase):
         offenders: list[str] = []
 
         for path in _iter_text_project_files(roots, suffixes):
+            if len(path.parts) >= 2 and path.parts[0] == "docs" and path.parts[1] == "legado":
+                continue
             text = path.read_text(encoding="utf-8", errors="replace")
             for line_number, line in enumerate(text.splitlines(), start=1):
                 if any(token in line for token in bad_tokens):
