@@ -33,6 +33,25 @@ REGRAS OBRIGATÓRIAS
 12. Revise ortografia, concordância, letras maiúsculas/minúsculas e espaços antes de pontuação.
 13. Evite tabelas largas, pois elas prejudicam a conversão para PDF.
 14. Preserve todos os achados e recomendações do JSON.
+15. Não copie literalmente `conclusao_sugerida` quando ela vier como "adversa", "com_ressalva" ou termo equivalente; traduza para linguagem consultiva, como "risco alto com regularização prioritária" ou "necessidade de validação documental antes de uso externo".
+16. Quando houver campos `[VERIFICAR: ...]`, agrupe-os em um bloco chamado **Validações pendentes** dentro do achado correspondente, em vez de espalhar os placeholders no texto corrido.
+17. Em **Validações pendentes**, use lista com um item por pendência. Corrija a pontuação interna do placeholder antes de exibir, por exemplo `valor , prazo` deve virar `valor, prazo`.
+18. Antes de finalizar, corrija espaços indevidos antes de pontuação, como `valor , prazo`, `texto .` ou `item ;`.
+
+DIRETRIZES DE LAYOUT PARA PDF
+
+1. Gere Markdown limpo, compacto e amigável para impressão em PDF.
+2. Use apenas um título H1 no início. Depois use H2 numerados e H3 apenas para achados.
+3. Evite parágrafos longos: cada parágrafo deve ter no máximo 4 linhas quando impresso.
+4. Evite listas muito extensas. Quando houver muitos documentos, agrupe por área ou limite aos documentos prioritários.
+5. Na primeira página, use um bloco compacto de identificação, seguido de um resumo executivo curto.
+6. Não transforme todos os dados em texto corrido. Prefira blocos com rótulos em negrito e frases curtas.
+7. Use tabelas somente quando forem realmente compactas. Cada célula deve ter texto curto, sem frases longas.
+8. No plano de ação, use formato de "cartão textual" por achado: prioridade, significado, ação, documentos, responsável e validações pendentes.
+9. Não repita a mesma lista completa de documentos em várias seções.
+10. A conclusão deve caber em uma página comum, com próximos passos numerados e objetivos.
+11. Para um trimestre comum, produza um documento equivalente a 5 a 7 páginas em PDF.
+12. Não use linhas horizontais em excesso, caixas ASCII, emojis, ícones ou decoração textual.
 
 NORMAS A CITAR QUANDO APLICÁVEIS
 
@@ -68,7 +87,7 @@ ESTRUTURA OBRIGATÓRIA DO RELATÓRIO
 
 ## 1. Identificação da empresa
 
-Apresente em bloco compacto:
+Apresente em bloco compacto, com rótulos em negrito e linhas curtas:
 
 - empresa;
 - CNPJ;
@@ -80,7 +99,7 @@ Apresente em bloco compacto:
 
 ## 2. Resumo executivo
 
-Explique em linguagem clara:
+Use no máximo três parágrafos curtos e, quando útil, um bloco de indicadores. Explique em linguagem clara:
 
 - risco geral;
 - pontuação total;
@@ -94,7 +113,7 @@ Não liderar a comunicação com "opinião adversa"; traduza para orientação p
 
 ## 3. Leitura para o cliente
 
-Escreva uma seção curta e consultiva com:
+Escreva uma seção curta e consultiva, sem lista excessiva de documentos. Informe:
 
 - o que foi encontrado;
 - por que isso importa;
@@ -104,15 +123,15 @@ Escreva uma seção curta e consultiva com:
 
 ## 4. Plano de ação consultivo
 
-Para cada achado relevante, usar o seguinte formato:
+Para cada achado relevante, usar o seguinte formato compacto:
 
 ### [Código] — [Ponto de atenção]
 
-- **Prioridade:** alta, média ou baixa.
-- **O que significa:** explicação simples e profissional.
+- **Prioridade:** alta, média ou baixa. **Responsável:** cliente, contabilidade, fiscal, departamento pessoal, sócios/administradores ou combinação.
+- **O que significa:** explicação simples e profissional em uma ou duas frases.
 - **Como solucionar:** ação objetiva para corrigir ou validar.
-- **Documentos necessários:** documentos citados no JSON ou [VERIFICAR: dado necessário].
-- **Responsável sugerido:** cliente, contabilidade, fiscal, departamento pessoal, sócios/administradores ou combinação.
+- **Documentos necessários:** documentos citados no JSON ou [VERIFICAR: dado necessário]. Se forem muitos, agrupar por tipo.
+- **Validações pendentes:** listar somente quando houver campos `[VERIFICAR: ...]` no JSON, sempre em bullets e sem espaços indevidos antes de pontuação.
 
 ## 5. Análise técnica para a contabilidade
 
@@ -122,6 +141,7 @@ Use tabela compacta:
 |---|---|---|---|---:|
 
 Depois da tabela, detalhe somente achados de risco alto, achados compostos ou validações documentais relevantes. Evite uma tabela "Item/Informação" para cada achado.
+Nas células da tabela, use frases curtas. Se a evidência ou o procedimento forem longos, resuma na tabela e detalhe logo abaixo em parágrafo.
 
 ## 6. Fundamentação técnica resumida
 
@@ -132,10 +152,10 @@ Use as normas aplicáveis informadas no JSON e explique a relação com os achad
 Deixe claro:
 
 - nível geral de risco;
-- conclusão sugerida;
+- conclusão sugerida traduzida em orientação consultiva, sem escrever literalmente "adversa" como mensagem principal;
 - que a análise foi feita exclusivamente com base no JSON;
 - necessidade de validação documental;
-- próximos passos objetivos para o cliente e para a contabilidade.
+- próximos passos objetivos para o cliente e para a contabilidade, preferencialmente em lista numerada de até 8 itens.
 ```
 
 ## Chat 2 — Relatório Consultivo Anual Comparativo via JSON

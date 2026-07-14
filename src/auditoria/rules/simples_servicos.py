@@ -339,8 +339,8 @@ def _check_partner_accounts(revenue: Decimal, partners: Decimal, accounts: list[
         "quantidade_contas_identificadas": str(len(accounts)),
         "contas_identificadas": format_account_trace(accounts),
         "codigos_monitorados": "616 e 627 no ativo; 770 no passivo; demais contas com socio, administrador, pessoa ligada ou mutuo na descricao",
-        "contrato_mutuo": "[VERIFICAR: existencia, valor, prazo, juros, partes e assinatura do contrato de mutuo ou instrumento equivalente]",
-        "iof_recolhido": "[VERIFICAR: calculo, guia e comprovante de recolhimento do IOF quando a operacao caracterizar mutuo/credito]",
+        "contrato_mutuo": "[VERIFICAR: existência, valor, prazo, juros, partes e assinatura do contrato de mútuo ou instrumento equivalente]",
+        "iof_recolhido": "[VERIFICAR: cálculo, guia e comprovante de recolhimento do IOF quando a operação caracterizar mútuo/crédito]",
         "criterio_rastreio": "saldo final em contas de socios ou codigos 616/627/770",
         "tipo_achado": "validacao_documental",
     }

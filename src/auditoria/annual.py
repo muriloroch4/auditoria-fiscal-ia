@@ -391,7 +391,7 @@ def _annual_findings(quarters: list[dict[str, Any]], totals: dict[str, Any]) -> 
                     "limite_percentual_relevancia": format_percent(lim_ratio),
                     "classificacao_materialidade": "material" if material else "baixa_materialidade",
                     "criterio_rastreio": "saldo_contas_socios_final consolidado a partir do ultimo JSON trimestral",
-                    "contrato_mutuo": "[VERIFICAR: existencia, valor, prazo, juros, partes e assinatura]",
+                    "contrato_mutuo": "[VERIFICAR: existência, valor, prazo, juros, partes e assinatura]",
                     "iof_recolhido": "[VERIFICAR: memoria de calculo, guia e comprovante de recolhimento quando aplicavel]",
                 },
                 "Validar razao contabil, extratos, contrato de mutuo ou instrumento equivalente, natureza da movimentacao, prazo, juros e IOF antes do encerramento anual.",

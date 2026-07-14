@@ -2276,25 +2276,28 @@ body {
   }
 
   .pdf-document {
-    gap: 10px;
+    gap: 7px;
     padding-bottom: 0;
   }
 
   .pdf-cover {
-    padding: 14px;
-    grid-template-columns: minmax(0, 1fr) 172px;
+    padding: 10px;
+    grid-template-columns: minmax(0, 1fr) 150px;
   }
 
   .pdf-cover h1 {
-    font-size: 21px;
+    font-size: 20px;
   }
 
   .pdf-cover p {
-    font-size: 11px;
+    margin-top: 5px;
+    font-size: 10.5px;
+    line-height: 1.35;
   }
 
   .pdf-section {
-    padding: 11px;
+    gap: 7px;
+    padding: 8px;
   }
 
   .pdf-section h2,
@@ -2306,7 +2309,7 @@ body {
   .pdf-meta-item,
   .pdf-summary-card,
   .pdf-metric-item {
-    padding: 7px 8px;
+    padding: 6px 7px;
   }
 
   .pdf-meta-item strong,
@@ -2316,7 +2319,7 @@ body {
   }
 
   .pdf-risk-card {
-    padding: 12px;
+    padding: 9px;
   }
 
   .pdf-risk-card strong {
@@ -2337,15 +2340,20 @@ body {
 
   .pdf-cover,
   .pdf-meta-grid,
-  .pdf-section,
   .pdf-finding-card,
   .pdf-action-card,
   .pdf-visual-card,
-  .pdf-client-grid > div,
   .pdf-summary-card,
   .pdf-metric-item {
     break-inside: avoid;
     box-shadow: none;
+  }
+
+  .pdf-section,
+  .pdf-client-section,
+  .pdf-action-section,
+  .pdf-technical-section {
+    break-inside: auto;
   }
 
   .pdf-finding-list {
@@ -2368,7 +2376,7 @@ body {
 
   .pdf-action-section,
   .pdf-technical-section {
-    break-before: page;
+    break-before: auto;
   }
 
   .pdf-action-grid {

@@ -177,6 +177,14 @@ function polishPortugueseText(value) {
     [/\bbancario\b/gi, "bancário"],
     [/\bbancarios\b/gi, "bancários"],
     [/\bliquidacao\b/gi, "liquidação"],
+    [/\bmovimentacao\b/gi, "movimentação"],
+    [/\bmovimentacoes\b/gi, "movimentações"],
+    [/\blancado\b/gi, "lançado"],
+    [/\blancada\b/gi, "lançada"],
+    [/\blancados\b/gi, "lançados"],
+    [/\blancadas\b/gi, "lançadas"],
+    [/\baliquota\b/gi, "alíquota"],
+    [/\baliquotas\b/gi, "alíquotas"],
     [/\bfisico\b/gi, "físico"],
     [/\bcompativel\b/gi, "compatível"],
     [/\boperacao\b/gi, "operação"],
@@ -207,6 +215,11 @@ function polishPortugueseText(value) {
     [/\bpossivel\b/gi, "possível"],
     [/\bnecessario\b/gi, "necessário"],
     [/\bnecessarios\b/gi, "necessários"],
+    [/\bhistorico\b/gi, "histórico"],
+    [/\bparametro\b/gi, "parâmetro"],
+    [/\bparametros\b/gi, "parâmetros"],
+    [/\brelacao\b/gi, "relação"],
+    [/\brelacoes\b/gi, "relações"],
     [/\bpro-labore\b/gi, "pró-labore"],
     [/\bmedia\b/gi, "média"],
     [/\bmedio\b/gi, "médio"],
@@ -290,6 +303,9 @@ function numericValue(value) {
   if (value && typeof value === "object" && value.valor !== undefined) {
     return numericValue(value.valor);
   }
+  if (value && typeof value === "object" && value.formatado !== undefined) {
+    return numericValue(value.formatado);
+  }
   if (typeof value === "number") {
     return Number.isFinite(value) ? value : 0;
   }
@@ -317,11 +333,11 @@ function clampPercent(value) {
 }
 
 function formatMetricDisplay(key, value) {
-  if (value && typeof value === "object" && value.formatado) {
-    return esc(value.formatado);
-  }
   if (monetaryMetricKeys().has(key)) {
     return esc(formatCurrencyPtBr(numericValue(value)));
+  }
+  if (value && typeof value === "object" && value.formatado) {
+    return esc(value.formatado);
   }
   return fmt(value);
 }
@@ -1635,7 +1651,7 @@ function renderPrintMetricSection(metrics, context) {
   if (!rows && !indicatorRows && !anexo && !factorR) return "";
 
   return `
-    <section class="pdf-section">
+    <section class="pdf-section pdf-metric-section">
       <h2>Métricas e indicadores</h2>
       <div class="pdf-metric-grid">${rows}${indicatorRows}${anexo}${factorR}</div>
     </section>
@@ -1707,13 +1723,13 @@ function renderPrintFindingCard(finding) {
       <h3>${displayText(clientSafeText(finding.titulo || "Achado sem título"))}</h3>
       <dl>
         <dt>Evidência</dt>
-        <dd>${displayText(truncateText(clientSafeText(evidence), 220))}</dd>
+        <dd>${displayText(clientSafeText(evidence))}</dd>
         <dt>Impacto técnico</dt>
-        <dd>${displayText(truncateText(clientSafeText(finding.descricao || "[VERIFICAR: impacto técnico]"), 240))}</dd>
+        <dd>${displayText(clientSafeText(finding.descricao || "[VERIFICAR: impacto técnico]"))}</dd>
         <dt>Procedimento sugerido</dt>
-        <dd>${displayText(truncateText(clientSafeText(finding.recomendacao || "[VERIFICAR: recomendação técnica]"), 260))}</dd>
+        <dd>${displayText(clientSafeText(finding.recomendacao || "[VERIFICAR: recomendação técnica]"))}</dd>
         <dt>Fundamento</dt>
-        <dd>${displayText(truncateText(norms, 260))}</dd>
+        <dd>${displayText(norms)}</dd>
       </dl>
     </article>
   `;
@@ -1722,7 +1738,6 @@ function renderPrintFindingCard(finding) {
 function evidenceSummary(evidence) {
   if (!evidence || !Object.keys(evidence).length) return "[VERIFICAR: evidência]";
   return Object.entries(evidence)
-    .slice(0, 4)
     .map(([key, value]) => `${humanizeKey(key)}: ${evidenceValue(value)}`)
     .join(" | ");
 }

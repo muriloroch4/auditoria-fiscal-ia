@@ -885,6 +885,25 @@ O JSON terá estes blocos:
 14. Evite termos acusatórios ao cliente. Quando houver risco sensível, use linguagem como
     "risco fiscal/documental", "receita possivelmente não reconhecida" ou "tratamento fiscal pendente".
 15. Não suavize a gravidade técnica: informe risco alto, materialidade e prioridade, mas de forma profissional e orientada à solução.
+16. Não copie literalmente `conclusao_sugerida` quando ela vier como "adversa", "com_ressalva" ou termo equivalente; traduza para linguagem consultiva, como "risco alto com regularização prioritária" ou "necessidade de validação documental antes de uso externo".
+17. Quando houver campos `[VERIFICAR: ...]`, agrupe-os em um bloco chamado **Validações pendentes** dentro do achado correspondente, em vez de espalhar os placeholders no texto corrido.
+18. Em **Validações pendentes**, use lista com um item por pendência. Corrija a pontuação interna do placeholder antes de exibir, por exemplo `valor , prazo` deve virar `valor, prazo`.
+19. Antes de finalizar, corrija espaços indevidos antes de pontuação, como `valor , prazo`, `texto .` ou `item ;`.
+
+## Diretrizes de layout para PDF
+
+1. Gere Markdown limpo, compacto e amigável para impressão em PDF.
+2. Use apenas um título H1 no início. Depois use H2 numerados e H3 apenas para achados.
+3. Evite parágrafos longos: cada parágrafo deve ter no máximo 4 linhas quando impresso.
+4. Evite listas muito extensas. Quando houver muitos documentos, agrupe por área ou limite aos documentos prioritários.
+5. Na primeira página, use um bloco compacto de identificação, seguido de um resumo executivo curto.
+6. Não transforme todos os dados em texto corrido. Prefira blocos com rótulos em negrito e frases curtas.
+7. Use tabelas somente quando forem realmente compactas. Cada célula deve ter texto curto, sem frases longas.
+8. No plano de ação, use formato de "cartão textual" por achado: prioridade, significado, ação, documentos, responsável e validações pendentes.
+9. Não repita a mesma lista completa de documentos em várias seções.
+10. A conclusão deve caber em uma página comum, com próximos passos numerados e objetivos.
+11. Para um trimestre comum, produza um documento equivalente a 5 a 7 páginas em PDF.
+12. Não use linhas horizontais em excesso, caixas ASCII, emojis, ícones ou decoração textual.
 
 ## Estrutura esperada
 
@@ -906,20 +925,21 @@ Na "Leitura para o cliente", explique em linguagem simples:
 
 Use `consultivo.leitura_cliente` e `consultivo.resumo_orientativo` como fonte prioritária para esta seção.
 
-No "Plano de ação consultivo", para cada achado, use:
-- **Ponto de atenção**
-- **O que significa**
-- **Como solucionar**
-- **Documentos necessários**
-- **Responsável sugerido**
-- **Prioridade**
+No "Plano de ação consultivo", use formato compacto por achado:
+- `### [Código] — [Ponto de atenção]`
+- **Prioridade:** alta, média ou baixa. **Responsável:** cliente, contabilidade, fiscal, departamento pessoal, sócios/administradores ou combinação.
+- **O que significa:** explicação simples e profissional em uma ou duas frases.
+- **Como solucionar:** ação objetiva para corrigir ou validar.
+- **Documentos necessários:** documentos citados no JSON ou `[VERIFICAR: dado necessário]`. Se forem muitos, agrupe por tipo.
+- **Validações pendentes:** somente quando houver campos `[VERIFICAR: ...]` no JSON, sempre em bullets e sem espaços indevidos antes de pontuação.
 
 Use `consultivo.plano_acao` como fonte prioritária desta seção. Se algum item estiver ausente, complemente apenas com dados existentes em `principais_achados` e `recomendacoes_tecnicas`.
 
 Na "Análise técnica para a contabilidade", use tabela compacta com:
 Código, Severidade, Evidência resumida, Procedimento sugerido, Pontuação.
-Após a tabela, detalhe apenas achados de severidade alta ou validações documentais relevantes em parágrafos curtos.
+Nas células da tabela, use frases curtas. Após a tabela, detalhe apenas achados de severidade alta ou validações documentais relevantes em parágrafos curtos.
 
-Na conclusão, não use "opinião adversa" como mensagem principal ao cliente. Traduza a modalidade técnica para orientação prática, por exemplo:
+Na conclusão, não use "opinião adversa" nem "conclusão sugerida: adversa" como mensagem principal ao cliente. Traduza a modalidade técnica para orientação prática, por exemplo:
 "regularização prioritária antes do fechamento anual" ou "validar documentos antes de decisão externa".
+A conclusão deve trazer próximos passos objetivos, preferencialmente em lista numerada de até 8 itens.
 """.strip()
