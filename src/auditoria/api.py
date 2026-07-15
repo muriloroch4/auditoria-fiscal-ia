@@ -6,10 +6,7 @@ import json
 import logging
 import os
 import traceback
-from dataclasses import dataclass
 from decimal import Decimal
-from email import policy
-from email.parser import BytesParser
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -18,6 +15,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from .annual import build_annual_comparison, build_rbt12_context
 from .audit import run_quarterly_audit
+from .http_multipart import UploadedFile, read_multipart_form
 from .models import AuditResult
 from .parser import read_trial_balance_upload
 from .schema_loader import load_json_schema
@@ -26,12 +24,6 @@ from .storage import DB_SCHEMA_VERSION, AuditStorage, file_sha256, infer_year_qu
 
 logger = logging.getLogger(__name__)
 _STATIC_DIR = Path(__file__).with_name("static")
-
-
-@dataclass(frozen=True)
-class UploadedFile:
-    filename: str
-    content: bytes
 
 
 class AuditApiHandler(BaseHTTPRequestHandler):
@@ -346,38 +338,7 @@ class AuditApiHandler(BaseHTTPRequestHandler):
             self._send_json({"erro": f"Erro inesperado: {exc}"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def _read_multipart_form(self) -> dict[str, str | UploadedFile]:
-        content_type = self.headers.get("Content-Type", "")
-        if not content_type.startswith("multipart/form-data"):
-            raise ValueError("A API espera multipart/form-data.")
-
-        content_length = int(self.headers.get("Content-Length", "0"))
-        body = self.rfile.read(content_length)
-        raw_message = (
-            f"Content-Type: {content_type}\r\n"
-            "MIME-Version: 1.0\r\n"
-            "\r\n"
-        ).encode("utf-8") + body
-
-        message = BytesParser(policy=policy.default).parsebytes(raw_message)
-        form: dict[str, str | UploadedFile] = {}
-
-        for part in message.iter_parts():
-            raw_name = part.get_param("name", header="content-disposition")
-            if not isinstance(raw_name, str) or not raw_name:
-                continue
-            name = raw_name
-
-            raw_payload = part.get_payload(decode=True)
-            payload = raw_payload if isinstance(raw_payload, bytes) else b""
-            filename = part.get_filename()
-            if filename:
-                form[name] = UploadedFile(filename=filename, content=payload)
-                continue
-
-            charset = part.get_content_charset() or "utf-8-sig"
-            form[name] = payload.decode(charset, errors="replace")
-
-        return form
+        return read_multipart_form(self.headers, self.rfile)
 
     def _read_json_body(self) -> dict[str, Any]:
         content_length = int(self.headers.get("Content-Length", "0") or "0")

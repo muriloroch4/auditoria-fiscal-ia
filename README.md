@@ -335,10 +335,12 @@ Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`.
 - `src/auditoria/storage.py` — persistência SQLite dos trimestres e consolidações anuais
 - `src/auditoria/schema_loader.py` — carregamento dos JSON Schemas formais trimestral/anual
 - `src/auditoria/schema_validator.py` — validação interna dos JSONs gerados contra os schemas formais
+- `src/auditoria/xlsx_reader.py` — leitura de linhas XLSX a partir do XML interno da planilha
 - `src/auditoria/api.py` — servidor HTTP com upload, schemas e rotas estáticas do dashboard
+- `src/auditoria/http_multipart.py` — parser de formulários multipart usados no upload da API
 - `src/auditoria/static/` — frontend do dashboard, utilitários JS, download JSON, filtros de achados e impressão em PDF
 - `src/auditoria/static/print.css` — estilos dedicados ao relatório de impressão/PDF
-- `src/auditoria/report_ai.py` — system prompt para geração de parecer via IA
+- `src/auditoria/report_ai.py` — renderização local consultiva e system prompt para geração de parecer via IA
 - `src/auditoria/ai_client.py` — cliente OpenRouter (stdlib, sem dependências)
 - `src/auditoria/main.py` — CLI para processamento em lote (JSON por padrão, Markdown com `--markdown`)
 - `config/rules.json` — configuração de pesos e limites das regras
