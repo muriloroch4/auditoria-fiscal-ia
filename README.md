@@ -268,12 +268,13 @@ Modelos disponíveis em `samples/`.
 | `despesas` / `custos` | Despesas operacionais, custos dos serviços ou CMV |
 | Conta `325` ou descrição `serviços prestados por terceiros` | Monitorada pela regra `SN-025` quando relevante nas despesas |
 | `socios` | Empréstimos, mútuos, contas correntes, contas 616/627 no ativo e 770 no passivo |
+| `emprestimos` | Empréstimos e financiamentos, usados pela regra `SN-028` para validar juros/encargos por competência |
 | `adiantamentos` | Adiantamentos gerais a fornecedores, empregados e terceiros |
 | `adiantamentos_clientes` | Adiantamentos de clientes no passivo, monitorados pela regra `SN-026` |
 | `caixa` / `bancos` | Disponibilidades |
 | `lucros` | Distribuição de lucros |
 | `resultado` | Lucro ou prejuízo apurado |
-| `fornecedores`, `estoques`, `creditos_fiscais`, `emprestimos` | Métricas complementares e regras específicas de comércio |
+| `fornecedores`, `estoques`, `creditos_fiscais` | Métricas complementares e regras específicas de comércio |
 
 ### Mapa contábil configurável
 
@@ -281,7 +282,9 @@ O arquivo `config/plano_contas_map.json` permite ajustar o reconhecimento de con
 
 O JSON trimestral inclui o bloco `classificacao_contas`, que resume quantas contas foram classificadas por grupo, origem e nível de confiança, além de listar contas que precisam revisão. Isso ajuda a validar o plano de contas antes de confiar integralmente nos achados do motor.
 
-Esse mapa já inclui a conta `325`/`serviços prestados por terceiros`, contas de sócios/mútuos (`616`, `627` e `770`), adiantamentos de clientes, bancos, caixa, clientes, estoques, fornecedores, tributos, folha, receitas, deduções e custos/CMV.
+Esse mapa já inclui a conta `325`/`serviços prestados por terceiros`, contas de sócios/mútuos (`616`, `627` e `770`), empréstimos/financiamentos, juros e encargos financeiros, adiantamentos de clientes, bancos, caixa, clientes, estoques, fornecedores, tributos, folha, receitas, deduções e custos/CMV.
+
+O motor também valida contas patrimoniais com possível natureza inversa (`SN-027`) e empréstimos sem evidência de juros/encargos por competência (`SN-028`). Essas regras são alertas de revisão documental e contábil, não conclusão automática de erro.
 
 ## Integração com IA
 

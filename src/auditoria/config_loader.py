@@ -88,7 +88,7 @@ def load_account_map(path: str | Path | None = None) -> dict[str, Any]:
 
 def _build_defaults() -> dict[str, Any]:
     return {
-        "version": "1.11.0",
+        "version": "1.12.0",
         "limites_gerais": {
             "simples_anual": 4800000,
             "limite_movimentacao_ativa": 10000,
@@ -98,21 +98,21 @@ def _build_defaults() -> dict[str, Any]:
             "simples_servicos": [
                 "SN-001", "SN-002", "SN-003", "SN-004", "SN-005", "SN-006", "SN-007",
                 "SN-008", "SN-009", "SN-010", "SN-011", "SN-012", "SN-013", "SN-014",
-                "SN-021", "SN-022", "SN-023", "SN-025", "SN-026",
+                "SN-021", "SN-022", "SN-023", "SN-025", "SN-026", "SN-027", "SN-028",
                 "SN-COMP-01", "SN-COMP-02", "SN-COMP-03",
             ],
             "simples_comercio": [
                 "SN-001", "SN-002", "SN-004", "SN-005", "SN-006", "SN-007",
                 "SN-008", "SN-009", "SN-010", "SN-011", "SN-012", "SN-013", "SN-014",
                 "SN-015", "SN-016", "SN-017", "SN-018", "SN-019",
-                "SN-021", "SN-022", "SN-023", "SN-024", "SN-025", "SN-026",
+                "SN-021", "SN-022", "SN-023", "SN-024", "SN-025", "SN-026", "SN-027", "SN-028",
                 "SN-COMP-01", "SN-COMP-02", "SN-COMP-03", "SN-COMP-04",
             ],
             "simples_comercio_servicos": [
                 "SN-001", "SN-002", "SN-003", "SN-004", "SN-005", "SN-006", "SN-007",
                 "SN-008", "SN-009", "SN-010", "SN-011", "SN-012", "SN-013", "SN-014",
                 "SN-015", "SN-016", "SN-017", "SN-018", "SN-019", "SN-020",
-                "SN-021", "SN-022", "SN-023", "SN-024", "SN-025", "SN-026",
+                "SN-021", "SN-022", "SN-023", "SN-024", "SN-025", "SN-026", "SN-027", "SN-028",
                 "SN-COMP-01", "SN-COMP-02", "SN-COMP-03", "SN-COMP-04", "SN-COMP-05",
             ],
         },
@@ -258,6 +258,22 @@ def _build_defaults() -> dict[str, Any]:
             "pontuacao_baixo": 6,
             "pontuacao_medio": 14,
         },
+        "SN-027": {
+            "descricao": "Contas patrimoniais com saldo em natureza inversa",
+            "limite_medio_absoluto": 10000,
+            "limite_medio_receita": 0.05,
+            "limite_baixo_absoluto": 1000,
+            "pontuacao_baixo": 6,
+            "pontuacao_medio": 14,
+        },
+        "SN-028": {
+            "descricao": "Emprestimos sem evidencia de juros ou encargos por competencia",
+            "limite_medio_absoluto": 10000,
+            "limite_medio_receita": 0.05,
+            "limite_baixo_absoluto": 1000,
+            "pontuacao_baixo": 6,
+            "pontuacao_medio": 14,
+        },
         "SN-COMP-01": {
             "pontuacao": 8,
         },
@@ -278,7 +294,7 @@ def _build_defaults() -> dict[str, Any]:
 
 def _build_account_map_defaults() -> dict[str, Any]:
     return {
-        "version": "1.2.0",
+        "version": "1.3.0",
         "mapeamentos": [
             {
                 "nome": "Servicos prestados por terceiros",
@@ -332,6 +348,37 @@ def _build_account_map_defaults() -> dict[str, Any]:
                     "adiantamentos de clientes",
                     "adiantamento recebido de cliente",
                     "adiantamentos recebidos de clientes",
+                ],
+            },
+            {
+                "nome": "Juros e encargos financeiros",
+                "grupo": "despesas",
+                "prefixos": ["4.3", "4.2.30"],
+                "descricoes_contem": [
+                    "juros sobre emprestimo",
+                    "juros de emprestimo",
+                    "juros a transcorrer",
+                    "juros a incorrer",
+                    "encargos financeiros",
+                    "despesas financeiras",
+                    "despesa financeira",
+                    "encargos a apropriar",
+                    "iof sobre emprestimos",
+                    "variacao monetaria",
+                ],
+            },
+            {
+                "nome": "Emprestimos e financiamentos",
+                "grupo": "emprestimos",
+                "prefixos": ["2.1.1", "2.1.2", "2.2.11.3"],
+                "descricoes_contem": [
+                    "emprestimo",
+                    "emprestimos",
+                    "financiamento",
+                    "financiamentos",
+                    "capital de giro",
+                    "parcelamento bancario",
+                    "banco conta emprestimo",
                 ],
             },
             {

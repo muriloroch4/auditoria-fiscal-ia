@@ -81,6 +81,8 @@ Escala usada nos pesos brutos das regras:
 | SN-024 | Validação de ICMS-ST | Créditos fiscais relevantes em contexto comercial com estoque/fornecedores/CMV | Baixo | 6 |
 | SN-025 | Serviços prestados por terceiros | Conta 325/serviços de terceiros >= 20% das despesas e acima de R$ 10.000 | Médio | 12 |
 | SN-026 | Adiantamento de clientes no passivo | Saldo em `adiantamentos_clientes`; baixo se imaterial, médio se >= R$ 10.000 ou >= 5% da receita | Baixo/Médio | 6/14 |
+| SN-027 | Natureza contábil inversa | Conta patrimonial com saldo em natureza inversa, como ativo credor sem indicação de redutora ou passivo devedor; baixo se imaterial, médio se >= R$ 10.000 ou >= 5% da receita | Baixo/Médio | 6/14 |
+| SN-028 | Empréstimos sem juros/encargos | Saldo ou movimentação em empréstimos/financiamentos sem conta de juros, encargos financeiros, juros a transcorrer/incorrer ou despesas financeiras identificada | Baixo/Médio | 6/14 |
 | SN-COMP-01 | Omissão de receita e despesas elevadas | SN-008 + SN-007 ambos acionados | Alto | 8 |
 | SN-COMP-02 | Prejuízo significativo e caixa negativo | SN-009B + SN-006A ambos acionados | Alto | 8 |
 | SN-COMP-03 | Recebíveis elevados e adiantamentos | SN-010B/C + SN-011A ambos acionados | Médio | 6 |
@@ -123,6 +125,12 @@ Notas de versao 1.11.0:
 - O achado trata o saldo como possível sinal de sonegação fiscal apenas quando a validação indicar receita já liquidada sem emissão fiscal ou reconhecimento adequado; o motor não conclui irregularidade de forma automática.
 - O dashboard e o JSON auxiliar passaram a expor a métrica `adiantamentos_clientes`, separada dos demais adiantamentos.
 
+Notas de versao 1.12.0:
+
+- `SN-027` passou a identificar contas patrimoniais com possível natureza inversa, preservando exceções de contas redutoras.
+- `SN-028` passou a identificar empréstimos/financiamentos sem evidência de juros, encargos financeiros ou despesas financeiras por competência.
+- `config/plano_contas_map.json` passou a reconhecer descrições de empréstimos, financiamentos, juros e encargos financeiros para apoiar essas validações.
+
 ## Observações de cálculo trimestral
 
 - A regra `SN-001` usa a receita do trimestre anualizada (`receita x 4`) como alerta de ritmo; a conclusão legal deve validar a RBT12.
@@ -150,6 +158,10 @@ Notas de versao 1.11.0:
 - Para `SN-025`, a evidencia lista as contas encontradas com codigo, descricao, grupo, debito, credito e saldo.
 - A regra `SN-026` rastreia o grupo `adiantamentos_clientes`, normalmente passivo, por grupo informado, inferência de código/descrição ou mapa configurável do plano de contas.
 - Para `SN-026`, a materialidade padrão é: risco médio quando o saldo for maior ou igual a R$ 10.000 ou 5% da receita trimestral; abaixo disso, o achado permanece como risco baixo para revisão documental.
+- A regra `SN-027` valida saldos de natureza inversa em contas patrimoniais e ignora descrições típicas de contas redutoras, como depreciação acumulada, amortização acumulada, PCLD e perdas estimadas.
+- Para passivos em layout Domínio, a `SN-027` considera a convenção de sinal do parser (`layout_dominio`) para evitar falso positivo em saldos credores apresentados com sinal negativo.
+- A regra `SN-028` rastreia contas de `emprestimos`/financiamentos e verifica se há evidência contábil de juros, encargos financeiros, IOF, variação monetária ou despesas financeiras relacionadas.
+- A `SN-028` não conclui automaticamente que há erro; ela solicita validação documental de contrato, cronograma, taxa, IOF, extratos e memória de cálculo por competência.
 - O contexto tributário usa `config/simples_anexos.json` para estimar Anexo I, III ou V. Para empresas mistas, o motor informa que a alíquota depende da segregação entre receitas de comércio e serviços.
 - `_active_movement` é calculado apenas com `bancos` e `caixa`, sem `clientes`.
 - `_operational_movement` inclui `bancos`, `caixa` e `clientes` para o cálculo do índice da `SN-008B`.

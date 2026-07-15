@@ -52,7 +52,7 @@
         "conta": "Simples Nacional a Recolher",
         "grupo_atribuido": "tributos",
         "grupo_original": "tributos",
-        "observacao": "Grupo informado no arquivo; mapa/inferencia sugeriu 'tributos_a_recolher'.",
+        "observacao": "Grupo informado no arquivo; mapa/inferencia sugeriu 'emprestimos'.",
         "origem_classificacao": "arquivo"
       },
       {
@@ -61,7 +61,7 @@
         "conta": "INSS a Recolher",
         "grupo_atribuido": "tributos",
         "grupo_original": "tributos",
-        "observacao": "Grupo informado no arquivo; mapa/inferencia sugeriu 'tributos_a_recolher'.",
+        "observacao": "Grupo informado no arquivo; mapa/inferencia sugeriu 'emprestimos'.",
         "origem_classificacao": "arquivo"
       },
       {
@@ -213,7 +213,7 @@
         "conta": "Simples Nacional a Recolher",
         "grupo_atribuido": "tributos",
         "grupo_original": "tributos",
-        "observacao": "Grupo informado no arquivo; mapa/inferencia sugeriu 'tributos_a_recolher'.",
+        "observacao": "Grupo informado no arquivo; mapa/inferencia sugeriu 'emprestimos'.",
         "origem_classificacao": "arquivo"
       },
       {
@@ -222,7 +222,7 @@
         "conta": "INSS a Recolher",
         "grupo_atribuido": "tributos",
         "grupo_original": "tributos",
-        "observacao": "Grupo informado no arquivo; mapa/inferencia sugeriu 'tributos_a_recolher'.",
+        "observacao": "Grupo informado no arquivo; mapa/inferencia sugeriu 'emprestimos'.",
         "origem_classificacao": "arquivo"
       },
       {
@@ -401,9 +401,26 @@
         "prazo_sugerido": "antes do fechamento definitivo do periodo",
         "prioridade": "media",
         "responsavel_sugerido": "cliente e contabilidade"
+      },
+      {
+        "area_relacionada": "cont\u00e1bil",
+        "codigo": "SN-027",
+        "como_solucionar": "Revisar o razao das contas apontadas, confirmar se alguma e redutora legitima, conciliar saldos e reclassificar lancamentos que estejam no grupo cont\u00e1bil inadequado.",
+        "documentos_necessarios": [
+          "razao contabil das contas com natureza inversa",
+          "balancete de verificacao",
+          "conciliacoes contabeis",
+          "documentos de suporte dos lancamentos",
+          "plano de contas"
+        ],
+        "o_que_significa": "Contas patrimoniais com natureza inversa podem indicar lancamento em grupo incorreto, baixa pendente, conciliacao incompleta ou conta redutora que precisa estar claramente identificada.",
+        "ponto_atencao": "Contas patrimoniais com saldo em natureza inversa",
+        "prazo_sugerido": "antes do fechamento definitivo do periodo",
+        "prioridade": "baixa",
+        "responsavel_sugerido": "contabilidade"
       }
     ],
-    "resumo_orientativo": "O trimestre apresenta risco alto, com pontua\u00e7\u00e3o 70/100 (131 de 370 ponto(s) bruto(s) aplic\u00e1veis) e 6 achado(s) acionado(s), sendo 3 de prioridade alta, 3 de prioridade m\u00e9dia e 0 de prioridade baixa. Orienta\u00e7\u00e3o consultiva: regularizar os achados relevantes antes de usar os dados para decis\u00f5es externas ou fechamento anual."
+    "resumo_orientativo": "O trimestre apresenta risco alto, com pontua\u00e7\u00e3o 70/100 (137 de 398 ponto(s) bruto(s) aplic\u00e1veis) e 7 achado(s) acionado(s), sendo 3 de prioridade alta, 3 de prioridade m\u00e9dia e 1 de prioridade baixa. Orienta\u00e7\u00e3o consultiva: regularizar os achados relevantes antes de usar os dados para decis\u00f5es externas ou fechamento anual."
   },
   "fundamentacao_tecnica_resumida": {
     "normas_aplicaveis": [
@@ -447,7 +464,7 @@
   "metadados": {
     "conjunto_regras": "simples_servicos",
     "data_analise": "2000-01-01T00:00:00",
-    "versao_regras": "1.11.0",
+    "versao_regras": "1.12.0",
     "versao_schema": "3.3.0"
   },
   "principais_achados": [
@@ -641,6 +658,44 @@
       ],
       "pontuacao": 12,
       "severidade": "media"
+    },
+    {
+      "achado": "Contas patrimoniais com saldo em natureza inversa",
+      "codigo": "SN-027",
+      "evidencia": {
+        "campos_extraidos": {
+          "classificacao_materialidade": "baixa_materialidade",
+          "contas_identificadas": "1.1.1 - Caixa (ativo_ou_conta_devedora_com_saldo_credor; grupo caixa; debito R$ 60.000,00; credito R$ 70.000,00; saldo R$ -5.000,00)",
+          "criterio_analise": "ativo/grupos de natureza devedora com saldo negativo; passivo/grupos de natureza credora com sinal oposto ao layout identificado",
+          "excecoes_consideradas": "contas redutoras por descricao, como depreciacao acumulada, amortizacao acumulada, PCLD e perdas estimadas",
+          "limite_absoluto_relevancia": "R$ 10.000,00",
+          "limite_percentual_relevancia": "5,00%",
+          "percentual_sobre_receita": "0,43%",
+          "quantidade_contas_identificadas": "1",
+          "receita": "R$ 1.150.000,00",
+          "saldo_total_natureza_inversa": "R$ 5.000,00",
+          "tipo_achado": "validacao_classificacao_contabil"
+        },
+        "confianca": "media",
+        "documentos_recomendados": [
+          "razao contabil das contas com natureza inversa",
+          "balancete de verificacao",
+          "conciliacoes contabeis",
+          "documentos de suporte dos lancamentos",
+          "plano de contas"
+        ],
+        "fonte_dado": "balancete_contabil",
+        "necessita_documento": true
+      },
+      "evidencia_identificada": "Receita: R$ 1.150.000,00; Saldo total natureza inversa: R$ 5.000,00; Percentual sobre a receita: 0,43%; Limite absoluto de relev\u00e2ncia: R$ 10.000,00; Limite percentual de relev\u00e2ncia: 5,00%; Classifica\u00e7\u00e3o de materialidade: baixa_materialidade; Quantidade de contas identificadas: 1; Contas identificadas: 1.1.1 - Caixa (a\u2026",
+      "impacto_tecnico": "Validacao documental: Risco de classifica\u00e7\u00e3o cont\u00e1bil inadequada, baixa pendente ou conta redutora sem identifica\u00e7\u00e3o clara.",
+      "norma_fundamento": [
+        "ITG 2000 (R1)",
+        "NBC TG 1000 (R1)",
+        "NBC TG 26 (R3) = CPC 26 R1"
+      ],
+      "pontuacao": 6,
+      "severidade": "baixa"
     }
   ],
   "recomendacoes_tecnicas": [
@@ -679,19 +734,25 @@
       "descricao": "Verificar e validar os lancamentos da conta 325, confrontando pagamentos, contratos, notas fiscais, comprovantes bancarios, retencoes aplicaveis e suporte documental antes de manter a despesa.",
       "ordem": 6,
       "prioridade": "media"
+    },
+    {
+      "area_relacionada": "cont\u00e1bil",
+      "descricao": "Revisar o raz\u00e3o das contas com natureza inversa, validar se s\u00e3o contas redutoras leg\u00edtimas, conferir lan\u00e7amentos, concilia\u00e7\u00f5es e reclassificar saldos que estejam em grupo cont\u00e1bil inadequado.",
+      "ordem": 7,
+      "prioridade": "baixa"
     }
   ],
   "resumo_analise": {
     "achados_por_severidade": {
       "alta": 3,
-      "baixa": 0,
+      "baixa": 1,
       "media": 3
     },
     "base_analise": "JSON de auditoria trimestral",
     "empresa": "Golden Todas Regras",
     "escala_pontuacao": "0 a 100",
-    "pontuacao_bruta": 131,
-    "pontuacao_maxima_aplicavel": 370,
+    "pontuacao_bruta": 137,
+    "pontuacao_maxima_aplicavel": 398,
     "pontuacao_total": 70,
     "principais_pontos": [
       "SN-001B: Receita trimestral anualizada acima de 90% do limite do Simples (alta, 35 ponto(s)).",
@@ -699,10 +760,10 @@
       "SN-002B: Carga tribut\u00e1ria abaixo de 3% da receita (alta, 20 ponto(s)).",
       "SN-005: Saldos em contas de socios exigem validacao de mutuo e IOF (m\u00e9dia, 18 ponto(s)).",
       "SN-003: Folha e pr\u00f3-labore trimestrais baixos para empresa de servi\u00e7os (m\u00e9dia, 14 ponto(s)).",
-      "H\u00e1 mais 1 achado(s) t\u00e9cnico(s) no per\u00edodo."
+      "H\u00e1 mais 2 achado(s) t\u00e9cnico(s) no per\u00edodo."
     ],
     "risco_geral": "alto",
-    "total_regras_acionadas": 6,
-    "total_regras_verificadas": 22
+    "total_regras_acionadas": 7,
+    "total_regras_verificadas": 24
   }
 }

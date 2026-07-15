@@ -845,6 +845,10 @@ def _infer_grupo_from_conta(codigo: str, conta: str) -> str | None:
         return "imobilizado"
     if any(k in text for k in ("socio", "socios", "administrador", "administradores", "pessoa ligada", "mutuo")):
         return "socios"
+    if any(k in text for k in ("juros sobre emprestimo", "juros de emprestimo", "juros a transcorrer", "juros a incorrer", "encargos financeiros", "despesas financeiras", "despesa financeira", "encargos a apropriar", "iof sobre emprestimo", "variacao monetaria")):
+        return "despesas"
+    if any(k in text for k in ("emprestimo", "emprestimos", "financiamento", "financiamentos", "capital de giro")):
+        return "emprestimos"
     if "fornecedor" in text:
         return "fornecedores"
     if "representacao" in text or "viagem" in text or "hospedagem" in text or "alimentacao" in text:

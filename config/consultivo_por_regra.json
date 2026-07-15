@@ -233,6 +233,22 @@
       "prazo_sugerido": "antes do fechamento definitivo do periodo"
     },
     {
+      "prefixo": "SN-027",
+      "documentos_necessarios": ["razao contabil das contas com natureza inversa", "balancete de verificacao", "conciliacoes contabeis", "documentos de suporte dos lancamentos", "plano de contas"],
+      "o_que_significa": "Contas patrimoniais com natureza inversa podem indicar lancamento em grupo incorreto, baixa pendente, conciliacao incompleta ou conta redutora que precisa estar claramente identificada.",
+      "como_solucionar": "Revisar o razao das contas apontadas, confirmar se alguma e redutora legitima, conciliar saldos e reclassificar lancamentos que estejam no grupo contábil inadequado.",
+      "responsavel_sugerido": "contabilidade",
+      "prazo_sugerido": "antes do fechamento definitivo do periodo"
+    },
+    {
+      "prefixo": "SN-028",
+      "documentos_necessarios": ["contratos de emprestimo ou financiamento", "cronograma de amortizacao", "extratos bancarios", "memoria de calculo de juros e encargos", "guias e comprovantes de IOF quando aplicavel", "razao contabil de despesas financeiras"],
+      "o_que_significa": "Emprestimos e financiamentos relevantes normalmente exigem validacao dos juros, encargos e apropriacao por competencia; a ausencia de contas relacionadas pode indicar custo financeiro nao reconhecido.",
+      "como_solucionar": "Conferir contratos, taxas, cronogramas, extratos e IOF; apropriar juros e encargos por competencia ou documentar formalmente a ausencia de encargos no periodo.",
+      "responsavel_sugerido": "cliente/financeiro e contabilidade",
+      "prazo_sugerido": "antes do fechamento definitivo do periodo"
+    },
+    {
       "prefixo": "AN-REC",
       "documentos_necessarios": ["JSONs trimestrais consolidados", "balancetes trimestrais", "documentos de suporte dos achados recorrentes"],
       "o_que_significa": "A recorrencia de achados indica que o ponto nao foi apenas pontual e precisa de rotina preventiva.",

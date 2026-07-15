@@ -344,6 +344,8 @@ def _impacto_tecnico(finding: RuleFinding) -> str:
         "SN-023": "Ponto de atenção sobre recebimento à vista, baixa de recebíveis ou ausência de controle de clientes.",
         "SN-024": "Ponto de atencao documental sobre ICMS-ST, creditos fiscais, ressarcimentos ou saldos recuperaveis em operacao comercial.",
         "SN-026": "Risco fiscal e documental se houver receita ja liquidada sem baixa, emissao fiscal ou reconhecimento contabil/fiscal adequado.",
+        "SN-027": "Risco de classificação contábil inadequada, baixa pendente ou conta redutora sem identificação clara.",
+        "SN-028": "Risco de passivo financeiro sem apropriação de juros, encargos ou despesas financeiras por competência.",
         "SN-COM": "Risco composto por combinação de achados, exigindo análise prioritária integrada.",
     }
     impacts["SN-025"] = "Ponto de atencao documental sobre pagamentos e servicos de terceiros lancados diretamente em despesas."
@@ -353,7 +355,7 @@ def _impacto_tecnico(finding: RuleFinding) -> str:
 
 def _classificacao_tecnica(finding: RuleFinding) -> str:
     code = finding.codigo
-    if code.startswith(("SN-005", "SN-017", "SN-020", "SN-024", "SN-025", "SN-026")):
+    if code.startswith(("SN-005", "SN-017", "SN-020", "SN-024", "SN-025", "SN-026", "SN-027", "SN-028")):
         return "Validacao documental"
     if code.startswith("SN-COMP") or finding.nivel == RiskLevel.ALTO:
         return "Possivel inconsistencia material"
@@ -369,9 +371,9 @@ def _area_relacionada(code: str) -> str:
         return "trabalhista"
     if code.startswith(("SN-004", "SN-005")):
         return "societária"
-    if code.startswith(("SN-006", "SN-010", "SN-011", "SN-016", "SN-022", "SN-023")):
+    if code.startswith(("SN-006", "SN-010", "SN-011", "SN-016", "SN-022", "SN-023", "SN-028")):
         return "financeira"
-    if code.startswith(("SN-007", "SN-009", "SN-013", "SN-015", "SN-018", "SN-021")):
+    if code.startswith(("SN-007", "SN-009", "SN-013", "SN-015", "SN-018", "SN-021", "SN-027")):
         return "contábil"
     return "documental"
 

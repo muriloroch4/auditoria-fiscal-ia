@@ -345,6 +345,8 @@ function consultativeMeaning(finding) {
   if (code.startsWith("SN-015") || code.startsWith("SN-018")) return "Estoque, CMV e margem precisam estar coerentes com a atividade, compras, vendas e controles internos.";
   if (code.startsWith("SN-025")) return "Serviços de terceiros relevantes em despesas exigem comprovação documental para confirmar natureza, competência e vínculo com a atividade.";
   if (code.startsWith("SN-026")) return "Adiantamentos de clientes no passivo podem ser legítimos, mas precisam comprovar se ainda estão pendentes ou se já deveriam ter sido baixados e reconhecidos.";
+  if (code.startsWith("SN-027")) return "Contas patrimoniais com natureza inversa podem indicar classificação contábil inadequada, baixa pendente ou conta redutora sem identificação clara.";
+  if (code.startsWith("SN-028")) return "Empréstimos e financiamentos relevantes exigem validação dos juros, encargos e apropriação por competência.";
   return clientSafeText(text || "O achado indica um ponto que deve ser validado antes do fechamento contábil definitivo.");
 }
 
@@ -359,6 +361,8 @@ function consultativeSolution(finding) {
   if (code.startsWith("SN-015") || code.startsWith("SN-018")) return "Confrontar estoque, compras, vendas, inventário e CMV; ajustar baixas ou reclassificações quando necessário.";
   if (code.startsWith("SN-025")) return "Conferir a conta 325 com notas fiscais, contratos, comprovantes bancários e retenções; reclassificar lançamentos sem suporte adequado.";
   if (code.startsWith("SN-026")) return "Validar contrato, pedido, nota fiscal, extrato e baixa posterior; regularizar valores já liquidados que ainda permanecem como adiantamento.";
+  if (code.startsWith("SN-027")) return "Revisar o razão das contas apontadas, confirmar se alguma é redutora legítima, conciliar saldos e reclassificar lançamentos em grupo inadequado.";
+  if (code.startsWith("SN-028")) return "Conferir contratos, taxas, cronogramas, extratos e IOF; apropriar juros e encargos por competência ou documentar a ausência de encargos.";
   return fallback;
 }
 
@@ -372,6 +376,8 @@ function requiredDocumentsForFinding(finding) {
   if (code.startsWith("SN-015") || code.startsWith("SN-018")) return ["Inventário", "Notas de compra e venda", "Relatório de estoque", "Memória de cálculo do CMV"];
   if (code.startsWith("SN-025")) return ["Razão da conta 325", "Notas fiscais de serviços tomados", "Contratos", "Comprovantes bancários e retenções"];
   if (code.startsWith("SN-026")) return ["Contratos ou pedidos", "Notas fiscais", "Extratos e recibos", "Razão contábil e baixas posteriores"];
+  if (code.startsWith("SN-027")) return ["Razão contábil das contas apontadas", "Conciliações contábeis", "Plano de contas", "Documentos de suporte dos lançamentos"];
+  if (code.startsWith("SN-028")) return ["Contratos de empréstimo", "Cronograma de amortização", "Extratos bancários", "Memória de cálculo de juros/encargos", "Comprovantes de IOF quando aplicável"];
   return ["Balancete", "Razão contábil", "Documentos fiscais", "Extratos e relatórios auxiliares"];
 }
 
@@ -379,6 +385,8 @@ function suggestedOwner(finding) {
   const code = String(finding.codigo || "");
   if (code.startsWith("SN-003") || code.startsWith("SN-014")) return "Departamento pessoal + contabilidade";
   if (code.startsWith("SN-005") || code.startsWith("SN-004")) return "Sócios/administradores + contabilidade";
+  if (code.startsWith("SN-027")) return "Contabilidade";
+  if (code.startsWith("SN-028")) return "Cliente/financeiro + contabilidade";
   if (code.startsWith("SN-015") || code.startsWith("SN-016") || code.startsWith("SN-018") || code.startsWith("SN-024")) return "Cliente/financeiro/estoque + contabilidade";
   if (code.startsWith("SN-001") || code.startsWith("SN-002") || code.startsWith("SN-019") || code.startsWith("SN-020")) return "Fiscal + contabilidade";
   return "Cliente + contabilidade";

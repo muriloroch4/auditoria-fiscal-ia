@@ -655,6 +655,8 @@ def _risk_area_map() -> dict[str, tuple[str, ...]]:
         "Adiantamentos": ("SN-005", "SN-011", "SN-026", "SN-COMP-03"),
         "Obrigações tributárias": ("SN-001", "SN-002", "SN-012", "SN-017", "SN-019", "SN-020", "SN-COMP-05"),
         "Obrigações trabalhistas": ("SN-003", "SN-014"),
+        "Passivos financeiros": ("SN-028",),
+        "Classificação contábil": ("SN-027",),
         "Movimentação com sócios": ("SN-004", "SN-005"),
         "Resultado": ("SN-007", "SN-008", "SN-009", "SN-013", "SN-021", "SN-025", "SN-COMP-01"),
         "Patrimônio líquido": ("SN-004", "SN-009", "SN-COMP-02"),
@@ -733,6 +735,8 @@ def _get_risco_identificado_operational_template(finding) -> str:
         "SN-014": "Risco trabalhista e previdenciário por ausência de provisões obrigatórias (férias, 13º, FGTS, INSS).",
         "SN-025": "Risco documental por serviços de terceiros relevantes lançados diretamente em despesas sem validação suficiente.",
         "SN-026": "Risco fiscal e documental por adiantamentos de clientes no passivo quando representarem valores já liquidados sem baixa, emissão fiscal ou reconhecimento adequado.",
+        "SN-027": "Risco de classificação contábil inadequada por saldo patrimonial em natureza inversa sem identificação clara de conta redutora.",
+        "SN-028": "Risco de passivo financeiro com juros, encargos ou despesas financeiras não apropriados por competência.",
     }
     return riscos.get(
         code,
@@ -801,6 +805,15 @@ def _impacto_fiscal_potencial(finding) -> str:
             "Possível autuação por omissão de receita caso os adiantamentos de clientes já tenham sido liquidados "
             "sem emissão fiscal, baixa contábil ou reconhecimento da receita; necessidade de conciliação com "
             "contratos, pedidos, notas fiscais, extratos e comprovantes de recebimento."
+        ),
+        "SN-027": (
+            "Possível distorção de ativo, passivo ou patrimônio por classificação contábil inadequada; "
+            "necessidade de validar se o saldo representa conta redutora legítima, baixa pendente, erro de lançamento "
+            "ou reclassificação patrimonial."
+        ),
+        "SN-028": (
+            "Possível subavaliação de despesas financeiras e passivos por falta de apropriação de juros, IOF, "
+            "variação monetária ou encargos por competência; necessidade de confrontar contrato, cronograma e extratos."
         ),
         "SN-012": (
             "Inscrição em dívida ativa e protesto do título; "

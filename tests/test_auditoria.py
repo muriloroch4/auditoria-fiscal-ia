@@ -808,6 +808,76 @@ class MelhoriasMotorFiscalTest(unittest.TestCase):
         self.assertEqual(result.metricas_valores["adiantamentos"], 0.0)
         self.assertEqual(result.metricas_valores["adiantamentos_clientes"], 25000.0)
 
+    def test_contas_patrimoniais_com_natureza_inversa_disparam_sn027(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;0;0;0
+            1.1.20;Clientes a Receber;clientes;0;0;15000;-15000
+            2.1.10;Fornecedores;fornecedores;0;12000;0;-12000
+            3.1.1;Receita de Servicos;receita;0;0;100000;100000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Natureza Inversa", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        finding = next(f for f in result.achados if f.codigo == "SN-027")
+
+        self.assertEqual(finding.nivel, RiskLevel.MEDIO)
+        self.assertEqual(finding.pontuacao, 14)
+        self.assertIn("Clientes a Receber", finding.evidencia["contas_identificadas"])
+        self.assertIn("Fornecedores", finding.evidencia["contas_identificadas"])
+        self.assertIn("natureza inversa", finding.descricao)
+
+    def test_conta_redutora_nao_dispara_sn027(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;0;0;0
+            1.2.4;Depreciacao Acumulada;imobilizado;0;0;50000;-50000
+            3.1.1;Receita de Servicos;receita;0;0;100000;100000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Redutora", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        codes = {f.codigo for f in result.achados}
+
+        self.assertNotIn("SN-027", codes)
+
+    def test_emprestimo_sem_juros_ou_encargos_dispara_sn028(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;50000;50000;0
+            2.1.1;Emprestimo Banco;emprestimos;0;0;50000;50000
+            3.1.1;Receita de Servicos;receita;0;0;100000;100000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Emprestimo", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        finding = next(f for f in result.achados if f.codigo == "SN-028")
+
+        self.assertEqual(finding.nivel, RiskLevel.MEDIO)
+        self.assertEqual(finding.pontuacao, 14)
+        self.assertIn("Emprestimo Banco", finding.evidencia["contas_emprestimos"])
+        self.assertIn("Nenhuma conta", finding.evidencia["contas_juros_encargos_identificadas"])
+        self.assertIn("cronogramas", finding.recomendacao)
+
+    def test_emprestimo_com_juros_identificados_nao_dispara_sn028(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;50000;50000;0
+            2.1.1;Emprestimo Banco;emprestimos;0;0;50000;50000
+            3.1.1;Receita de Servicos;receita;0;0;100000;100000
+            4.3.1;Juros sobre Emprestimo;despesas;0;1500;0;-1500
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Emprestimo com Juros", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        codes = {f.codigo for f in result.achados}
+
+        self.assertNotIn("SN-028", codes)
+
     def test_lucros_a_pagar_por_credito_entram_como_distribuicao(self):
         content = dedent(
             """\

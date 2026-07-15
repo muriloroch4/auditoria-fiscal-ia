@@ -1,5 +1,5 @@
 {
-    "version": "1.2.0",
+    "version": "1.3.0",
     "descricao": "Mapa contabil configuravel para classificar contas por codigo, prefixo e descricao antes dos fallbacks do parser.",
     "mapeamentos": [
         {
@@ -54,6 +54,37 @@
                 "adiantamentos de clientes",
                 "adiantamento recebido de cliente",
                 "adiantamentos recebidos de clientes"
+            ]
+        },
+        {
+            "nome": "Juros e encargos financeiros",
+            "grupo": "despesas",
+            "prefixos": ["4.3", "4.2.30"],
+            "descricoes_contem": [
+                "juros sobre emprestimo",
+                "juros de emprestimo",
+                "juros a transcorrer",
+                "juros a incorrer",
+                "encargos financeiros",
+                "despesas financeiras",
+                "despesa financeira",
+                "encargos a apropriar",
+                "iof sobre emprestimos",
+                "variacao monetaria"
+            ]
+        },
+        {
+            "nome": "Emprestimos e financiamentos",
+            "grupo": "emprestimos",
+            "prefixos": ["2.1.1", "2.1.2", "2.2.11.3"],
+            "descricoes_contem": [
+                "emprestimo",
+                "emprestimos",
+                "financiamento",
+                "financiamentos",
+                "capital de giro",
+                "parcelamento bancario",
+                "banco conta emprestimo"
             ]
         },
         {
