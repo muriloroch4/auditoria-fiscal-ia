@@ -36,6 +36,7 @@ O formato segue uma versao simplificada de "Keep a Changelog": novas mudancas en
 - CLI passou a oferecer `--ascii-output` para gerar arquivos sem acentos/caracteres especiais em integracoes legadas.
 - Relatorio consultivo local ganhou testes dedicados de estrutura/fallback e `report_ai.py` teve helpers legados sem uso removidos para reduzir manutencao.
 - Renderizacao Markdown local foi movida para `report_local.py` e a montagem do payload de prompt para `report_payload.py`, deixando `report_ai.py` focado na decisao IA/fallback.
+- Serializacao trimestral foi separada em `serializer_common.py`, `serializer_sections.py` e `serializer_consultivo.py`, deixando `serializers.py` focado na orquestracao do schema.
 - Payloads auxiliares da API foram movidos para `api_payloads.py`, deixando `api.py` mais focado no servidor HTTP.
 - Estilos de impressao/PDF foram separados de `styles.css` para `static/print.css`, reduzindo o CSS principal do dashboard.
 - Renderizadores internos do documento de impressao/PDF foram separados em `app-print-sections.js`, mantendo `app-print.js` como composicao e acionamento da impressao.
@@ -43,6 +44,7 @@ O formato segue uma versao simplificada de "Keep a Changelog": novas mudancas en
 - Renderizadores do dashboard trimestral foram separados em `app-dashboard-summary.js` e `app-dashboard-sections.js`, deixando `app-dashboard.js` apenas como composição da tela.
 - Parser de multipart da API e leitor baixo nivel de XLSX foram movidos para modulos dedicados, reduzindo `api.py` e `parser.py`.
 - Classificacao de contas foi movida para `account_classifier.py`, deixando `parser.py` focado na leitura dos arquivos.
+- Contexto tributario do Simples Nacional foi movido para `tax_context.py`, deixando `audit.py` mais focado na orquestracao da auditoria.
 - Regras financeiras de caixa, recebiveis e adiantamentos foram movidas para `rules/financeiro.py`, reduzindo o orquestrador do Simples Nacional.
 - Regras patrimoniais `SN-027` e `SN-028` foram movidas para `rules/patrimonial.py`, reduzindo o tamanho de `simples_servicos.py`.
 

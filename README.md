@@ -323,6 +323,7 @@ Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`.
 - `src/auditoria/rules/rulesets.py` — normalização dos conjuntos de regras por atividade
 - `src/auditoria/risk.py` — classificação de risco + `suggest_opinion_type`
 - `src/auditoria/audit.py` — orquestração: métricas, contexto do regime, explicação do score
+- `src/auditoria/tax_context.py` — contexto tributário do Simples Nacional: RBT12, anexo, faixa, Fator R e alíquota estimada
 - `src/auditoria/annual.py` — orquestração da consolidação anual dos JSONs trimestrais
 - `src/auditoria/annual_metrics.py` — normalização trimestral, RBT12 e métricas anuais
 - `src/auditoria/annual_findings.py` — achados anuais, recorrências e explicação da pontuação
@@ -338,7 +339,10 @@ Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`.
 - `src/auditoria/static/app-annual.js` — painel de trimestres e geração do JSON anual
 - `src/auditoria/static/styles.css` — estilos base do dashboard
 - `src/auditoria/static/dashboard.css` — refinamentos visuais específicos do dashboard
-- `src/auditoria/serializers.py` — serialização para JSON trimestral resumido v3.3.0
+- `src/auditoria/serializers.py` — orquestração do JSON trimestral resumido v3.3.0
+- `src/auditoria/serializer_common.py` — helpers compartilhados de serialização, normas, severidade e rótulos de evidência
+- `src/auditoria/serializer_sections.py` — seções técnicas do JSON trimestral: achados, recomendações, fundamentação e conclusão
+- `src/auditoria/serializer_consultivo.py` — bloco consultivo trimestral com leitura para cliente e plano de ação
 - `src/auditoria/evidence.py` — evidência estruturada por achado, com fonte, confiança e documentos recomendados
 - `src/auditoria/storage.py` — persistência SQLite dos trimestres e consolidações anuais
 - `src/auditoria/schema_loader.py` — carregamento dos JSON Schemas formais trimestral/anual
