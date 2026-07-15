@@ -223,20 +223,25 @@ def calculate_profit_distribution_capacity(balance: TrialBalance, profit_basis: 
     return max(capacity, Decimal("0"))
 
 
+def account_trace_materiality(account: LedgerAccount) -> Decimal:
+    return max(abs(account.saldo_atual), abs(account.debito), abs(account.credito))
+
+
 def format_account_trace(accounts: list[LedgerAccount], limit: int = 6) -> str:
     if not accounts:
         return "Nenhuma conta individual identificada"
 
+    sorted_accounts = sorted(accounts, key=account_trace_materiality, reverse=True)
     items = [
         (
             f"{account.codigo} - {account.conta} "
             f"(grupo {account.grupo}; debito {format_brl(account.debito)}; "
             f"credito {format_brl(account.credito)}; saldo {format_brl(account.saldo_atual)})"
         )
-        for account in accounts[:limit]
+        for account in sorted_accounts[:limit]
     ]
-    if len(accounts) > limit:
-        items.append(f"... mais {len(accounts) - limit} conta(s)")
+    if len(sorted_accounts) > limit:
+        items.append(f"... mais {len(sorted_accounts) - limit} conta(s)")
     return " | ".join(items)
 
 

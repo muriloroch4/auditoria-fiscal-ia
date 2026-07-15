@@ -13,9 +13,10 @@ from xml.sax.saxutils import escape
 
 from src.auditoria.audit import run_quarterly_audit
 from src.auditoria.annual import build_annual_comparison, generate_annual_markdown_report
-from src.auditoria.models import RiskLevel, RuleFinding
+from src.auditoria.models import LedgerAccount, RiskLevel, RuleFinding
 from src.auditoria.parser import read_trial_balance_csv, read_trial_balance_csv_text, read_trial_balance_upload
 from src.auditoria.report_ai import generate_markdown_report
+from src.auditoria.rules.metricas import format_account_trace
 from src.auditoria.schema_validator import SchemaValidationError, validate_payload_against_schema
 from src.auditoria.serializers import audit_result_to_dict
 from src.auditoria.storage import infer_year_quarter
@@ -601,6 +602,37 @@ class UtilsTest(unittest.TestCase):
         self.assertEqual(format_brl(Decimal("0")), "R$ 0,00")
         self.assertEqual(format_brl(Decimal("4800000")), "R$ 4.800.000,00")
 
+    def test_format_account_trace_prioriza_contas_por_materialidade(self):
+        accounts = [
+            LedgerAccount(
+                codigo=f"1.1.{idx}",
+                conta=f"Conta Pequena {idx}",
+                grupo="clientes",
+                saldo_anterior=Decimal("0"),
+                debito=Decimal("0"),
+                credito=Decimal("0"),
+                saldo_atual=Decimal(str(idx * 100)),
+            )
+            for idx in range(1, 7)
+        ]
+        accounts.append(
+            LedgerAccount(
+                codigo="1.1.99",
+                conta="Conta Material no Fim",
+                grupo="clientes",
+                saldo_anterior=Decimal("0"),
+                debito=Decimal("90000"),
+                credito=Decimal("0"),
+                saldo_atual=Decimal("0"),
+            )
+        )
+
+        trace = format_account_trace(accounts, limit=6)
+
+        self.assertIn("Conta Material no Fim", trace)
+        self.assertNotIn("Conta Pequena 1", trace)
+        self.assertIn("... mais 1 conta(s)", trace)
+
     def test_format_percent(self):
         self.assertEqual(format_percent(Decimal("0.055")), "5,50%")
         self.assertEqual(format_percent(Decimal("1")), "100,00%")
@@ -828,6 +860,30 @@ class MelhoriasMotorFiscalTest(unittest.TestCase):
         self.assertIn("Fornecedores", finding.evidencia["contas_identificadas"])
         self.assertIn("natureza inversa", finding.descricao)
 
+    def test_sn027_prioriza_contas_de_maior_materialidade_na_evidencia(self):
+        content = dedent(
+            """\
+            codigo;conta;grupo;saldo_anterior;debito;credito;saldo_atual
+            1.1.1;Banco;bancos;0;0;0;0
+            1.1.21;Cliente Pequeno 1;clientes;0;0;100;-100
+            1.1.22;Cliente Pequeno 2;clientes;0;0;200;-200
+            1.1.23;Cliente Pequeno 3;clientes;0;0;300;-300
+            1.1.24;Cliente Pequeno 4;clientes;0;0;400;-400
+            1.1.25;Cliente Pequeno 5;clientes;0;0;500;-500
+            1.1.26;Cliente Pequeno 6;clientes;0;0;600;-600
+            1.1.99;Cliente Material no Fim;clientes;0;0;90000;-90000
+            3.1.1;Receita de Servicos;receita;0;0;100000;100000
+            """
+        )
+        balance = read_trial_balance_csv_text(content, cliente="Natureza Inversa Material", periodo="2026-T1")
+        result = run_quarterly_audit(balance)
+        finding = next(f for f in result.achados if f.codigo == "SN-027")
+        trace = finding.evidencia["contas_identificadas"]
+
+        self.assertIn("Cliente Material no Fim", trace)
+        self.assertNotIn("Cliente Pequeno 1", trace)
+        self.assertIn("... mais 1 conta(s)", trace)
+
     def test_conta_redutora_nao_dispara_sn027(self):
         content = dedent(
             """\
@@ -985,7 +1041,18 @@ class MelhoriasMotorFiscalTest(unittest.TestCase):
         result = run_quarterly_audit(balance)
         finding = next(f for f in result.achados if f.codigo == "SN-011A")
 
+        self.assertEqual(finding.evidencia["limite_percentual_relevancia"], "10,00%")
+        self.assertEqual(finding.evidencia["limite_calculado_percentual_receita"], "R$ 20.000,00")
         self.assertEqual(finding.evidencia["referencia_aplicada"], "R$ 20.000,00")
+        self.assertNotIn("limite_percentual_receita", finding.evidencia)
+
+        payload = audit_result_to_dict(result)
+        serialized = next(item for item in payload["principais_achados"] if item["codigo"] == "SN-011A")
+        evidence_text = serialized["evidencia_identificada"]
+        self.assertIn("Limite percentual de relev", evidence_text)
+        self.assertIn("10,00%", evidence_text)
+        self.assertIn("Limite calculado pelo percentual da receita: R$ 20.000,00", evidence_text)
+        self.assertNotIn("Limite percentual sobre a receita: R$", evidence_text)
 
     def test_sn_comp01_compound_rule_triggers(self):
         content = dedent(

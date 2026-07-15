@@ -30,6 +30,9 @@ O formato segue uma versao simplificada de "Keep a Changelog": novas mudancas en
 - Consolidação anual passou a validar JSONs trimestrais formais contra o schema antes de montar o anual, preservando compatibilidade com payload legado.
 - API exposta em host não local passou a exigir API key e CORS restrito, salvo override explícito de laboratório.
 
+- Evidencias com listas de contas passaram a priorizar materialidade antes de truncar a exibicao, evitando ocultar contas relevantes quando ha muitos itens no mesmo achado.
+- Evidencia da regra `SN-011A` passou a separar o percentual de relevancia do limite calculado em reais, evitando rotulo de percentual com valor monetario.
+
 ## Historico consolidado
 
 ### Adicionado

@@ -11,6 +11,7 @@ from .compostas import apply_compound_rules
 from .metricas import (
     LEGACY_TAX_GROUP,
     ProfitBasis,
+    account_trace_materiality,
     calculate_profit_basis,
     calculate_profit_distribution_capacity,
     collect_simples_metrics,
@@ -491,7 +492,8 @@ def _check_advances(revenue: Decimal, advances: Decimal) -> list[RuleFinding]:
                 evidencia={
                     "adiantamentos": _money(advances),
                     "limite_absoluto": _money(absolute_limit),
-                    "limite_percentual_receita": _money(ratio_reference),
+                    "limite_percentual_relevancia": _percent(ratio_limit),
+                    "limite_calculado_percentual_receita": _money(ratio_reference),
                     "referencia_aplicada": _money(reference),
                 },
                 recomendacao="Revisar adiantamentos a fornecedores, clientes, empregados e terceiros, documentando a origem, a contraprestação e a baixa esperada.",
@@ -1118,16 +1120,21 @@ def _format_inverse_nature_trace(accounts: list[tuple[LedgerAccount, str]], limi
     if not accounts:
         return "Nenhuma conta individual identificada"
 
+    sorted_accounts = sorted(
+        accounts,
+        key=lambda item: account_trace_materiality(item[0]),
+        reverse=True,
+    )
     items = [
         (
             f"{account.codigo} - {account.conta} "
             f"({issue}; grupo {account.grupo}; debito {_money(account.debito)}; "
             f"credito {_money(account.credito)}; saldo {_money(account.saldo_atual)})"
         )
-        for account, issue in accounts[:limit]
+        for account, issue in sorted_accounts[:limit]
     ]
-    if len(accounts) > limit:
-        items.append(f"... mais {len(accounts) - limit} conta(s)")
+    if len(sorted_accounts) > limit:
+        items.append(f"... mais {len(sorted_accounts) - limit} conta(s)")
     return " | ".join(items)
 
 

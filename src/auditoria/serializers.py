@@ -502,7 +502,7 @@ def _label(value: str) -> str:
         "saldo_final_clientes_recebiveis": "Saldo final de clientes e recebíveis",
         "movimentacao_clientes_trimestre": "Movimentação de clientes no trimestre",
         "percentual_sobre_receita_trimestral": "Percentual sobre a receita trimestral",
-        "limite_percentual_receita": "Limite percentual sobre a receita",
+        "limite_calculado_percentual_receita": "Limite calculado pelo percentual da receita",
         "referencia_aplicada": "Referência aplicada",
         "estoques": "Estoques",
         "fornecedores": "Fornecedores",
