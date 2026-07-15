@@ -593,6 +593,9 @@ def _audit_result_to_annual_source(result: AuditResult) -> dict:
         "risco": {
             "nivel_geral": result.nivel_geral.value,
             "pontuacao_total": result.pontuacao_total,
+            "pontuacao_bruta": result.pontuacao_bruta,
+            "pontuacao_maxima_aplicavel": result.pontuacao_maxima_aplicavel,
+            "escala_pontuacao": result.escala_pontuacao,
             "modalidade_opiniao_sugerida": "com_ressalva" if result.achados else "sem_ressalva",
         },
         "metricas": _annual_metric_entries(result),

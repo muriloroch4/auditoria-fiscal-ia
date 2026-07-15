@@ -60,6 +60,9 @@ function normalizeAuditPayload(data) {
     risco: {
       nivel_geral: summary.risco_geral || conclusion.risco_geral,
       pontuacao_total: summary.pontuacao_total || 0,
+      pontuacao_bruta: summary.pontuacao_bruta || 0,
+      pontuacao_maxima_aplicavel: summary.pontuacao_maxima_aplicavel || 100,
+      escala_pontuacao: summary.escala_pontuacao || "0 a 100",
       modalidade_opiniao_sugerida: conclusion.conclusao_sugerida || "",
       orientacao_consultiva: conclusion.orientacao_consultiva || "",
       classificacao: {
@@ -150,7 +153,7 @@ function renderStatus(data) {
 
   statusChips.innerHTML = [
     `<span class="chip ${level}">Risco: ${levelLabel(level)}</span>`,
-    `<span class="chip info">Pontuação: ${esc(risk.pontuacao_total ?? 0)}</span>`,
+    `<span class="chip info">Pontuação: ${esc(risk.pontuacao_total ?? 0)}/100</span>`,
     `<span class="chip info">Achados: ${esc(findings.length)}</span>`,
   ].join("");
 }

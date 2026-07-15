@@ -72,7 +72,7 @@ function renderAnnualPanel() {
         <div class="annual-quarter">${esc(quarterLabel(item.periodo))}</div>
         <div>
           <div class="annual-name">${esc(item.filename)}</div>
-          <div class="annual-meta">${esc(item.periodo)} · risco ${esc(item.risk || "n/d")} · ${esc(item.score)} pts</div>
+          <div class="annual-meta">${esc(item.periodo)} · risco ${esc(item.risk || "n/d")} · ${esc(item.score)}/100</div>
         </div>
       </div>
     `;
@@ -108,7 +108,7 @@ function renderSavedAnnualPanel() {
         <div class="annual-quarter">${esc(item.trimestre)}</div>
         <div>
           <div class="annual-name">${esc(item.arquivo_nome || item.empresa || "Balancete salvo")}</div>
-          <div class="annual-meta">${esc(item.periodo)} · risco ${esc(item.risco_geral || "n/d")} · ${esc(item.pontuacao_total || 0)} pts</div>
+          <div class="annual-meta">${esc(item.periodo)} · risco ${esc(item.risco_geral || "n/d")} · ${esc(item.pontuacao_total || 0)}/100</div>
         </div>
       </div>
     `;
@@ -147,7 +147,7 @@ function renderAnnualResult(data) {
   reportTitle.textContent = `${ident.cliente || "Cliente"} - análise anual ${ident.exercicio || ""}`;
   statusChips.innerHTML = [
     `<span class="chip ${normalizeLevel(risk.nivel_geral)}">Risco anual: ${levelLabel(risk.nivel_geral)}</span>`,
-    `<span class="chip info">Pontuação: ${esc(risk.pontuacao_total ?? 0)}</span>`,
+    `<span class="chip info">Pontuação: ${esc(risk.pontuacao_total ?? 0)}/100</span>`,
     `<span class="chip info">Achados anuais: ${esc(findings.length)}</span>`,
   ].join("");
   setActionsEnabled(false);
@@ -185,8 +185,7 @@ function renderAnnualTrendSection(data) {
   const width = 560;
   const height = 180;
   const padding = 28;
-  const scores = quarters.map((quarter) => Number(quarter.pontuacao ?? quarter.score ?? 0));
-  const maxScore = Math.max(10, ...scores);
+  const maxScore = 100;
   const points = quarters.map((quarter, index) => {
     const x = quarters.length === 1
       ? width / 2
@@ -207,7 +206,7 @@ function renderAnnualTrendSection(data) {
     return `
       <article class="annual-trend-card ${normalizeLevel(quarter.risco)}">
         <span>${esc(quarter.trimestre || quarterLabel(quarter.periodo))}</span>
-        <strong>${esc(formatNumberPtBr(quarter.pontuacao ?? 0))} pts</strong>
+        <strong>${esc(formatNumberPtBr(quarter.pontuacao ?? 0))}/100</strong>
         <small>Risco ${levelLabel(quarter.risco).toLowerCase()} | ${esc(codes.length)} achado(s)</small>
       </article>
     `;
@@ -217,7 +216,7 @@ function renderAnnualTrendSection(data) {
     <section class="section annual-trend-section">
       <div class="section-header">
         <h3 class="section-title">Tendência trimestral</h3>
-        <span class="section-note">Pontuação de risco ao longo do exercício</span>
+        <span class="section-note">Pontuação de risco em escala de 0 a 100 ao longo do exercício</span>
       </div>
       <div class="trend-layout">
         <svg class="trend-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Tendência de pontuação por trimestre">

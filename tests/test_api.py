@@ -247,7 +247,7 @@ class APIHealthTest(unittest.TestCase):
 
         schema = mock_send.call_args.args[0]
         self.assertEqual(schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
-        self.assertEqual(schema["properties"]["metadados"]["properties"]["versao_schema"]["const"], "3.2.0")
+        self.assertEqual(schema["properties"]["metadados"]["properties"]["versao_schema"]["const"], "3.3.0")
         self.assertIn("principais_achados", schema["required"])
 
     def test_annual_schema_endpoint_returns_json_schema(self):
@@ -259,7 +259,7 @@ class APIHealthTest(unittest.TestCase):
 
         schema = mock_send.call_args.args[0]
         self.assertEqual(schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
-        self.assertEqual(schema["properties"]["_schema_version"]["const"], "annual-1.1.0")
+        self.assertEqual(schema["properties"]["_schema_version"]["const"], "annual-1.2.0")
         self.assertIn("comparativo_trimestral", schema["required"])
 
     def test_static_javascript_returns_asset(self):
@@ -459,7 +459,7 @@ class APIAuditUploadTest(unittest.TestCase):
             handler._handle_audit_upload()
             mock_send.assert_called_once()
             result = mock_send.call_args.args[0]
-            self.assertEqual(result["metadados"]["versao_schema"], "3.2.0")
+            self.assertEqual(result["metadados"]["versao_schema"], "3.3.0")
             self.assertIn("consultivo", result)
             self.assertIn("resumo_analise", result)
             self.assertIn("risco_geral", result["resumo_analise"])
@@ -487,7 +487,7 @@ class APIAuditUploadTest(unittest.TestCase):
             handler._handle_audit_upload()
             mock_send.assert_called_once()
             result = mock_send.call_args.args[0]
-            self.assertEqual(result["metadados"]["versao_schema"], "3.2.0")
+            self.assertEqual(result["metadados"]["versao_schema"], "3.3.0")
             self.assertIn("risco_geral", result["resumo_analise"])
             self.assertIn("dashboard", result)
             self.assertIn("contexto_regime", result["dashboard"])
@@ -575,7 +575,7 @@ class APIAuditUploadTest(unittest.TestCase):
             handler.do_POST()
             mock_send.assert_called_once()
             result = mock_send.call_args.args[0]
-            self.assertEqual(result["metadados"]["versao_schema"], "3.2.0")
+            self.assertEqual(result["metadados"]["versao_schema"], "3.3.0")
             self.assertIn("risco_geral", result["resumo_analise"])
             self.assertIn("dashboard", result)
 
@@ -603,7 +603,7 @@ class APIAuditUploadTest(unittest.TestCase):
 
         mock_send.assert_called_once()
         result = mock_send.call_args.args[0]
-        self.assertEqual(result["metadados"]["versao_schema"], "3.2.0")
+        self.assertEqual(result["metadados"]["versao_schema"], "3.3.0")
 
 
 class APIAnnualUploadTest(unittest.TestCase):
@@ -633,7 +633,7 @@ class APIAnnualUploadTest(unittest.TestCase):
 
         mock_send.assert_called_once()
         result = mock_send.call_args.args[0]
-        self.assertEqual(result["_schema_version"], "annual-1.1.0")
+        self.assertEqual(result["_schema_version"], "annual-1.2.0")
         self.assertIn("consultivo", result)
         self.assertEqual(result["meta"]["total_trimestres_informados"], 4)
         self.assertEqual(result["identificacao"]["cliente"], "BNF Tecnologia")
@@ -714,7 +714,7 @@ class APIStoredAuditTest(unittest.TestCase):
 
             self.assertEqual(handler._response_code, HTTPStatus.OK)
             payload = json.loads(handler.wfile.getvalue().decode("utf-8"))
-            self.assertEqual(payload["_schema_version"], "annual-1.1.0")
+            self.assertEqual(payload["_schema_version"], "annual-1.2.0")
             self.assertEqual(payload["meta"]["total_trimestres_informados"], 4)
             self.assertEqual(payload["identificacao"]["cliente"], "BNF Tecnologia")
             self.assertEqual(payload["metricas_anual"]["receita_servicos_total"]["valor"], 400000.0)
@@ -729,7 +729,7 @@ class APIStoredAuditTest(unittest.TestCase):
 
             self.assertEqual(lookup._response_code, HTTPStatus.OK)
             saved = json.loads(lookup.wfile.getvalue().decode("utf-8"))
-            self.assertEqual(saved["_schema_version"], "annual-1.1.0")
+            self.assertEqual(saved["_schema_version"], "annual-1.2.0")
 
     def test_fourth_saved_quarter_uses_rbt12_context(self):
         with tempfile.TemporaryDirectory() as tmpdir:

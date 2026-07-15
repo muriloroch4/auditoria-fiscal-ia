@@ -403,7 +403,7 @@
         "responsavel_sugerido": "cliente e contabilidade"
       }
     ],
-    "resumo_orientativo": "O trimestre apresenta risco alto, com 6 achado(s) acionado(s), sendo 3 de prioridade alta, 3 de prioridade m\u00e9dia e 0 de prioridade baixa. Orienta\u00e7\u00e3o consultiva: regularizar os achados relevantes antes de usar os dados para decis\u00f5es externas ou fechamento anual."
+    "resumo_orientativo": "O trimestre apresenta risco alto, com pontua\u00e7\u00e3o 70/100 (131 de 370 ponto(s) bruto(s) aplic\u00e1veis) e 6 achado(s) acionado(s), sendo 3 de prioridade alta, 3 de prioridade m\u00e9dia e 0 de prioridade baixa. Orienta\u00e7\u00e3o consultiva: regularizar os achados relevantes antes de usar os dados para decis\u00f5es externas ou fechamento anual."
   },
   "fundamentacao_tecnica_resumida": {
     "normas_aplicaveis": [
@@ -448,7 +448,7 @@
     "conjunto_regras": "simples_servicos",
     "data_analise": "2000-01-01T00:00:00",
     "versao_regras": "1.11.0",
-    "versao_schema": "3.2.0"
+    "versao_schema": "3.3.0"
   },
   "principais_achados": [
     {
@@ -689,7 +689,10 @@
     },
     "base_analise": "JSON de auditoria trimestral",
     "empresa": "Golden Todas Regras",
-    "pontuacao_total": 131,
+    "escala_pontuacao": "0 a 100",
+    "pontuacao_bruta": 131,
+    "pontuacao_maxima_aplicavel": 370,
+    "pontuacao_total": 70,
     "principais_pontos": [
       "SN-001B: Receita trimestral anualizada acima de 90% do limite do Simples (alta, 35 ponto(s)).",
       "SN-004A: Distribui\u00e7\u00e3o de lucros acima do lucro dispon\u00edvel identificado (alta, 32 ponto(s)).",

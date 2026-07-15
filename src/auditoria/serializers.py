@@ -10,7 +10,7 @@ from .models import AuditResult, RiskLevel, RuleFinding
 from .risk import suggest_opinion_type
 from .schema_validator import validate_payload_against_schema
 
-SCHEMA_VERSION = "3.2.0"
+SCHEMA_VERSION = "3.3.0"
 VERIFY = "[VERIFICAR: dado necessário]"
 
 _NORMA_LABELS = {
@@ -60,6 +60,9 @@ def audit_result_to_dict(result: AuditResult) -> dict[str, Any]:
             "total_regras_acionadas": len(findings),
             "risco_geral": result.nivel_geral.value,
             "pontuacao_total": result.pontuacao_total,
+            "pontuacao_bruta": result.pontuacao_bruta,
+            "pontuacao_maxima_aplicavel": result.pontuacao_maxima_aplicavel,
+            "escala_pontuacao": result.escala_pontuacao,
             "achados_por_severidade": severity_counts,
             "principais_pontos": _principais_pontos(result, findings),
         },
@@ -118,7 +121,9 @@ def _consultivo_resumo_orientativo(
 
     prioridade = _orientacao_por_opiniao(opinion)
     return (
-        f"O trimestre apresenta risco {result.nivel_geral.value}, com {len(findings)} achado(s) acionado(s), "
+        f"O trimestre apresenta risco {result.nivel_geral.value}, com pontuação {result.pontuacao_total}/100 "
+        f"({result.pontuacao_bruta} de {result.pontuacao_maxima_aplicavel} ponto(s) bruto(s) aplicáveis) "
+        f"e {len(findings)} achado(s) acionado(s), "
         f"sendo {severity_counts.get('alta', 0)} de prioridade alta, {severity_counts.get('media', 0)} de prioridade média "
         f"e {severity_counts.get('baixa', 0)} de prioridade baixa. Orientação consultiva: {prioridade}."
     )
@@ -200,7 +205,7 @@ def _principais_pontos(result: AuditResult, findings: list[RuleFinding]) -> list
     if not findings:
         return [
             "Nenhuma regra de risco foi acionada no período analisado.",
-            f"Pontuação total apurada: {result.pontuacao_total} ponto(s).",
+            f"Pontuação total apurada: {result.pontuacao_total}/100.",
         ]
 
     points = [

@@ -36,6 +36,9 @@
         "total_regras_acionadas",
         "risco_geral",
         "pontuacao_total",
+        "pontuacao_bruta",
+        "pontuacao_maxima_aplicavel",
+        "escala_pontuacao",
         "achados_por_severidade",
         "principais_pontos"
       ],
@@ -45,7 +48,10 @@
         "total_regras_verificadas": { "type": "integer", "minimum": 0 },
         "total_regras_acionadas": { "type": "integer", "minimum": 0 },
         "risco_geral": { "$ref": "#/$defs/risco" },
-        "pontuacao_total": { "type": "integer", "minimum": 0 },
+        "pontuacao_total": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "pontuacao_bruta": { "type": "integer", "minimum": 0 },
+        "pontuacao_maxima_aplicavel": { "type": "integer", "minimum": 1 },
+        "escala_pontuacao": { "const": "0 a 100" },
         "achados_por_severidade": { "$ref": "#/$defs/contagem_severidade" },
         "principais_pontos": {
           "type": "array",
@@ -108,7 +114,7 @@
       "required": ["data_analise", "versao_schema", "versao_regras", "conjunto_regras"],
       "properties": {
         "data_analise": { "type": "string" },
-        "versao_schema": { "const": "3.2.0" },
+        "versao_schema": { "const": "3.3.0" },
         "versao_regras": { "type": "string" },
         "conjunto_regras": {
           "type": "string",

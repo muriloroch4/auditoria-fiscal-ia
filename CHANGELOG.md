@@ -8,11 +8,12 @@ O formato segue uma versao simplificada de "Keep a Changelog": novas mudancas en
 
 ### Adicionado
 
+- Campos `pontuacao_bruta`, `pontuacao_maxima_aplicavel` e `escala_pontuacao` no JSON trimestral v3.3.0 e no JSON anual `annual-1.2.0`.
 - Teste automatizado para garantir que os codigos documentados em `REGRAS.md` e configurados em `config/rules.json` tenham cobertura consultiva em `config/consultivo_por_regra.json`.
 - Validacao automatizada de sintaxe dos arquivos `src/auditoria/static/app*.js`.
 - Medicao de cobertura Python no CI com `coverage.py`.
 - Configuracao de cobertura no `pyproject.toml`.
-- Campo `conclusao_tecnica.orientacao_consultiva` no JSON trimestral v3.2.0 para orientar relatórios consultivos sem depender de termos formais como "adversa" ou "com ressalva".
+- Campo `conclusao_tecnica.orientacao_consultiva` no JSON trimestral para orientar relatórios consultivos sem depender de termos formais como "adversa" ou "com ressalva".
 - Módulos `annual_consultivo.py` e `annual_report.py` para separar consolidação anual, camada consultiva e renderização Markdown.
 - Módulos `annual_metrics.py` e `annual_findings.py` para separar métricas/RBT12 e achados anuais.
 - Arquivos `app-utils.js`, `app-dashboard.js`, `app-print.js` e `app-annual.js` para reduzir o arquivo principal do dashboard sem etapa de build.
@@ -20,6 +21,7 @@ O formato segue uma versao simplificada de "Keep a Changelog": novas mudancas en
 
 ### Alterado
 
+- Pontuação executiva trimestral e anual passou a ser normalizada em escala de 0 a 100, mantendo a pontuação bruta apenas como trilha técnica.
 - Autenticacao da API passou a comparar a chave enviada com `hmac.compare_digest`.
 - Dashboard, relatório local, prompts e documentação passaram a priorizar linguagem consultiva de orientação técnica.
 - Validação de JSON Schema passou a usar `jsonschema` quando disponível, mantendo fallback interno para ambientes sem dependência instalada.

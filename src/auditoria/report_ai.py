@@ -116,9 +116,17 @@ def _render_consultivo_resumo(payload: dict[str, Any]) -> str:
     total = resumo["total_regras_acionadas"]
     pontos = resumo.get("principais_pontos") or []
 
+    raw_score = resumo.get("pontuacao_bruta")
+    max_score = resumo.get("pontuacao_maxima_aplicavel")
+    score_base = (
+        f" Base bruta: {raw_score} de {max_score} ponto(s) aplicáveis."
+        if raw_score is not None and max_score is not None
+        else ""
+    )
+
     primeiro = (
         f"A análise do período {periodo}, com base em {resumo['base_analise']}, resultou em risco "
-        f"{resumo['risco_geral']} e pontuação total de {resumo['pontuacao_total']} ponto(s). "
+        f"{resumo['risco_geral']} e pontuação total de {resumo['pontuacao_total']}/100.{score_base} "
         f"Foram verificadas {resumo['total_regras_verificadas']} regras, das quais {total} foram acionadas "
         f"({counts.get('alta', 0)} alta, {counts.get('media', 0)} média e {counts.get('baixa', 0)} baixa)."
     )
@@ -531,7 +539,9 @@ def _render_dados_motor_regras(result: AuditResult) -> str:
 
     return (
         f"**Nível geral calculado:** {_level_label(result.nivel_geral.value)}\n\n"
-        f"**Pontuação total calculada:** {result.pontuacao_total}\n\n"
+        f"**Pontuação total calculada:** {result.pontuacao_total}/100\n\n"
+        f"**Base bruta da pontuação:** {result.pontuacao_bruta} de "
+        f"{result.pontuacao_maxima_aplicavel} ponto(s) aplicáveis\n\n"
         f"**Métricas calculadas:**\n{metricas}\n\n"
         f"**Explicação da pontuação:**\n{explicacao}\n\n"
         f"**Regras acionadas:**\n{regras}"
@@ -573,7 +583,7 @@ def _render_resumo_executivo(result: AuditResult) -> str:
         [
             "",
             f"**Grau geral de exposição fiscal:** {_level_label(result.nivel_geral.value)}",
-            f"**Pontuação total:** {result.pontuacao_total}",
+            f"**Pontuação total:** {result.pontuacao_total}/100",
         ]
     )
     return "\n".join(linhas)
@@ -618,7 +628,7 @@ def _render_conclusao_operational_template(result: AuditResult) -> str:
             "A análise automática do balancete não identificou achados relevantes nos testes "
             "de risco executados. O grau geral de exposição fiscal foi classificado como "
             f"{_level_label(result.nivel_geral.value).lower()}, considerando a pontuação total de "
-            f"{result.pontuacao_total} ponto(s). Os próximos passos consistem na manutenção "
+            f"{result.pontuacao_total}/100. Os próximos passos consistem na manutenção "
             "das conciliações periódicas e na guarda da documentação suporte dos saldos."
         )
 
@@ -629,7 +639,7 @@ def _render_conclusao_operational_template(result: AuditResult) -> str:
     return (
         f"A análise automática do balancete identificou {len(result.achados)} achado(s), "
         f"com grau geral de exposição fiscal {_level_label(result.nivel_geral.value).lower()} e pontuação "
-        f"total de {result.pontuacao_total} ponto(s). Os principais riscos foram: "
+        f"total de {result.pontuacao_total}/100. Os principais riscos foram: "
         f"{principais}. Os próximos passos consistem em validar os saldos com documentos "
         f"suporte, conciliar as contas relacionadas, revisar obrigações acessórias aplicáveis "
         f"e formalizar os ajustes contábeis ou fiscais necessários."
@@ -853,7 +863,7 @@ def _label(value: str) -> str:
 def _system_prompt() -> str:
     return """
 # System Prompt — Relatório consultivo trimestral
-# Compatível com o schema resumido v3.2.0 do motor de regras
+# Compatível com o schema resumido v3.3.0 do motor de regras
 
 Você é um contador consultivo, especialista em auditoria fiscal, contabilidade
 societária e direito tributário brasileiro, com registro ativo no CRC. Sua função é
@@ -904,6 +914,7 @@ O JSON terá estes blocos:
 18. Quando houver campos `[VERIFICAR: ...]`, agrupe-os em um bloco chamado **Validações pendentes** dentro do achado correspondente, em vez de espalhar os placeholders no texto corrido.
 19. Em **Validações pendentes**, use lista com um item por pendência. Corrija a pontuação interna do placeholder antes de exibir, por exemplo `valor , prazo` deve virar `valor, prazo`.
 20. Antes de finalizar, corrija espaços indevidos antes de pontuação, como `valor , prazo`, `texto .` ou `item ;`.
+21. Ao citar `resumo_analise.pontuacao_total`, sempre escreva como escala `X/100`. Use `pontuacao_bruta` e `pontuacao_maxima_aplicavel` apenas como explicação técnica do cálculo, quando isso ajudar.
 
 ## Diretrizes de layout para PDF
 

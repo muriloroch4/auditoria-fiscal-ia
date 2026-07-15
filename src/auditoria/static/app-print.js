@@ -26,7 +26,7 @@ function buildPrintDocumentHtml(data) {
         <div class="pdf-risk-card">
           <span>Risco geral</span>
           <strong>${levelLabel(level)}</strong>
-          <small>Pontuação ${esc(formatNumberPtBr(risk.pontuacao_total ?? 0))}</small>
+          <small>Pontuação ${esc(formatNumberPtBr(risk.pontuacao_total ?? 0))}/100</small>
         </div>
       </header>
 
@@ -83,7 +83,9 @@ function renderPrintMetaItem(label, value) {
 function renderPrintSummaryText(level, risk, triggeredRules, checkedRules, counts) {
   const orientation = risk.orientacao_consultiva || consultativeOpinionText(risk.modalidade_opiniao_sugerida);
   const score = formatNumberPtBr(risk.pontuacao_total ?? 0);
-  return `Foram verificadas ${esc(checkedRules)} regras, das quais ${esc(triggeredRules)} foram acionadas. O risco geral foi classificado como ${levelLabel(level).toLowerCase()}, com pontuação total de ${esc(score)} ${pluralize(Number(risk.pontuacao_total ?? 0), "ponto", "pontos")}. A orientação consultiva é: ${esc(orientation)}. A distribuição dos achados foi de ${findingCountText(counts)}. Este relatório deve ser usado como roteiro de revisão, validação documental e orientação ao cliente.`;
+  const rawScore = risk.pontuacao_bruta ?? 0;
+  const maxScore = risk.pontuacao_maxima_aplicavel ?? 100;
+  return `Foram verificadas ${esc(checkedRules)} regras, das quais ${esc(triggeredRules)} foram acionadas. O risco geral foi classificado como ${levelLabel(level).toLowerCase()}, com pontuação total de ${esc(score)}/100. A base técnica bruta foi de ${esc(rawScore)} ponto(s) sobre ${esc(maxScore)} ponto(s) máximos aplicáveis. A orientação consultiva é: ${esc(orientation)}. A distribuição dos achados foi de ${findingCountText(counts)}. Este relatório deve ser usado como roteiro de revisão, validação documental e orientação ao cliente.`;
 }
 
 function renderPrintSummaryCard(label, value) {
@@ -119,7 +121,7 @@ function renderPrintVisualSummary(risk, counts, context) {
     <div class="pdf-visual-grid">
       <div class="pdf-visual-card">
         <span>Pontuação</span>
-        <strong>${esc(formatNumberPtBr(score))}</strong>
+        <strong>${esc(formatNumberPtBr(score))}/100</strong>
         <div class="pdf-progress"><i style="width: ${clampPercent(score)}%"></i></div>
       </div>
       <div class="pdf-visual-card">

@@ -2,8 +2,8 @@
 
 Este arquivo contém os prompts recomendados para configurar dois chats/assistentes externos que recebem exclusivamente os JSONs gerados pelo projeto:
 
-- **Relatório Consultivo Trimestral via JSON**: usa o JSON trimestral resumido do motor de regras, schema `v3.2.0`.
-- **Relatório Consultivo Anual Comparativo via JSON**: usa o JSON anual consolidado, schema `annual-1.1.0`.
+- **Relatório Consultivo Trimestral via JSON**: usa o JSON trimestral resumido do motor de regras, schema `v3.3.0`.
+- **Relatório Consultivo Anual Comparativo via JSON**: usa o JSON anual consolidado, schema `annual-1.2.0`.
 
 Em ambos os chats, cole o prompt correspondente como instrução fixa do assistente. Depois, envie somente o JSON gerado pelo sistema.
 
@@ -38,6 +38,7 @@ REGRAS OBRIGATÓRIAS
 17. Quando houver campos `[VERIFICAR: ...]`, agrupe-os em um bloco chamado **Validações pendentes** dentro do achado correspondente, em vez de espalhar os placeholders no texto corrido.
 18. Em **Validações pendentes**, use lista com um item por pendência. Corrija a pontuação interna do placeholder antes de exibir, por exemplo `valor , prazo` deve virar `valor, prazo`.
 19. Antes de finalizar, corrija espaços indevidos antes de pontuação, como `valor , prazo`, `texto .` ou `item ;`.
+20. Ao citar `resumo_analise.pontuacao_total`, sempre escrever como escala `X/100`. Use `pontuacao_bruta` e `pontuacao_maxima_aplicavel` apenas para explicar a base técnica do cálculo, sem transformar isso em uma segunda nota de risco.
 
 DIRETRIZES DE LAYOUT PARA PDF
 
@@ -103,7 +104,7 @@ Apresente em bloco compacto, com rótulos em negrito e linhas curtas:
 Use no máximo três parágrafos curtos e, quando útil, um bloco de indicadores. Explique em linguagem clara:
 
 - risco geral;
-- pontuação total;
+- pontuação total em escala de 0 a 100;
 - total de regras verificadas;
 - total de regras acionadas;
 - quantidade de achados por severidade;
@@ -183,6 +184,7 @@ REGRAS OBRIGATÓRIAS
 10. A conclusão anual deve refletir materialidade, recorrência, tendência e impacto acumulado dos achados.
 11. Revise ortografia, concordância, letras maiúsculas/minúsculas e espaços antes de pontuação.
 12. Evite tabelas muito largas.
+13. Ao citar `risco_anual.pontuacao_total` ou pontuação trimestral em `comparativo_trimestral`, sempre escrever como escala `X/100`. Use campos brutos apenas como explicação técnica, quando existirem.
 
 NORMAS A CITAR QUANDO APLICÁVEIS
 
@@ -227,7 +229,7 @@ Explicar em linguagem clara:
 - receita anual;
 - resultado anual;
 - nível de risco anual;
-- pontuação anual;
+- pontuação anual em escala de 0 a 100;
 - tendência de risco;
 - recorrências principais;
 - conclusão prática para o cliente.

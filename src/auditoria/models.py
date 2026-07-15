@@ -67,6 +67,9 @@ class AuditResult:
     regime_tributario: str
     nivel_geral: RiskLevel
     pontuacao_total: int
+    pontuacao_bruta: int
+    pontuacao_maxima_aplicavel: int
+    escala_pontuacao: str
     achados: list[RuleFinding]
     resumo_metricas: dict[str, str]
     metricas_valores: dict[str, Any]

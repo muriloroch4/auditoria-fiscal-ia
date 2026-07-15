@@ -27,6 +27,9 @@ def quarter_summary(payload: dict[str, Any]) -> dict[str, Any]:
             "regime_tributario": identificacao.get("regime_tributario", ""),
             "risco": resumo.get("risco_geral") or conclusao.get("risco_geral") or "baixo",
             "pontuacao": int(resumo.get("pontuacao_total") or 0),
+            "pontuacao_bruta": int(resumo.get("pontuacao_bruta") or resumo.get("pontuacao_total") or 0),
+            "pontuacao_maxima_aplicavel": int(resumo.get("pontuacao_maxima_aplicavel") or 100),
+            "escala_pontuacao": str(resumo.get("escala_pontuacao") or "0 a 100"),
             "modalidade_opiniao_sugerida": opinion_code(conclusao.get("conclusao_sugerida", "sem ressalva")),
             "metricas": {
                 "receita_servicos": metric_value(metricas, "receita_servicos"),
@@ -69,6 +72,9 @@ def quarter_summary(payload: dict[str, Any]) -> dict[str, Any]:
         "regime_tributario": identificacao.get("regime_tributario", ""),
         "risco": risco.get("nivel_geral", "baixo"),
         "pontuacao": int(risco.get("pontuacao_total") or 0),
+        "pontuacao_bruta": int(risco.get("pontuacao_bruta") or risco.get("pontuacao_total") or 0),
+        "pontuacao_maxima_aplicavel": int(risco.get("pontuacao_maxima_aplicavel") or 100),
+        "escala_pontuacao": str(risco.get("escala_pontuacao") or "0 a 100"),
         "modalidade_opiniao_sugerida": risco.get("modalidade_opiniao_sugerida", "sem_ressalva"),
         "metricas": {
             "receita_servicos": metric_value(metricas, "receita_servicos"),

@@ -335,8 +335,13 @@ def annual_score_explanation(
     findings: list[dict[str, Any]],
     level: str,
     score: int,
+    raw_score: int,
+    max_score: int,
 ) -> list[str]:
-    explanations = [f"Nível anual {level} com pontuação consolidada de {score} pontos."]
+    explanations = [
+        f"Nível anual {level} com pontuação consolidada de {score}/100.",
+        f"Base anual bruta de {raw_score} ponto(s) sobre {max_score} ponto(s) máximos aplicáveis à escala anual.",
+    ]
     if any(q["risco"] == "alto" for q in quarters):
         explanations.append("Ao menos um trimestre apresentou risco alto.")
     recurring = [f for f in findings if f["codigo"].startswith("AN-REC-")]

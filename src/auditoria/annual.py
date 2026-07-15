@@ -18,7 +18,7 @@ from .annual_metrics import (
 from .annual_report import generate_annual_markdown_report
 from .schema_validator import SchemaValidationError, validate_payload_against_schema
 
-ANNUAL_SCHEMA_VERSION = "annual-1.1.0"
+ANNUAL_SCHEMA_VERSION = "annual-1.2.0"
 
 
 def build_annual_comparison(quarterly_payloads: list[dict[str, Any]]) -> dict[str, Any]:
@@ -95,14 +95,21 @@ def build_rbt12_context(quarterly_payloads: list[dict[str, Any]]) -> dict[str, A
 
 
 def _annual_risk(quarters: list[dict[str, Any]], findings: list[dict[str, Any]]) -> dict[str, Any]:
-    score = sum(int(f["pontuacao"]) for f in findings) + max((q["pontuacao"] for q in quarters), default=0)
+    raw_score = sum(int(f["pontuacao"]) for f in findings) + max((q.get("pontuacao_bruta") or q["pontuacao"] for q in quarters), default=0)
+    max_score = max(100, raw_score)
     has_high_quarter = any(q["risco"] == "alto" for q in quarters)
     has_high_finding = any(f["nivel"] == "alto" for f in findings)
+    score = min(100, raw_score)
 
-    if has_high_finding or has_high_quarter or score >= 70:
+    if any(q["risco"] == "medio" for q in quarters) or any(f["nivel"] == "medio" for f in findings):
+        score = max(score, 30)
+    if has_high_finding or has_high_quarter:
+        score = max(score, 70)
+
+    if score >= 70:
         level = "alto"
         opinion = "adversa"
-    elif findings or any(q["risco"] == "medio" for q in quarters) or score >= 30:
+    elif score >= 30:
         level = "medio"
         opinion = "com_ressalva"
     else:
@@ -112,8 +119,11 @@ def _annual_risk(quarters: list[dict[str, Any]], findings: list[dict[str, Any]])
     return {
         "nivel_geral": level,
         "pontuacao_total": score,
+        "pontuacao_bruta": raw_score,
+        "pontuacao_maxima_aplicavel": max_score,
+        "escala_pontuacao": "0 a 100",
         "modalidade_opiniao_sugerida": opinion,
-        "explicacao_pontuacao": annual_score_explanation(quarters, findings, level, score),
+        "explicacao_pontuacao": annual_score_explanation(quarters, findings, level, score, raw_score, max_score),
         "classificacao": {
             "achados_alto": sum(1 for f in findings if f["nivel"] == "alto"),
             "achados_medio": sum(1 for f in findings if f["nivel"] == "medio"),

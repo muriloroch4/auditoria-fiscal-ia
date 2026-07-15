@@ -1,8 +1,8 @@
 # Auditoria Fiscal IA — Pré-auditoria para Simples Nacional
 
-Motor de regras fiscais para análise de balancetes trimestrais de empresas optantes pelo Simples Nacional, com conjuntos para serviços, comércio e empresas mistas de comércio e serviços. O motor extrai métricas do balancete, aplica regras de risco configuráveis e produz um JSON resumido (schema v3.2.0) para geração de relatório técnico consultivo objetivo ou envio direto ao cliente.
+Motor de regras fiscais para análise de balancetes trimestrais de empresas optantes pelo Simples Nacional, com conjuntos para serviços, comércio e empresas mistas de comércio e serviços. O motor extrai métricas do balancete, aplica regras de risco configuráveis e produz um JSON resumido (schema v3.3.0) para geração de relatório técnico consultivo objetivo ou envio direto ao cliente.
 
-## Esquema de saída (v3.2.0)
+## Esquema de saída (v3.3.0)
 
 ```json
 {
@@ -17,7 +17,10 @@ Motor de regras fiscais para análise de balancetes trimestrais de empresas opta
     "total_regras_verificadas": 17,
     "total_regras_acionadas": 7,
     "risco_geral": "alto",
-    "pontuacao_total": 62,
+    "pontuacao_total": 70,
+    "pontuacao_bruta": 131,
+    "pontuacao_maxima_aplicavel": 370,
+    "escala_pontuacao": "0 a 100",
     "achados_por_severidade": { "alta": 3, "media": 3, "baixa": 0 },
     "principais_pontos": ["SN-004A: Distribuição de lucros acima do lucro disponível identificado."]
   },
@@ -72,7 +75,7 @@ Motor de regras fiscais para análise de balancetes trimestrais de empresas opta
   },
   "metadados": {
     "data_analise": "2026-05-26T10:30:00",
-    "versao_schema": "3.2.0",
+    "versao_schema": "3.3.0",
     "versao_regras": "1.x.x",
     "conjunto_regras": "simples_servicos"
   }
@@ -81,7 +84,9 @@ Motor de regras fiscais para análise de balancetes trimestrais de empresas opta
 
 Conjuntos disponíveis em `metadados.conjunto_regras`: `simples_servicos`, `simples_comercio` e `simples_comercio_servicos`.
 
-O JSON formal validado pelo schema é o contrato para pareceres e integrações. A resposta do endpoint `POST /api/auditorias` também inclui um bloco auxiliar `dashboard` com métricas completas, contexto tributário e totais operacionais usados apenas pela interface web. O botão **JSON** do dashboard remove esse bloco auxiliar e baixa somente o payload formal `v3.2.0`. Para relatórios consultivos, prefira o campo `conclusao_tecnica.orientacao_consultiva`; `conclusao_sugerida` permanece por compatibilidade técnica.
+O JSON formal validado pelo schema é o contrato para pareceres e integrações. A resposta do endpoint `POST /api/auditorias` também inclui um bloco auxiliar `dashboard` com métricas completas, contexto tributário e totais operacionais usados apenas pela interface web. O botão **JSON** do dashboard remove esse bloco auxiliar e baixa somente o payload formal `v3.3.0`. Para relatórios consultivos, prefira o campo `conclusao_tecnica.orientacao_consultiva`; `conclusao_sugerida` permanece por compatibilidade técnica.
+
+`resumo_analise.pontuacao_total` é a pontuação normalizada em escala de 0 a 100, em que 0 indica ausência de risco acionado e 100 indica risco máximo dentro do conjunto de regras aplicável. `pontuacao_bruta` e `pontuacao_maxima_aplicavel` preservam a trilha de cálculo baseada nos pesos internos das regras.
 
 As tabelas estruturadas dos anexos usados pelo contexto tributário ficam em `config/simples_anexos.json`. O motor estima Anexo I para comércio, Anexo III ou V para serviços conforme Fator R trimestral, e exige segregação para empresas mistas. A estimativa não substitui RBT12 oficial, CNAE, PGDAS-D e validação documental.
 
@@ -128,9 +133,9 @@ campo opcional: atividade = servicos | comercio | comercio_servicos
 
 Schema de saída:
 ```text
-GET /api/auditorias/schema            # JSON Schema trimestral v3.2.0
+GET /api/auditorias/schema            # JSON Schema trimestral v3.3.0
 GET /api/auditorias/schema/trimestral # alias explícito do trimestral
-GET /api/auditorias/schema/anual      # JSON Schema anual annual-1.1.0
+GET /api/auditorias/schema/anual      # JSON Schema anual annual-1.2.0
 ```
 
 Os schemas formais versionados ficam em `schemas/auditoria_trimestral.v3.schema.json`
@@ -224,7 +229,7 @@ Para gerar o parecer anual comparativo em Markdown:
 python -m src.auditoria.main --anual t1.json t2.json t3.json t4.json --markdown --saida parecer_anual.md
 ```
 
-O JSON anual (`annual-1.1.0`) consolida receita, deduções, tributos registrados,
+O JSON anual (`annual-1.2.0`) consolida receita, deduções, tributos registrados,
 resultado, estoques, fornecedores, CMV/custos, serviços de terceiros/conta 325,
 créditos fiscais, saldos finais relevantes, RBT12 consolidado, recorrência de achados,
 tendência de risco e risco anual.
@@ -280,7 +285,7 @@ Esse mapa já inclui a conta `325`/`serviços prestados por terceiros`, contas d
 
 ## Integração com IA
 
-O motor de regras entrega o JSON trimestral resumido v3.2.0 e o CLI também pode gerar parecer consultivo em Markdown com `--markdown`. O relatório em linguagem natural usa o system prompt consultivo em `src/auditoria/report_ai.py`, com fallback local quando `--no-ai` é usado ou quando a IA não está disponível.
+O motor de regras entrega o JSON trimestral resumido v3.3.0 e o CLI também pode gerar parecer consultivo em Markdown com `--markdown`. O relatório em linguagem natural usa o system prompt consultivo em `src/auditoria/report_ai.py`, com fallback local quando `--no-ai` é usado ou quando a IA não está disponível.
 
 O cliente OpenRouter (`src/auditoria/ai_client.py`) pode ser usado para esse fim, mas é independente do motor de regras.
 
@@ -288,8 +293,8 @@ O cliente OpenRouter (`src/auditoria/ai_client.py`) pode ser usado para esse fim
 
 Para uso em chats treinados ou assistentes externos, mantenha dois chats separados:
 
-- **Parecer Trimestral via JSON** — recebe o JSON trimestral `v3.2.0` gerado pelo motor.
-- **Parecer Anual Comparativo via JSON** — recebe o JSON anual `annual-1.1.0` gerado pela consolidação dos trimestres.
+- **Parecer Trimestral via JSON** — recebe o JSON trimestral `v3.3.0` gerado pelo motor.
+- **Parecer Anual Comparativo via JSON** — recebe o JSON anual `annual-1.2.0` gerado pela consolidação dos trimestres.
 
 Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`. Em ambos os casos, a orientação é enviar apenas o JSON gerado pelo sistema como entrada e solicitar a saída em Markdown.
 
@@ -316,7 +321,7 @@ Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`.
 - `src/auditoria/static/app-dashboard.js` — renderização das seções do dashboard trimestral
 - `src/auditoria/static/app-print.js` — montagem do documento de impressão/PDF
 - `src/auditoria/static/app-annual.js` — painel de trimestres e geração do JSON anual
-- `src/auditoria/serializers.py` — serialização para JSON trimestral resumido v3.2.0
+- `src/auditoria/serializers.py` — serialização para JSON trimestral resumido v3.3.0
 - `src/auditoria/evidence.py` — evidência estruturada por achado, com fonte, confiança e documentos recomendados
 - `src/auditoria/storage.py` — persistência SQLite dos trimestres e consolidações anuais
 - `src/auditoria/schema_loader.py` — carregamento dos JSON Schemas formais trimestral/anual

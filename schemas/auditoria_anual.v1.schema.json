@@ -16,7 +16,7 @@
     "consultivo"
   ],
   "properties": {
-    "_schema_version": { "const": "annual-1.1.0" },
+    "_schema_version": { "const": "annual-1.2.0" },
     "meta": {
       "type": "object",
       "additionalProperties": false,
@@ -28,7 +28,7 @@
         "fontes"
       ],
       "properties": {
-        "versao_schema": { "const": "annual-1.1.0" },
+        "versao_schema": { "const": "annual-1.2.0" },
         "data_analise": { "type": "string" },
         "total_trimestres_informados": { "type": "integer", "minimum": 1, "maximum": 4 },
         "trimestres_ausentes": {
@@ -59,10 +59,22 @@
     "risco_anual": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["nivel_geral", "pontuacao_total", "modalidade_opiniao_sugerida", "explicacao_pontuacao", "classificacao"],
+      "required": [
+        "nivel_geral",
+        "pontuacao_total",
+        "pontuacao_bruta",
+        "pontuacao_maxima_aplicavel",
+        "escala_pontuacao",
+        "modalidade_opiniao_sugerida",
+        "explicacao_pontuacao",
+        "classificacao"
+      ],
       "properties": {
         "nivel_geral": { "$ref": "#/$defs/risco" },
-        "pontuacao_total": { "type": "integer", "minimum": 0 },
+        "pontuacao_total": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "pontuacao_bruta": { "type": "integer", "minimum": 0 },
+        "pontuacao_maxima_aplicavel": { "type": "integer", "minimum": 1 },
+        "escala_pontuacao": { "const": "0 a 100" },
         "modalidade_opiniao_sugerida": {
           "type": "string",
           "enum": ["sem_ressalva", "com_ressalva", "adversa", "abstencao_opiniao"]
@@ -161,7 +173,10 @@
         "ordem": { "type": "integer", "minimum": 1 },
         "periodo": { "type": "string" },
         "risco": { "$ref": "#/$defs/risco" },
-        "pontuacao": { "type": "integer", "minimum": 0 },
+        "pontuacao": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "pontuacao_bruta": { "type": "integer", "minimum": 0 },
+        "pontuacao_maxima_aplicavel": { "type": "integer", "minimum": 1 },
+        "escala_pontuacao": { "const": "0 a 100" },
         "metricas": {
           "type": "object",
           "additionalProperties": { "type": ["number", "integer", "string", "null"] }

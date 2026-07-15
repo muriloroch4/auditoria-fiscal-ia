@@ -30,6 +30,8 @@ function renderRiskPanel(risk, findings, meta, level) {
   const rules = `${esc(meta.total_regras_acionadas ?? findings.length)} de ${esc(meta.total_regras_verificadas ?? "?")} regras`;
   const score = Number(risk.pontuacao_total ?? 0);
   const scoreWidth = Math.max(4, Math.min(100, score));
+  const rawScore = risk.pontuacao_bruta ?? 0;
+  const maxScore = risk.pontuacao_maxima_aplicavel ?? 100;
   const version = `${esc(meta.conjunto_regras || "Conjunto não informado")} ${esc(meta.versao_regras || "")}`.trim();
   return `
     <section class="risk-panel ${level}">
@@ -37,14 +39,15 @@ function renderRiskPanel(risk, findings, meta, level) {
         <span class="risk-kicker">Risco ${levelLabel(level)}</span>
         <h3>${esc(risk.orientacao_consultiva || opinionLabel(risk.modalidade_opiniao_sugerida))}</h3>
         <div class="risk-score-track" aria-hidden="true"><span style="width: ${scoreWidth}%"></span></div>
-        <p>Classificação calculada a partir das regras fiscais acionadas no período analisado.</p>
+        <p>Classificação em escala de 0 a 100, calculada a partir das regras fiscais acionadas no período analisado.</p>
         <div class="risk-meta">
           <span>${rules}</span>
+          <span>Base bruta: ${esc(rawScore)} de ${esc(maxScore)} pts</span>
           <span>${version}</span>
         </div>
       </div>
       <div class="risk-stats">
-        <div class="stat-box"><strong>${esc(risk.pontuacao_total ?? 0)}</strong><span>Pontuação</span></div>
+        <div class="stat-box"><strong>${esc(risk.pontuacao_total ?? 0)}/100</strong><span>Pontuação</span></div>
         <div class="stat-box"><strong>${esc(findings.length)}</strong><span>Achados</span></div>
         <div class="stat-box"><strong>${esc(meta.total_contas_analisadas ?? 0)}</strong><span>Contas</span></div>
       </div>
@@ -162,7 +165,7 @@ function renderVisualSummary(risk, findings, metrics, context) {
         <span class="section-note">Leitura rápida dos principais indicadores</span>
       </div>
       <div class="visual-grid">
-        ${renderVisualProgressCard("Pontuação de risco", formatNumberPtBr(score), clampPercent(score), "Escala operacional de 0 a 100 pontos", scoreTone)}
+        ${renderVisualProgressCard("Pontuação de risco", `${formatNumberPtBr(score)}/100`, clampPercent(score), "Escala operacional de 0 a 100 pontos", scoreTone)}
         ${renderSeverityBars(counts)}
         ${renderVisualProgressCard("RBT12 / limite do Simples", rbt12Label, clampPercent(rbt12Percent), rbt12Detail, rbt12Tone)}
         ${factorCard || renderIndicatorMiniBars(indicators)}

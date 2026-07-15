@@ -6,7 +6,7 @@ from typing import Any
 from .account_classification import build_account_classification_report
 from .config_loader import load_config, load_simples_anexos
 from .models import AuditResult, RiskLevel, RuleFinding, TrialBalance
-from .risk import classify_total_risk
+from .risk import max_score_for_ruleset, score_findings_0_100
 from .rules import analyze_simples_nacional, normalize_ruleset
 from .rules.metricas import (
     calculate_advances,
@@ -64,7 +64,10 @@ def run_quarterly_audit(
         profit_basis=profit_basis,
         rbt12_context=rbt12_context,
     )
-    overall_risk, score = classify_total_risk(findings)
+    cfg = load_config()
+    score_details = score_findings_0_100(findings, max_score_for_ruleset(cfg, conjunto_regras))
+    overall_risk = score_details.nivel
+    score = score_details.pontuacao_total
 
     metricas_valores = _build_metricas_valores(
         revenue, revenue_deductions, tax_expense, tax_liability, payroll, expenses,
@@ -83,6 +86,9 @@ def run_quarterly_audit(
         regime_tributario=regime_tributario,
         nivel_geral=overall_risk,
         pontuacao_total=score,
+        pontuacao_bruta=score_details.pontuacao_bruta,
+        pontuacao_maxima_aplicavel=score_details.pontuacao_maxima_aplicavel,
+        escala_pontuacao=score_details.escala_pontuacao,
         achados=findings,
         resumo_metricas=_build_resumo_metricas(
             revenue, revenue_deductions, tax_expense, tax_liability, payroll, expenses,
@@ -90,7 +96,13 @@ def run_quarterly_audit(
             suppliers, inventory, tax_credits, cogs, debt, equity,
         ),
         metricas_valores=metricas_valores,
-        explicacao_pontuacao=_explain_score(findings, overall_risk, score),
+        explicacao_pontuacao=_explain_score(
+            findings,
+            overall_risk,
+            score,
+            score_details.pontuacao_bruta,
+            score_details.pontuacao_maxima_aplicavel,
+        ),
         contexto_regime=contexto_regime,
         total_contas_analisadas=len(balance.contas),
         total_regras_verificadas=_total_regras_configuradas(conjunto_regras),
@@ -428,10 +440,12 @@ def _explain_score(
     findings: list[RuleFinding],
     overall_risk: RiskLevel,
     score: int,
+    raw_score: int,
+    max_score: int,
 ) -> list[str]:
     if not findings:
         return [
-            "Pontuação total igual a 0 porque nenhuma regra foi acionada.",
+            "Pontuação total igual a 0/100 porque nenhuma regra foi acionada.",
             "Nível geral baixo porque não houve achados de risco médio ou alto.",
         ]
 
@@ -444,7 +458,7 @@ def _explain_score(
     low_score = sum(f.pontuacao for f in low_findings)
     compound_findings = [f for f in findings if f.codigo.startswith("SN-COMP")]
     compound_score = sum(f.pontuacao for f in compound_findings)
-    base_score = score - compound_score
+    base_score = raw_score - compound_score
 
     top_findings = sorted(findings, key=lambda f: f.pontuacao, reverse=True)[:3]
     top_summary = ", ".join(
@@ -453,7 +467,10 @@ def _explain_score(
     )
 
     reasons = [
-        f"Pontuação total de {score} pontos, somando os pesos das regras acionadas.",
+        (
+            f"Pontuação total normalizada de {score}/100, calculada a partir de "
+            f"{raw_score} ponto(s) bruto(s) sobre {max_score} ponto(s) máximos aplicáveis ao conjunto de regras."
+        ),
     ]
 
     if compound_findings:
@@ -476,16 +493,16 @@ def _explain_score(
 
     if overall_risk == RiskLevel.ALTO:
         if high_findings:
-            reasons.append("Nível geral alto porque existe pelo menos um achado classificado como alto.")
+            reasons.append("Nível geral alto porque existe pelo menos um achado classificado como alto, aplicando piso de 70/100.")
         else:
-            reasons.append("Nível geral alto porque a pontuação total atingiu 70 pontos ou mais.")
+            reasons.append("Nível geral alto porque a pontuação total atingiu 70/100 ou mais.")
     elif overall_risk == RiskLevel.MEDIO:
         reasons.append(
-            "Nível geral médio porque existe achado de risco médio ou a pontuação total atingiu pelo menos 30 pontos."
+            "Nível geral médio porque existe achado de risco médio ou a pontuação total atingiu pelo menos 30/100."
         )
     else:
         reasons.append(
-            "Nível geral baixo porque a pontuação ficou abaixo de 30 e não houve achados de risco médio ou alto."
+            "Nível geral baixo porque a pontuação ficou abaixo de 30/100 e não houve achados de risco médio ou alto."
         )
 
     return reasons

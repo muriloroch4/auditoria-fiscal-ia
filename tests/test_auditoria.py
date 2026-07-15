@@ -19,7 +19,12 @@ from src.auditoria.report_ai import generate_markdown_report
 from src.auditoria.schema_validator import SchemaValidationError, validate_payload_against_schema
 from src.auditoria.serializers import audit_result_to_dict
 from src.auditoria.storage import infer_year_quarter
-from src.auditoria.risk import classify_total_risk, suggest_opinion_type
+from src.auditoria.risk import (
+    classify_total_risk,
+    max_score_for_rule,
+    score_findings_0_100,
+    suggest_opinion_type,
+)
 from src.auditoria.utils import format_brl, format_percent, sanitize_for_latin1
 from src.auditoria.config_loader import (
     _DEFAULT_ACCOUNT_MAP_PATH,
@@ -50,7 +55,7 @@ class AuditPrototypeTest(unittest.TestCase):
         payload = audit_result_to_dict(result)
 
         self.assertEqual(result.nivel_geral, RiskLevel.ALTO)
-        self.assertEqual(payload["metadados"]["versao_schema"], "3.2.0")
+        self.assertEqual(payload["metadados"]["versao_schema"], "3.3.0")
         self.assertIn("identificacao_empresa", payload)
         self.assertIn("resumo_analise", payload)
         self.assertIn("principais_achados", payload)
@@ -499,8 +504,8 @@ class ProjectQualityTest(unittest.TestCase):
 
         self.assertEqual(quarterly["$schema"], "https://json-schema.org/draft/2020-12/schema")
         self.assertIn("identificacao_empresa", quarterly["properties"])
-        self.assertEqual(quarterly["properties"]["metadados"]["properties"]["versao_schema"]["const"], "3.2.0")
-        self.assertEqual(annual["properties"]["_schema_version"]["const"], "annual-1.1.0")
+        self.assertEqual(quarterly["properties"]["metadados"]["properties"]["versao_schema"]["const"], "3.3.0")
+        self.assertEqual(annual["properties"]["_schema_version"]["const"], "annual-1.2.0")
         self.assertIn("achados_anuais", annual["properties"])
 
 
@@ -547,6 +552,47 @@ class RiskClassificationTest(unittest.TestCase):
         findings = [self._make_finding(nivel=RiskLevel.MEDIO, pontuacao=10)]
         level, score = classify_total_risk(findings)
         self.assertEqual(level, RiskLevel.MEDIO)
+
+    def test_score_findings_0_100_normalizes_against_applicable_maximum(self):
+        findings = [self._make_finding(pontuacao=25), self._make_finding(pontuacao=25)]
+        score = score_findings_0_100(findings, max_applicable_score=200)
+
+        self.assertEqual(score.nivel, RiskLevel.BAIXO)
+        self.assertEqual(score.pontuacao_total, 25)
+        self.assertEqual(score.pontuacao_bruta, 50)
+        self.assertEqual(score.pontuacao_maxima_aplicavel, 200)
+        self.assertEqual(score.escala_pontuacao, "0 a 100")
+
+    def test_score_findings_0_100_applies_severity_floors(self):
+        medium_score = score_findings_0_100(
+            [self._make_finding(nivel=RiskLevel.MEDIO, pontuacao=5)],
+            max_applicable_score=200,
+        )
+        high_score = score_findings_0_100(
+            [self._make_finding(nivel=RiskLevel.ALTO, pontuacao=5)],
+            max_applicable_score=200,
+        )
+        compound_score = score_findings_0_100(
+            [self._make_finding(codigo="SN-COMP-01", nivel=RiskLevel.ALTO, pontuacao=5)],
+            max_applicable_score=200,
+        )
+
+        self.assertEqual(medium_score.pontuacao_total, 30)
+        self.assertEqual(medium_score.nivel, RiskLevel.MEDIO)
+        self.assertEqual(high_score.pontuacao_total, 70)
+        self.assertEqual(high_score.nivel, RiskLevel.ALTO)
+        self.assertEqual(compound_score.pontuacao_total, 75)
+        self.assertEqual(compound_score.nivel, RiskLevel.ALTO)
+
+    def test_score_findings_0_100_is_capped_at_100(self):
+        score = score_findings_0_100([self._make_finding(pontuacao=150)], max_applicable_score=100)
+
+        self.assertEqual(score.pontuacao_total, 100)
+        self.assertEqual(score.nivel, RiskLevel.ALTO)
+
+    def test_max_score_for_rule_uses_worst_severity_plus_independent_components(self):
+        self.assertEqual(max_score_for_rule({"pontuacao_medio": 14, "pontuacao_alto": 24}), 24)
+        self.assertEqual(max_score_for_rule({"pontuacao_representacao": 10, "pontuacao_veiculos": 10}), 20)
 
 
 class UtilsTest(unittest.TestCase):
@@ -1151,10 +1197,13 @@ class SchemaV3ResumoTest(unittest.TestCase):
                 "metadados",
             ],
         )
-        self.assertEqual(payload["metadados"]["versao_schema"], "3.2.0")
+        self.assertEqual(payload["metadados"]["versao_schema"], "3.3.0")
         self.assertEqual(payload["identificacao_empresa"]["regime_tributario"], "Simples Nacional")
         self.assertIn("total_regras_verificadas", payload["resumo_analise"])
         self.assertIn("total_regras_acionadas", payload["resumo_analise"])
+        self.assertIn("pontuacao_bruta", payload["resumo_analise"])
+        self.assertIn("pontuacao_maxima_aplicavel", payload["resumo_analise"])
+        self.assertEqual(payload["resumo_analise"]["escala_pontuacao"], "0 a 100")
         self.assertIn("leitura_cliente", payload["consultivo"])
         self.assertIn("classificacoes_por_confianca", payload["classificacao_contas"])
         self.assertIn("amostra_classificacoes", payload["classificacao_contas"])
@@ -1332,7 +1381,7 @@ class AnnualComparisonTest(unittest.TestCase):
         annual = build_annual_comparison(payloads)
         codes = {finding["codigo"] for finding in annual["achados_anuais"]}
 
-        self.assertEqual(annual["_schema_version"], "annual-1.1.0")
+        self.assertEqual(annual["_schema_version"], "annual-1.2.0")
         self.assertIn("consultivo", annual)
         self.assertIn("plano_acao_anual", annual["consultivo"])
         self.assertEqual(annual["identificacao"]["exercicio"], "2026")

@@ -12,17 +12,19 @@ Motor para empresas enquadradas no Simples Nacional, com conjuntos para serviço
 
 ## Matriz de pontuação
 
-A pontuação total é a soma dos pesos das regras acionadas no trimestre. A classificação geral também considera a severidade qualitativa do achado: um achado alto torna o risco geral alto, e um achado médio torna o risco geral pelo menos médio.
+A pontuação executiva do JSON (`resumo_analise.pontuacao_total`) usa escala normalizada de 0 a 100, em que 0 representa nenhuma regra acionada e 100 representa risco máximo dentro do conjunto de regras aplicável. A trilha técnica do cálculo fica preservada nos campos `pontuacao_bruta` e `pontuacao_maxima_aplicavel`, que usam os pesos configurados em `config/rules.json`.
+
+A classificação geral também considera a severidade qualitativa do achado: um achado alto aplica piso mínimo de 70/100, um achado médio aplica piso mínimo de 30/100, e uma regra composta alta (`SN-COMP-*`) aplica piso mínimo de 75/100. Isso evita que um único achado crítico pareça baixo apenas porque o conjunto de regras completo tem muitos pontos possíveis.
 
 A orientação consultiva segue a classificação geral: risco baixo tende a acompanhamento preventivo, risco médio tende a validação documental antes do fechamento e risco alto tende a regularização prioritária. O campo técnico legado `conclusao_sugerida` continua existindo para compatibilidade com integrações, mas a comunicação ao cliente deve priorizar `orientacao_consultiva`.
 
 | Faixa / condição | Classificação geral | Interpretação |
 |---|---|---|
-| 0 a 29 pontos, sem achado médio ou alto | Baixo | Pontos de atenção ou validações documentais de baixa materialidade |
-| 30 a 69 pontos, ou qualquer achado médio | Médio | Indícios que exigem validação documental, conciliação ou ajuste contábil |
-| 70 pontos ou mais, ou qualquer achado alto | Alto | Indício relevante com potencial distorção material, desenquadramento, omissão ou inconsistência crítica |
+| 0 a 29/100, sem achado médio ou alto | Baixo | Pontos de atenção ou validações documentais de baixa materialidade |
+| 30 a 69/100, ou qualquer achado médio | Médio | Indícios que exigem validação documental, conciliação ou ajuste contábil |
+| 70/100 ou mais, ou qualquer achado alto | Alto | Indício relevante com potencial distorção material, desenquadramento, omissão ou inconsistência crítica |
 
-Escala usada nos pesos:
+Escala usada nos pesos brutos das regras:
 
 | Peso | Uso recomendado |
 |---:|---|

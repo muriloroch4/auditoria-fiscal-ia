@@ -46,7 +46,7 @@ def _render_annual_summary(payload: dict[str, Any]) -> str:
     return (
         f"A análise comparativa do exercício {identificacao.get('exercicio')} considerou "
         f"{meta['total_trimestres_informados']} trimestre(s) informado(s). O nível de risco anual "
-        f"apurado é {_risk_label(risco['nivel_geral']).lower()}, com pontuação de {risco['pontuacao_total']} pontos "
+        f"apurado é {_risk_label(risco['nivel_geral']).lower()}, com pontuação de {risco['pontuacao_total']}/100 "
         f"e {len(payload['achados_anuais'])} achado(s) anual(is). A receita anual consolidada foi "
         f"{metricas['receita_servicos_total']['formatado']} e o resultado anual apurado foi "
         f"{metricas['lucro_apurado_total']['formatado']}."
