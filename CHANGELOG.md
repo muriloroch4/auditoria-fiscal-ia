@@ -35,6 +35,7 @@ O formato segue uma versao simplificada de "Keep a Changelog": novas mudancas en
 - Validador interno de JSON Schema passou a cobrir combinadores, limites de arrays/textos, padroes e referencias invalidas quando `jsonschema` nao esta disponivel.
 - CLI passou a oferecer `--ascii-output` para gerar arquivos sem acentos/caracteres especiais em integracoes legadas.
 - Relatorio consultivo local ganhou testes dedicados de estrutura/fallback e `report_ai.py` teve helpers legados sem uso removidos para reduzir manutencao.
+- Renderizacao Markdown local foi movida para `report_local.py` e a montagem do payload de prompt para `report_payload.py`, deixando `report_ai.py` focado na decisao IA/fallback.
 - Payloads auxiliares da API foram movidos para `api_payloads.py`, deixando `api.py` mais focado no servidor HTTP.
 - Estilos de impressao/PDF foram separados de `styles.css` para `static/print.css`, reduzindo o CSS principal do dashboard.
 - Renderizadores internos do documento de impressao/PDF foram separados em `app-print-sections.js`, mantendo `app-print.js` como composicao e acionamento da impressao.
