@@ -1,20 +1,19 @@
 from __future__ import annotations
 
-from decimal import Decimal
-
-from ..config_loader import get_rule_config, load_config
-from ..models import LedgerAccount, RiskLevel, RuleFinding, TrialBalance
-from ..utils import format_brl, format_percent
+from ..models import RuleFinding, TrialBalance
 from .comercio import analyze_commerce_rules
 from .compostas import apply_compound_rules
 from .metricas import (
-    LEGACY_TAX_GROUP,
     ProfitBasis,
     calculate_profit_basis,
     calculate_profit_distribution_capacity,
     collect_simples_metrics,
-    format_account_trace,
-    TAX_LIABILITY_GROUPS,
+)
+from .fiscal import (
+    check_low_or_missing_revenue,
+    check_revenue_limit,
+    check_tax_liability_growth,
+    check_tax_ratio,
 )
 from .financeiro import (
     check_advances,
@@ -26,6 +25,13 @@ from .financeiro import (
 )
 from .misto import check_mixed_revenue_segregation
 from .patrimonial import check_inverse_account_nature, check_loans_without_interest_accrual
+from .resultado import (
+    check_accounting_loss,
+    check_expense_ratio,
+    check_high_profit_margin,
+    check_missing_provisions,
+    check_third_party_services_expense,
+)
 from .rulesets import (
     COMMERCE_RULESETS,
     RULESET_COMERCIO,
@@ -35,9 +41,7 @@ from .rulesets import (
     normalize_ruleset,
 )
 from .servicos import check_payroll_factor
-
-_money = format_brl
-_percent = format_percent
+from .societario import check_partner_accounts, check_profit_distribution
 
 def analyze_simples_servicos(balance: TrialBalance, profit_basis: ProfitBasis | None = None) -> list[RuleFinding]:
     return _analyze_simples_nacional(balance, RULESET_SERVICOS, profit_basis=profit_basis)
@@ -78,38 +82,38 @@ def _analyze_simples_nacional(
     profit_distribution_capacity = calculate_profit_distribution_capacity(balance, profit_basis)
 
     findings: list[RuleFinding] = []
-    findings.extend(_check_low_or_missing_revenue(metrics.revenue, metrics.active_movement, metrics.operational_movement))
-    findings.extend(_check_revenue_limit(metrics.revenue, metrics.rbt12_revenue))
-    findings.extend(_check_tax_ratio(metrics.revenue, metrics.tax_expense, ruleset))
+    findings.extend(check_low_or_missing_revenue(metrics.revenue, metrics.active_movement, metrics.operational_movement))
+    findings.extend(check_revenue_limit(metrics.revenue, metrics.rbt12_revenue))
+    findings.extend(check_tax_ratio(metrics.revenue, metrics.tax_expense, ruleset))
     if ruleset in SERVICE_RULESETS:
         findings.extend(check_payroll_factor(metrics.revenue, metrics.payroll, ruleset))
     findings.extend(
-        _check_profit_distribution(
+        check_profit_distribution(
             metrics.revenue,
             metrics.profit_distribution,
             profit_basis,
             profit_distribution_capacity,
         )
     )
-    findings.extend(_check_partner_accounts(metrics.revenue, metrics.partners, metrics.partner_accounts))
+    findings.extend(check_partner_accounts(metrics.revenue, metrics.partners, metrics.partner_accounts))
     findings.extend(check_receivables(metrics.revenue, metrics.clients, metrics.client_movement))
     findings.extend(check_zero_receivables(metrics.revenue, metrics.clients, metrics.client_movement))
     findings.extend(check_advances(metrics.revenue, metrics.advances))
     findings.extend(check_customer_advances(metrics.revenue, balance.contas_por_grupo("adiantamentos_clientes")))
     findings.extend(check_cash_position(metrics.revenue, metrics.cash))
     findings.extend(check_physical_cash_position(metrics.revenue, metrics.physical_cash, ruleset))
-    findings.extend(_check_expense_ratio(metrics.revenue, metrics.expenses, balance, ruleset))
+    findings.extend(check_expense_ratio(metrics.revenue, metrics.expenses, balance, ruleset))
     findings.extend(
-        _check_third_party_services_expense(
+        check_third_party_services_expense(
             metrics.third_party_services,
             metrics.expenses,
             metrics.third_party_service_accounts,
         )
     )
-    findings.extend(_check_accounting_loss(metrics.revenue, profit_basis))
-    findings.extend(_check_high_profit_margin(metrics.revenue, profit_basis))
-    findings.extend(_check_tax_liability_growth(balance, metrics.revenue))
-    findings.extend(_check_missing_provisions(metrics.revenue, metrics.payroll, balance))
+    findings.extend(check_accounting_loss(metrics.revenue, profit_basis))
+    findings.extend(check_high_profit_margin(metrics.revenue, profit_basis))
+    findings.extend(check_tax_liability_growth(balance, metrics.revenue))
+    findings.extend(check_missing_provisions(metrics.revenue, metrics.payroll, balance))
     findings.extend(check_inverse_account_nature(metrics.revenue, balance))
     findings.extend(check_loans_without_interest_accrual(metrics.revenue, balance))
     if ruleset in COMMERCE_RULESETS:
@@ -136,568 +140,3 @@ def _analyze_simples_nacional(
     findings.extend(apply_compound_rules(findings))
 
     return findings
-
-
-def _check_low_or_missing_revenue(revenue: Decimal, active_movement: Decimal, operational_movement: Decimal) -> list[RuleFinding]:
-    cfg = load_config()
-    lim_mov = Decimal(str(cfg.get("limites_gerais", {}).get("limite_movimentacao_ativa", 10000)))
-    if active_movement < lim_mov:
-        return []
-
-    cfg008 = get_rule_config("SN-008")
-    pts = cfg008.get("pontuacao_alto", 20)
-
-    if revenue <= 0:
-        return [
-            RuleFinding(
-                codigo="SN-008A",
-                titulo="Receita inexistente com movimentação ativa",
-                nivel=RiskLevel.ALTO,
-                pontuacao=pts,
-                descricao="A empresa apresenta movimentação contábil relevante, mas não possui receita registrada no período.",
-                evidencia={"receita": _money(revenue), "movimentacao_ativa": _money(active_movement)},
-                recomendacao="Verificar emissão de notas fiscais, reconhecimento de receita, classificação de entradas e possível tributação não apurada.",
-                normas_aplicaveis=("LC 123/2006", "art. 3° LC 123/2006"),
-            )
-        ]
-
-    if operational_movement <= 0:
-        return []
-
-    ratio_lim = Decimal(str(cfg.get("limites_gerais", {}).get("receita_baixa_ratio", 0.05)))
-    if revenue / operational_movement < ratio_lim:
-        return [
-            RuleFinding(
-                codigo="SN-008B",
-                titulo="Receita muito baixa com movimentação ativa",
-                nivel=RiskLevel.ALTO,
-                pontuacao=pts,
-                descricao="A receita registrada é muito baixa em relação à movimentação contábil ativa do período.",
-                evidencia={
-                    "receita": _money(revenue),
-                    "movimentacao_ativa": _money(operational_movement),
-                    "percentual": _percent(revenue / operational_movement),
-                },
-                recomendacao="Investigar operação sem emissão fiscal, receitas classificadas incorretamente ou movimentações que deveriam compor faturamento.",
-                normas_aplicaveis=("LC 123/2006", "art. 3° LC 123/2006"),
-            )
-        ]
-
-    return []
-
-
-def _check_revenue_limit(revenue: Decimal, rbt12_revenue: Decimal | None = None) -> list[RuleFinding]:
-    cfg = get_rule_config("SN-001")
-    anual = Decimal(str(load_config().get("limites_gerais", {}).get("simples_anual", 4800000)))
-    has_rbt12 = rbt12_revenue is not None and rbt12_revenue > 0
-    annualized_revenue = (rbt12_revenue or Decimal("0")) if has_rbt12 else revenue * Decimal("4")
-    ratio = annualized_revenue / anual if anual > 0 else Decimal("0")
-    base_calculo_limite = "RBT12 consolidado pelo historico" if has_rbt12 else "receita trimestral anualizada (receita x 4)"
-
-    lim_alto = Decimal(str(cfg.get("limite_alto", 0.90)))
-    if ratio >= lim_alto:
-        return [
-            RuleFinding(
-                codigo="SN-001B",
-                titulo="Receita trimestral anualizada acima de 90% do limite do Simples",
-                nivel=RiskLevel.ALTO,
-                pontuacao=cfg.get("pontuacao_alto", 35),
-                descricao="A receita do trimestre, quando anualizada para fins de alerta, fica próxima do limite anual do Simples Nacional.",
-                evidencia={
-                    "receita_trimestre": _money(revenue),
-                    "receita_anualizada_estimativa": _money(annualized_revenue),
-                    "limite_anual_simples": _money(anual),
-                    "percentual_limite_anual": _percent(ratio),
-                    "base_calculo_limite": base_calculo_limite,
-                },
-                recomendacao="Validar a receita bruta acumulada dos últimos 12 meses (RBT12), projetar os próximos trimestres e avaliar risco de sublimite, desenquadramento ou excesso de receita.",
-                normas_aplicaveis=("LC 123/2006", "art. 3° LC 123/2006", "LC 155/2016"),
-            )
-        ]
-
-    lim_medio = Decimal(str(cfg.get("limite_medio", 0.70)))
-    if ratio >= lim_medio:
-        return [
-            RuleFinding(
-                codigo="SN-001A",
-                titulo="Receita trimestral anualizada acima de 70% do limite do Simples",
-                nivel=RiskLevel.MEDIO,
-                pontuacao=cfg.get("pontuacao_medio", 18),
-                descricao="A receita do trimestre, quando anualizada para fins de alerta, representa mais de 70% do limite anual do Simples Nacional.",
-                evidencia={
-                    "receita_trimestre": _money(revenue),
-                    "receita_anualizada_estimativa": _money(annualized_revenue),
-                    "limite_anual_simples": _money(anual),
-                    "percentual_limite_anual": _percent(ratio),
-                    "base_calculo_limite": base_calculo_limite,
-                },
-                recomendacao="Acompanhar receita acumulada dos últimos 12 meses (RBT12) e simular cenários de crescimento para os próximos trimestres.",
-                normas_aplicaveis=("LC 123/2006", "art. 3° LC 123/2006", "LC 155/2016"),
-            )
-        ]
-
-    return []
-
-
-def _check_tax_ratio(revenue: Decimal, tax_expense: Decimal, ruleset: str = RULESET_SERVICOS) -> list[RuleFinding]:
-    if revenue <= 0:
-        return []
-
-    cfg = get_rule_config("SN-002")
-    ratio = tax_expense / revenue
-    tax_norm = _tax_annex_norm(ruleset)
-
-    lim_alto = Decimal(str(cfg.get("limite_alto", 0.03)))
-    if ratio < lim_alto:
-        return [
-            RuleFinding(
-                codigo="SN-002B",
-                titulo="Carga tributária abaixo de 3% da receita",
-                nivel=RiskLevel.ALTO,
-                pontuacao=cfg.get("pontuacao_alto", 20),
-                descricao="Os impostos registrados representam menos de 3% da receita do período, indicando possível subapuração ou divergência fiscal a validar.",
-                evidencia={"receita": _money(revenue), "tributos_registrados": _money(tax_expense), "percentual": _percent(ratio)},
-                recomendacao="Conferir apuração do DAS, anexo aplicado, retenções, competência e possíveis lançamentos ausentes.",
-                normas_aplicaveis=("LC 123/2006", tax_norm),
-            )
-        ]
-
-    lim_medio = Decimal(str(cfg.get("limite_medio", 0.055)))
-    if ratio < lim_medio:
-        return [
-            RuleFinding(
-                codigo="SN-002A",
-                titulo="Carga tributária abaixo de 5,5% da receita",
-                nivel=RiskLevel.MEDIO,
-                pontuacao=cfg.get("pontuacao_medio", 15),
-                descricao="A relação entre tributos registrados e receita está em uma faixa que merece revisão.",
-                evidencia={"receita": _money(revenue), "tributos_registrados": _money(tax_expense), "percentual": _percent(ratio)},
-                recomendacao="Validar se todas as guias do trimestre foram reconhecidas e se houve retenções compensáveis.",
-                normas_aplicaveis=("LC 123/2006", tax_norm),
-            )
-        ]
-
-    return []
-
-
-def _check_profit_distribution(
-    revenue: Decimal,
-    profit_distribution: Decimal,
-    profit_basis: ProfitBasis,
-    profit_distribution_capacity: Decimal,
-) -> list[RuleFinding]:
-    cfg = get_rule_config("SN-004")
-    available_profit = max(profit_basis.value, profit_distribution_capacity, Decimal("0"))
-
-    if profit_distribution > available_profit and profit_distribution > 0:
-        return [
-            RuleFinding(
-                codigo="SN-004A",
-                titulo="Distribuição de lucros acima do lucro disponível identificado",
-                nivel=RiskLevel.ALTO,
-                pontuacao=cfg.get("pontuacao_alto", 32),
-                descricao="A distribuição de lucros supera o lucro do período e os saldos de lucros/reservas identificados no balancete trimestral.",
-                evidencia={
-                    "lucro_apurado": _money(profit_basis.value),
-                    "origem_lucro": profit_basis.source,
-                    "lucro_disponivel_identificado": _money(available_profit),
-                    "lucros_distribuidos": _money(profit_distribution),
-                },
-                recomendacao="Validar escrituração completa, lucros acumulados, reservas, resultado do período e documentação societária antes de manter distribuição isenta.",
-                normas_aplicaveis=("art. 14° LC 123/2006", "NBC TG 1000"),
-            )
-        ]
-
-    if revenue > 0:
-        lim_medio = Decimal(str(cfg.get("limite_medio_ratio", 0.30)))
-        if profit_distribution / revenue > lim_medio:
-            return [
-                RuleFinding(
-                    codigo="SN-004B",
-                    titulo="Distribuição de lucros acima de 30% da receita",
-                    nivel=RiskLevel.MEDIO,
-                    pontuacao=cfg.get("pontuacao_medio", 16),
-                    descricao="A distribuição de lucros representa parcela relevante da receita do trimestre.",
-                    evidencia={"receita_trimestre": _money(revenue), "lucros_distribuidos": _money(profit_distribution), "percentual": _percent(profit_distribution / revenue)},
-                    recomendacao="Conferir se há balancete regular, lucro contábil suficiente no período ou lucros acumulados que suportem a distribuição.",
-                    normas_aplicaveis=("art. 14° LC 123/2006", "NBC TG 1000"),
-                )
-            ]
-
-    return []
-
-
-def _check_partner_accounts(revenue: Decimal, partners: Decimal, accounts: list[LedgerAccount]) -> list[RuleFinding]:
-    if partners <= 0 or not accounts:
-        return []
-
-    cfg = get_rule_config("SN-005")
-    lim_ratio = Decimal(str(cfg.get("limite_medio_receita", cfg.get("limite_medio", 0.20))))
-    lim_abs = Decimal(str(cfg.get("limite_medio_absoluto", 10000)))
-    lim_baixo_abs = Decimal(str(cfg.get("limite_baixo_absoluto", 1000)))
-    ratio = partners / revenue if revenue > 0 else None
-    material = partners >= lim_abs or (ratio is not None and ratio >= lim_ratio)
-    level = RiskLevel.MEDIO if material else RiskLevel.BAIXO
-    score = cfg.get("pontuacao_medio", 18) if material else cfg.get("pontuacao_baixo", 6)
-    evidence = {
-        "receita": _money(revenue),
-        "saldo_contas_socios": _money(partners),
-        "percentual_receita": _percent(ratio) if ratio is not None else "[VERIFICAR: receita do trimestre]",
-        "limite_percentual_relevancia": _percent(lim_ratio),
-        "limite_absoluto_relevancia": _money(lim_abs),
-        "limite_baixa_materialidade": _money(lim_baixo_abs),
-        "classificacao_materialidade": "material" if material else "baixa_materialidade",
-        "quantidade_contas_identificadas": str(len(accounts)),
-        "contas_identificadas": format_account_trace(accounts),
-        "codigos_monitorados": "616 e 627 no ativo; 770 no passivo; demais contas com socio, administrador, pessoa ligada ou mutuo na descricao",
-        "contrato_mutuo": "[VERIFICAR: existência, valor, prazo, juros, partes e assinatura do contrato de mútuo ou instrumento equivalente]",
-        "iof_recolhido": "[VERIFICAR: cálculo, guia e comprovante de recolhimento do IOF quando a operação caracterizar mútuo/crédito]",
-        "criterio_rastreio": "saldo final em contas de socios ou codigos 616/627/770",
-        "tipo_achado": "validacao_documental",
-    }
-
-    return [
-        RuleFinding(
-            codigo="SN-005",
-            titulo="Saldos em contas de socios exigem validacao de mutuo e IOF",
-            nivel=level,
-            pontuacao=score,
-            descricao=(
-                "Foram identificados saldos materiais em contas relacionadas a socios, administradores, pessoas ligadas ou codigos monitorados de mutuo, exigindo validacao documental da natureza da operacao."
-                if material
-                else "Foram identificados saldos de baixa materialidade em contas relacionadas a socios, administradores, pessoas ligadas ou codigos monitorados de mutuo; o saldo deve ser conciliado e documentado."
-            ),
-            evidencia=evidence,
-            recomendacao="Revisar o razao contabil e os extratos das contas de socios, validar contrato de mutuo ou instrumento equivalente, conferir prazo, juros, movimentacao financeira e comprovar o IOF recolhido quando aplicavel; reclassificar valores que representem adiantamento, distribuicao de lucros, reembolso ou despesa particular.",
-            normas_aplicaveis=("ITG 2000", "NBC TG 1000", "RIR/2018", "Decreto 6.306/2007"),
-        )
-    ]
-
-
-def _check_expense_ratio(
-    revenue: Decimal,
-    expenses: Decimal,
-    balance: TrialBalance,
-    ruleset: str = RULESET_SERVICOS,
-) -> list[RuleFinding]:
-    if revenue <= 0:
-        return []
-
-    findings: list[RuleFinding] = []
-
-    cfg = get_rule_config("SN-007")
-    lim = Decimal(str(cfg.get("limite_medio", 0.70)))
-    ratio = expenses / revenue
-    activity_label = _activity_label(ruleset)
-    if ratio > lim:
-        findings.append(
-            RuleFinding(
-                codigo="SN-007",
-                titulo="Despesas operacionais elevadas",
-                nivel=RiskLevel.MEDIO,
-                pontuacao=cfg.get("pontuacao_medio", 16),
-                descricao=f"As despesas operacionais representam percentual elevado da receita de {activity_label}.",
-                evidencia={"receita": _money(revenue), "despesas": _money(expenses), "percentual": _percent(ratio)},
-                recomendacao="Revisar despesas dedutíveis, gastos de sócios, documentos fiscais e coerência com a atividade.",
-                normas_aplicaveis=("LC 123/2006", "RIR/2018"),
-            )
-        )
-
-    cfg13 = get_rule_config("SN-013")
-    rep_expenses = _abs(balance.debito_por_grupo("despesas_representacao"))
-    if rep_expenses > 0:
-        rep_ratio = rep_expenses / expenses
-        lim_rep = Decimal(str(cfg13.get("limite_representacao", 0.15)))
-        if rep_ratio > lim_rep:
-            findings.append(
-                RuleFinding(
-                    codigo="SN-013A",
-                    titulo="Despesas de representação elevadas",
-                    nivel=RiskLevel.MEDIO,
-                    pontuacao=cfg13.get("pontuacao_representacao", 10),
-                    descricao=f"As despesas de representação representam {_percent(rep_ratio)} do total de despesas, percentual que pode indicar gastos particulares lançados na empresa.",
-                    evidencia={
-                        "despesas_representacao": _money(rep_expenses),
-                        "total_despesas": _money(expenses),
-                        "percentual": _percent(rep_ratio),
-                    },
-                    recomendacao="Revisar a natureza dos gastos de representação, exigindo comprovantes fiscais e documentação de suporte.",
-                    normas_aplicaveis=("RIR/2018", "art. 47° LC 123/2006"),
-                )
-            )
-
-    veh_expenses = _abs(balance.debito_por_grupo("despesas_veiculos"))
-    if veh_expenses > 0:
-        veh_ratio = veh_expenses / expenses
-        lim_veh = Decimal(str(cfg13.get("limite_veiculos", 0.10)))
-        if veh_ratio > lim_veh:
-            findings.append(
-                RuleFinding(
-                    codigo="SN-013B",
-                    titulo="Despesas de veículos elevadas",
-                    nivel=RiskLevel.MEDIO,
-                    pontuacao=cfg13.get("pontuacao_veiculos", 10),
-                    descricao=f"As despesas com veículos representam {_percent(veh_ratio)} do total de despesas, percentual que merece validação quanto à atividade da empresa.",
-                    evidencia={
-                        "despesas_veiculos": _money(veh_expenses),
-                        "total_despesas": _money(expenses),
-                        "percentual": _percent(veh_ratio),
-                    },
-                    recomendacao="Confrontar despesas de veículos com a quantidade de veículos, contratos de leasing/combustível e efetiva necessidade operacional.",
-                    normas_aplicaveis=("RIR/2018", "art. 47° LC 123/2006"),
-                )
-            )
-
-    return findings
-
-
-def _check_third_party_services_expense(
-    third_party_services: Decimal,
-    expenses: Decimal,
-    accounts: list[LedgerAccount],
-) -> list[RuleFinding]:
-    if third_party_services <= 0 or expenses <= 0:
-        return []
-
-    cfg = get_rule_config("SN-025")
-    absolute_limit = Decimal(str(cfg.get("limite_absoluto", 10000)))
-    ratio_limit = Decimal(str(cfg.get("limite_ratio_despesas", 0.20)))
-    ratio = third_party_services / expenses
-
-    if third_party_services < absolute_limit or ratio < ratio_limit:
-        return []
-
-    return [
-        RuleFinding(
-            codigo="SN-025",
-            titulo="Servicos prestados por terceiros relevantes nas despesas",
-            nivel=RiskLevel.MEDIO,
-            pontuacao=cfg.get("pontuacao_medio", 12),
-            descricao="A conta 325/servicos prestados por terceiros representa percentual relevante das despesas do trimestre, indicando necessidade de validacao documental dos lancamentos.",
-            evidencia={
-                "conta_referencia": "325 - Servicos prestados por terceiros",
-                "servicos_terceiros": _money(third_party_services),
-                "total_despesas": _money(expenses),
-                "percentual_sobre_despesas": _percent(ratio),
-                "limite_percentual_despesas": _percent(ratio_limit),
-                "limite_absoluto": _money(absolute_limit),
-                "quantidade_contas_identificadas": str(len(accounts)),
-                "contas_identificadas": format_account_trace(accounts),
-                "criterio_rastreio": "codigo 325, prefixo configurado ou descricao de servicos prestados por terceiros",
-                "tipo_achado": "validacao_documental",
-            },
-            recomendacao="Verificar e validar os lancamentos da conta 325, confrontando pagamentos, contratos, notas fiscais, comprovantes bancarios, retencoes aplicaveis e suporte documental antes de manter a despesa.",
-            normas_aplicaveis=("ITG 2000", "NBC TG 1000"),
-        )
-    ]
-
-
-def _check_accounting_loss(revenue: Decimal, profit_basis: ProfitBasis) -> list[RuleFinding]:
-    cfg = get_rule_config("SN-009")
-
-    if profit_basis.value >= 0:
-        return []
-
-    if revenue <= 0:
-        return [
-            RuleFinding(
-                codigo="SN-009A",
-                titulo="Prejuízo contábil sem receita declarada",
-                nivel=RiskLevel.ALTO,
-                pontuacao=cfg.get("pontuacao_alto", 25),
-                descricao="A empresa apresenta prejuízo contábil e nenhuma receita declarada, indicando risco de continuidade operacional.",
-                evidencia={
-                    "lucro_apurado": _money(profit_basis.value),
-                    "origem_lucro": profit_basis.source,
-                },
-                recomendacao="Avaliar viabilidade operacional, verificar passivos acumulados e documentar o enquadramento fiscal aplicável.",
-                normas_aplicaveis=("NBC TG 1000", "ITG 2000"),
-            )
-        ]
-
-    loss_ratio = abs(profit_basis.value) / revenue
-    lim = Decimal(str(cfg.get("limite_medio_ratio", 0.10)))
-    if loss_ratio > lim:
-        return [
-            RuleFinding(
-                codigo="SN-009B",
-                titulo=f"Prejuízo contábil significativo ({_percent(abs(profit_basis.value) / revenue)} da receita)",
-                nivel=RiskLevel.ALTO,
-                pontuacao=cfg.get("pontuacao_alto", 25),
-                descricao=f"O prejuízo apurado representa {_percent(loss_ratio)} da receita, indicando desequilíbrio entre custos e receitas.",
-                evidencia={
-                    "lucro_apurado": _money(profit_basis.value),
-                    "receita": _money(revenue),
-                    "percentual_prejuizo": _percent(loss_ratio),
-                },
-                recomendacao="Revisar estrutura de custos, margem de contribuição, viabilidade do modelo de negócio e efeitos tributários aplicáveis.",
-                normas_aplicaveis=("NBC TG 1000", "ITG 2000"),
-            )
-        ]
-
-    return [
-        RuleFinding(
-            codigo="SN-009C",
-            titulo="Prejuízo contábil leve",
-            nivel=RiskLevel.MEDIO,
-            pontuacao=cfg.get("pontuacao_medio", 12),
-            descricao="A empresa apurou prejuízo contábil no período, mesmo que em proporção reduzida.",
-            evidencia={
-                "lucro_apurado": _money(profit_basis.value),
-                "receita": _money(revenue),
-            },
-            recomendacao="Acompanhar evolução do resultado nos próximos trimestres e identificar causas do déficit.",
-            normas_aplicaveis=("NBC TG 1000", "ITG 2000"),
-        )
-    ]
-
-
-def _check_high_profit_margin(revenue: Decimal, profit_basis: ProfitBasis) -> list[RuleFinding]:
-    if revenue <= 0 or profit_basis.value <= 0:
-        return []
-
-    cfg = get_rule_config("SN-021")
-    margin = profit_basis.value / revenue
-    reference = Decimal(str(cfg.get("referencia_presuncao_servicos", 0.32)))
-
-    high_limit = Decimal(str(cfg.get("limite_medio_ratio", 0.64)))
-    if margin > high_limit:
-        return [
-            RuleFinding(
-                codigo="SN-021B",
-                titulo="Margem de lucro contábil muito elevada",
-                nivel=RiskLevel.MEDIO,
-                pontuacao=cfg.get("pontuacao_medio", 12),
-                descricao="O lucro contábil representa percentual muito elevado da receita, sugerindo possível ausência de despesas, custos ou lançamentos de competência.",
-                evidencia={
-                    "receita": _money(revenue),
-                    "lucro_apurado": _money(profit_basis.value),
-                    "origem_lucro": profit_basis.source,
-                    "margem_lucro": _percent(margin),
-                    "referencia_presuncao": _percent(reference),
-                },
-                recomendacao="Revisar se todas as despesas, custos, folha, pró-labore, fornecedores, serviços tomados e encargos foram reconhecidos pelo regime de competência.",
-                normas_aplicaveis=("NBC TG 1000", "ITG 2000"),
-            )
-        ]
-
-    attention_limit = Decimal(str(cfg.get("limite_baixo_ratio", 0.45)))
-    if margin > attention_limit:
-        return [
-            RuleFinding(
-                codigo="SN-021A",
-                titulo="Margem de lucro contábil acima da referência esperada",
-                nivel=RiskLevel.BAIXO,
-                pontuacao=cfg.get("pontuacao_baixo", 6),
-                descricao="O lucro contábil está acima da referência gerencial usada como alerta, exigindo validação das despesas e custos do período.",
-                evidencia={
-                    "receita": _money(revenue),
-                    "lucro_apurado": _money(profit_basis.value),
-                    "origem_lucro": profit_basis.source,
-                    "margem_lucro": _percent(margin),
-                    "referencia_presuncao": _percent(reference),
-                },
-                recomendacao="Conferir despesas, custos e apropriações de competência para confirmar se a margem elevada representa a realidade operacional.",
-                normas_aplicaveis=("NBC TG 1000", "ITG 2000"),
-            )
-        ]
-
-    return []
-
-
-def _check_tax_liability_growth(balance: TrialBalance, revenue: Decimal) -> list[RuleFinding]:
-    if revenue <= 0:
-        return []
-
-    cfg = get_rule_config("SN-012")
-    pts = cfg.get("pontuacao_medio", 14)
-
-    tax_accounts = []
-    for group in TAX_LIABILITY_GROUPS:
-        tax_accounts.extend(balance.contas_por_grupo(group))
-    if not tax_accounts:
-        tax_accounts = balance.contas_por_grupo(LEGACY_TAX_GROUP)
-    if not tax_accounts:
-        return []
-
-    previous_tax = _abs(sum((account.saldo_anterior for account in tax_accounts), Decimal("0")))
-    current_tax = _abs(sum((account.saldo_atual for account in tax_accounts), Decimal("0")))
-
-    if previous_tax >= current_tax or previous_tax <= 0:
-        return []
-
-    growth_ratio = (current_tax - previous_tax) / previous_tax
-    lim = Decimal(str(cfg.get("limite_medio", 0.50)))
-    if growth_ratio > lim:
-        return [
-            RuleFinding(
-                codigo="SN-012",
-                titulo="Passivo tributário com crescimento relevante",
-                nivel=RiskLevel.MEDIO,
-                pontuacao=pts,
-                descricao=f"O saldo de tributos a recolher cresceu {_percent(growth_ratio)} em relação ao período anterior, indicando possível acúmulo de débitos fiscais.",
-                evidencia={
-                    "saldo_anterior_tributos": _money(previous_tax),
-                    "saldo_atual_tributos": _money(current_tax),
-                    "crescimento": _percent(growth_ratio),
-                },
-                recomendacao="Conferir apuração do DAS dos períodos, regularidade fiscal e possíveis parcelamentos em aberto.",
-                normas_aplicaveis=("LC 123/2006", "art. 47° LC 123/2006"),
-            )
-        ]
-
-    return []
-
-
-def _check_missing_provisions(revenue: Decimal, payroll: Decimal, balance: TrialBalance) -> list[RuleFinding]:
-    if revenue <= 0 or payroll <= 0:
-        return []
-
-    cfg = get_rule_config("SN-014")
-    payroll_ratio = payroll / revenue
-    lim_folha = Decimal(str(cfg.get("limite_folha_receita", 0.10)))
-
-    if payroll_ratio < lim_folha:
-        return []
-
-    provisions = _abs(balance.total_por_grupo("provisoes"))
-    if provisions > 0:
-        return []
-
-    return [
-        RuleFinding(
-            codigo="SN-014",
-            titulo="Ausência de provisões trabalhistas com folha significativa",
-            nivel=RiskLevel.MEDIO,
-            pontuacao=cfg.get("pontuacao_medio", 12),
-            descricao=f"A folha de pagamento representa {_percent(payroll_ratio)} da receita, mas não foram identificadas provisões para férias, 13º salário ou encargos no balancete.",
-            evidencia={
-                "receita": _money(revenue),
-                "folha_pro_labore": _money(payroll),
-                "percentual_folha": _percent(payroll_ratio),
-                "provisoes": _money(provisions),
-            },
-            recomendacao="Constituir provisões trabalhistas (férias, 13º, FGTS, INSS) conforme regime de competência e ITG 2000.",
-            normas_aplicaveis=("ITG 2000", "CLT", "art. 47° LC 123/2006"),
-        )
-    ]
-
-
-def _abs(value: Decimal) -> Decimal:
-    return abs(value)
-
-
-def _activity_label(ruleset: str) -> str:
-    if ruleset == RULESET_COMERCIO:
-        return "comercio"
-    if ruleset == RULESET_COMERCIO_SERVICOS:
-        return "comercio e servicos"
-    return "servicos"
-
-
-def _tax_annex_norm(ruleset: str) -> str:
-    if ruleset == RULESET_COMERCIO:
-        return "Anexo I da LC 123/2006"
-    if ruleset == RULESET_COMERCIO_SERVICOS:
-        return "Anexos I e III/V da LC 123/2006"
-    return "Anexo III da LC 123/2006"

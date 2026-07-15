@@ -1,26 +1,38 @@
 ﻿from __future__ import annotations
 
-import argparse
 import hmac
 import json
 import logging
 import os
 import traceback
-from decimal import Decimal
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
-from .annual import build_annual_comparison, build_rbt12_context
+from .annual import build_annual_comparison
+from .api_helpers import (
+    form_text as _form_text,
+    json_default as _json_default,
+    payload_int as _payload_int,
+    query_int as _query_int,
+    query_text as _query_text,
+    saved_rbt12_context as _saved_rbt12_context,
+)
 from .api_payloads import audit_result_to_annual_source, audit_result_to_dashboard_payload
+from .api_runtime import (
+    is_loopback_host as _is_loopback_host,
+    parse_args as _parse_args,
+    setup_logging as _setup_logging,
+    validate_runtime_security as _validate_runtime_security,
+)
 from .audit import run_quarterly_audit
 from .http_multipart import UploadedFile, read_multipart_form
 from .parser import read_trial_balance_upload
 from .schema_loader import load_json_schema
 from .serializers import audit_result_to_dict
-from .storage import DB_SCHEMA_VERSION, AuditStorage, file_sha256, infer_year_quarter
+from .storage import DB_SCHEMA_VERSION, AuditStorage, file_sha256
 
 logger = logging.getLogger(__name__)
 _STATIC_DIR = Path(__file__).with_name("static")
@@ -437,110 +449,6 @@ def main() -> None:
         db_path=args.db_path,
         allow_unsafe_network=args.allow_unsafe_network,
     )
-
-
-def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="API local para pre-auditoria fiscal.")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8000)
-    parser.add_argument("--api-key", help="Chave da API para autenticacao (ou use AUDIT_API_KEY).")
-    parser.add_argument("--cors-origin", help="Origem permitida para CORS (ou use AUDIT_CORS_ORIGIN). Padrao: *.")
-    parser.add_argument("--regime-tributario", default=None, help="Regime tributario (padrao: Simples Nacional).")
-    parser.add_argument(
-        "--atividade",
-        default="servicos",
-        choices=["servicos", "comercio", "comercio_servicos"],
-        help="Conjunto de regras do Simples Nacional.",
-    )
-    parser.add_argument("--db-path", help="Caminho do SQLite local (ou use AUDIT_DB_PATH).")
-    parser.add_argument(
-        "--allow-unsafe-network",
-        action="store_true",
-        help="Permite host nao local sem API key ou CORS restrito. Use apenas em ambiente isolado.",
-    )
-    parser.add_argument("--verbose", action="store_true", help="Ativar logging detalhado.")
-    return parser.parse_args()
-
-
-def _setup_logging(verbose: bool = False) -> None:
-    level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-
-
-def _validate_runtime_security(
-    host: str,
-    api_key: str | None,
-    cors_origin: str,
-    allow_unsafe_network: bool,
-) -> None:
-    if _is_loopback_host(host) or allow_unsafe_network:
-        return
-
-    if not (api_key or "").strip():
-        raise ValueError(
-            "API exposta em host nao local exige API key. Use --api-key/AUDIT_API_KEY "
-            "ou --allow-unsafe-network apenas em ambiente isolado."
-        )
-
-    if (cors_origin or "*").strip() == "*":
-        raise ValueError(
-            "API exposta em host nao local exige CORS restrito. Informe --cors-origin/AUDIT_CORS_ORIGIN "
-            "ou --allow-unsafe-network apenas em ambiente isolado."
-        )
-
-
-def _is_loopback_host(host: str) -> bool:
-    normalized = (host or "").strip().lower()
-    return normalized in {"127.0.0.1", "localhost", "::1"}
-
-
-def _form_text(form: dict[str, str | UploadedFile], field: str, default: str) -> str:
-    value = form.get(field)
-    return value.strip() if isinstance(value, str) and value.strip() else default
-
-
-def _query_text(query: dict[str, list[str]], field: str) -> str:
-    values = query.get(field) or []
-    value = values[0] if values else ""
-    return str(value or "").strip()
-
-
-def _query_int(query: dict[str, list[str]], field: str) -> int | None:
-    value = _query_text(query, field)
-    if not value:
-        return None
-    try:
-        return int(value)
-    except ValueError as exc:
-        raise ValueError(f"O parâmetro '{field}' deve ser numérico.") from exc
-
-
-def _payload_int(payload: dict[str, Any], field: str) -> int | None:
-    value = payload.get(field)
-    if value in (None, ""):
-        return None
-    try:
-        return int(str(value))
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"O campo '{field}' deve ser numérico.") from exc
-
-
-def _saved_rbt12_context(storage: AuditStorage, cnpj: str, periodo: str) -> dict[str, Any]:
-    if not cnpj:
-        return {}
-    ano, _ = infer_year_quarter(periodo)
-    sources = storage.annual_sources(cnpj=cnpj, ano=ano)
-    return build_rbt12_context(sources)
-
-
-def _json_default(value):
-    if isinstance(value, Decimal):
-        return float(value)
-    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
 
 
 def _index_html() -> str:

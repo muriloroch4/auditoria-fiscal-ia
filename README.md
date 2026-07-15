@@ -316,6 +316,9 @@ Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`.
 - `src/auditoria/rules/servicos.py` — checagens específicas de serviços, incluindo Fator R/folha
 - `src/auditoria/rules/comercio.py` — checagens específicas de comércio, incluindo estoque, fornecedores, CMV, sublimite e ICMS-ST
 - `src/auditoria/rules/misto.py` — checagens de empresas mistas com receitas de comércio e serviços
+- `src/auditoria/rules/fiscal.py` — regras fiscais gerais de receita, limite do Simples, carga tributária e passivo tributário
+- `src/auditoria/rules/societario.py` — regras de distribuição de lucros e saldos com sócios/mútuo
+- `src/auditoria/rules/resultado.py` — regras de resultado, despesas, margem, serviços de terceiros e provisões
 - `src/auditoria/rules/financeiro.py` — checagens de caixa, recebíveis e adiantamentos
 - `src/auditoria/rules/patrimonial.py` — checagens patrimoniais/documentais, incluindo natureza inversa e empréstimos sem juros por competência
 - `src/auditoria/rules/metricas.py` — cálculo de métricas contábeis usadas pelo motor de regras
@@ -350,6 +353,8 @@ Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`.
 - `src/auditoria/xlsx_reader.py` — leitura de linhas XLSX a partir do XML interno da planilha
 - `src/auditoria/api.py` — servidor HTTP com upload, schemas e rotas estáticas do dashboard
 - `src/auditoria/api_payloads.py` — conversão de resultados de auditoria para payloads auxiliares da API e dashboard
+- `src/auditoria/api_helpers.py` — helpers de query/body, serialização JSON e contexto RBT12 salvo usados pela API
+- `src/auditoria/api_runtime.py` — configuração de CLI, logging e validação de segurança do runtime HTTP
 - `src/auditoria/http_multipart.py` — parser de formulários multipart usados no upload da API
 - `src/auditoria/static/` — frontend do dashboard, utilitários JS, download JSON, filtros de achados e impressão em PDF
 - `src/auditoria/static/print.css` — estilos dedicados ao relatório de impressão/PDF
