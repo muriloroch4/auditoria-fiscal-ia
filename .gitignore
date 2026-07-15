@@ -5,6 +5,9 @@ __pycache__/
 *.so
 .Python
 .mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
 env/
 venv/
 .venv/
@@ -43,3 +46,4 @@ scripts/fix_accents.py
 # Local render experiments
 create_test_html.py
 test_render.html
+tmp/

@@ -1,6 +1,8 @@
 import io
 import json
+import shutil
 import sqlite3
+import subprocess
 import tempfile
 import unittest
 import unittest.mock
@@ -12,7 +14,7 @@ from pathlib import Path
 from textwrap import dedent
 from xml.sax.saxutils import escape
 
-from src.auditoria.api import AuditApiHandler, UploadedFile
+from src.auditoria.api import AuditApiHandler, UploadedFile, _validate_runtime_security
 from src.auditoria.storage import DB_USER_VERSION, AuditStorage
 
 
@@ -219,6 +221,10 @@ class APIHealthTest(unittest.TestCase):
             self.assertIn("Auditoria Fiscal IA", html_content)
             self.assertIn('/static/favicon.svg', html_content)
             self.assertIn('/static/styles.css', html_content)
+            self.assertIn('/static/app-utils.js', html_content)
+            self.assertIn('/static/app-print.js', html_content)
+            self.assertIn('/static/app-dashboard.js', html_content)
+            self.assertIn('/static/app-annual.js', html_content)
             self.assertIn('/static/app.js', html_content)
 
     def test_static_favicon_returns_svg(self):
@@ -241,7 +247,7 @@ class APIHealthTest(unittest.TestCase):
 
         schema = mock_send.call_args.args[0]
         self.assertEqual(schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
-        self.assertEqual(schema["properties"]["metadados"]["properties"]["versao_schema"]["const"], "3.1.0")
+        self.assertEqual(schema["properties"]["metadados"]["properties"]["versao_schema"]["const"], "3.2.0")
         self.assertIn("principais_achados", schema["required"])
 
     def test_annual_schema_endpoint_returns_json_schema(self):
@@ -265,10 +271,58 @@ class APIHealthTest(unittest.TestCase):
         self.assertEqual(handler._response_code, HTTPStatus.OK)
         self.assertEqual(handler._response_headers["Content-Type"], "text/javascript; charset=utf-8")
         content = handler.wfile.getvalue().decode("utf-8")
-        self.assertIn("printDashboardPdf", content)
         self.assertIn("formalAuditPayload", content)
-        self.assertIn("renderAccountClassification", content)
+        self.assertIn("renderDashboard", content)
+        self.assertIn("bindDynamicControls", content)
+
+    def test_static_javascript_utils_returns_asset(self):
+        handler = TestableAuditApiHandler()
+        handler.path = "/static/app-utils.js"
+
+        handler.do_GET()
+
+        self.assertEqual(handler._response_code, HTTPStatus.OK)
+        self.assertEqual(handler._response_headers["Content-Type"], "text/javascript; charset=utf-8")
+        content = handler.wfile.getvalue().decode("utf-8")
+        self.assertIn("function esc", content)
+        self.assertIn("function opinionLabel", content)
+
+    def test_static_javascript_print_returns_asset(self):
+        handler = TestableAuditApiHandler()
+        handler.path = "/static/app-print.js"
+
+        handler.do_GET()
+
+        self.assertEqual(handler._response_code, HTTPStatus.OK)
+        self.assertEqual(handler._response_headers["Content-Type"], "text/javascript; charset=utf-8")
+        content = handler.wfile.getvalue().decode("utf-8")
+        self.assertIn("function printDashboardPdf", content)
+        self.assertIn("function buildPrintDocumentHtml", content)
+
+    def test_static_javascript_dashboard_returns_asset(self):
+        handler = TestableAuditApiHandler()
+        handler.path = "/static/app-dashboard.js"
+
+        handler.do_GET()
+
+        self.assertEqual(handler._response_code, HTTPStatus.OK)
+        self.assertEqual(handler._response_headers["Content-Type"], "text/javascript; charset=utf-8")
+        content = handler.wfile.getvalue().decode("utf-8")
+        self.assertIn("function buildDashboardHtml", content)
+        self.assertIn("function renderAccountClassification", content)
         self.assertIn("data-finding-filter", content)
+
+    def test_static_javascript_annual_returns_asset(self):
+        handler = TestableAuditApiHandler()
+        handler.path = "/static/app-annual.js"
+
+        handler.do_GET()
+
+        self.assertEqual(handler._response_code, HTTPStatus.OK)
+        self.assertEqual(handler._response_headers["Content-Type"], "text/javascript; charset=utf-8")
+        content = handler.wfile.getvalue().decode("utf-8")
+        self.assertIn("function generateAnnualJson", content)
+        self.assertIn("function renderAnnualPanel", content)
 
     def test_static_missing_asset_returns_404(self):
         handler = TestableAuditApiHandler()
@@ -318,9 +372,52 @@ class APIAuthTest(unittest.TestCase):
         result = handler._check_auth()
         self.assertTrue(result)
 
+    def test_auth_uses_constant_time_compare(self):
+        handler = TestableAuditApiHandler(api_key="secret")
+        handler.headers = {"X-API-Key": "wrong-key"}
+
+        with unittest.mock.patch("src.auditoria.api.hmac.compare_digest", return_value=False) as compare:
+            result = handler._check_auth()
+
+        self.assertFalse(result)
+        compare.assert_called_once_with("wrong-key", "secret")
+
     def test_no_auth_when_api_key_none(self):
         handler = TestableAuditApiHandler(api_key=None)
         self.assertIsNone(handler.api_key)
+
+
+class APISecurityConfigTest(unittest.TestCase):
+    def test_loopback_host_allows_local_defaults(self):
+        _validate_runtime_security("127.0.0.1", None, "*", False)
+
+    def test_non_local_host_requires_api_key(self):
+        with self.assertRaises(ValueError):
+            _validate_runtime_security("0.0.0.0", None, "http://localhost:8000", False)
+
+    def test_non_local_host_requires_restricted_cors(self):
+        with self.assertRaises(ValueError):
+            _validate_runtime_security("0.0.0.0", "secret", "*", False)
+
+    def test_unsafe_network_flag_allows_explicit_override(self):
+        _validate_runtime_security("0.0.0.0", None, "*", True)
+
+
+class StaticFrontendTest(unittest.TestCase):
+    def test_dashboard_javascript_files_have_valid_syntax(self):
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("Node.js nao encontrado para validar o JavaScript estatico.")
+
+        for script in sorted(Path("src/auditoria/static").glob("app*.js")):
+            result = subprocess.run(
+                [node, "--check", str(script)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
 
 
 class APIAuditUploadTest(unittest.TestCase):
@@ -362,7 +459,7 @@ class APIAuditUploadTest(unittest.TestCase):
             handler._handle_audit_upload()
             mock_send.assert_called_once()
             result = mock_send.call_args.args[0]
-            self.assertEqual(result["metadados"]["versao_schema"], "3.1.0")
+            self.assertEqual(result["metadados"]["versao_schema"], "3.2.0")
             self.assertIn("consultivo", result)
             self.assertIn("resumo_analise", result)
             self.assertIn("risco_geral", result["resumo_analise"])
@@ -390,7 +487,7 @@ class APIAuditUploadTest(unittest.TestCase):
             handler._handle_audit_upload()
             mock_send.assert_called_once()
             result = mock_send.call_args.args[0]
-            self.assertEqual(result["metadados"]["versao_schema"], "3.1.0")
+            self.assertEqual(result["metadados"]["versao_schema"], "3.2.0")
             self.assertIn("risco_geral", result["resumo_analise"])
             self.assertIn("dashboard", result)
             self.assertIn("contexto_regime", result["dashboard"])
@@ -478,7 +575,7 @@ class APIAuditUploadTest(unittest.TestCase):
             handler.do_POST()
             mock_send.assert_called_once()
             result = mock_send.call_args.args[0]
-            self.assertEqual(result["metadados"]["versao_schema"], "3.1.0")
+            self.assertEqual(result["metadados"]["versao_schema"], "3.2.0")
             self.assertIn("risco_geral", result["resumo_analise"])
             self.assertIn("dashboard", result)
 
@@ -506,7 +603,7 @@ class APIAuditUploadTest(unittest.TestCase):
 
         mock_send.assert_called_once()
         result = mock_send.call_args.args[0]
-        self.assertEqual(result["metadados"]["versao_schema"], "3.1.0")
+        self.assertEqual(result["metadados"]["versao_schema"], "3.2.0")
 
 
 class APIAnnualUploadTest(unittest.TestCase):

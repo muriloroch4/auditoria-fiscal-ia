@@ -1,8 +1,8 @@
 # Auditoria Fiscal IA — Pré-auditoria para Simples Nacional
 
-Motor de regras fiscais para análise de balancetes trimestrais de empresas optantes pelo Simples Nacional, com conjuntos para serviços, comércio e empresas mistas de comércio e serviços. O motor extrai métricas do balancete, aplica regras de risco configuráveis e produz um JSON resumido (schema v3.1.0) para geração de relatório técnico consultivo objetivo ou envio direto ao cliente.
+Motor de regras fiscais para análise de balancetes trimestrais de empresas optantes pelo Simples Nacional, com conjuntos para serviços, comércio e empresas mistas de comércio e serviços. O motor extrai métricas do balancete, aplica regras de risco configuráveis e produz um JSON resumido (schema v3.2.0) para geração de relatório técnico consultivo objetivo ou envio direto ao cliente.
 
-## Esquema de saída (v3.1.0)
+## Esquema de saída (v3.2.0)
 
 ```json
 {
@@ -40,6 +40,7 @@ Motor de regras fiscais para análise de balancetes trimestrais de empresas opta
   "conclusao_tecnica": {
     "risco_geral": "alto",
     "conclusao_sugerida": "adversa",
+    "orientacao_consultiva": "regularizar os achados relevantes antes de usar os dados para decisões externas ou fechamento anual",
     "ressalva_base_json": true,
     "necessita_validacao_documental": true,
     "texto_conclusivo": "Com base exclusivamente no JSON de auditoria trimestral, os achados indicam risco técnico elevado."
@@ -71,7 +72,7 @@ Motor de regras fiscais para análise de balancetes trimestrais de empresas opta
   },
   "metadados": {
     "data_analise": "2026-05-26T10:30:00",
-    "versao_schema": "3.1.0",
+    "versao_schema": "3.2.0",
     "versao_regras": "1.x.x",
     "conjunto_regras": "simples_servicos"
   }
@@ -80,7 +81,7 @@ Motor de regras fiscais para análise de balancetes trimestrais de empresas opta
 
 Conjuntos disponíveis em `metadados.conjunto_regras`: `simples_servicos`, `simples_comercio` e `simples_comercio_servicos`.
 
-O JSON formal validado pelo schema é o contrato para pareceres e integrações. A resposta do endpoint `POST /api/auditorias` também inclui um bloco auxiliar `dashboard` com métricas completas, contexto tributário e totais operacionais usados apenas pela interface web. O botão **JSON** do dashboard remove esse bloco auxiliar e baixa somente o payload formal `v3.1.0`.
+O JSON formal validado pelo schema é o contrato para pareceres e integrações. A resposta do endpoint `POST /api/auditorias` também inclui um bloco auxiliar `dashboard` com métricas completas, contexto tributário e totais operacionais usados apenas pela interface web. O botão **JSON** do dashboard remove esse bloco auxiliar e baixa somente o payload formal `v3.2.0`. Para relatórios consultivos, prefira o campo `conclusao_tecnica.orientacao_consultiva`; `conclusao_sugerida` permanece por compatibilidade técnica.
 
 As tabelas estruturadas dos anexos usados pelo contexto tributário ficam em `config/simples_anexos.json`. O motor estima Anexo I para comércio, Anexo III ou V para serviços conforme Fator R trimestral, e exige segregação para empresas mistas. A estimativa não substitui RBT12 oficial, CNAE, PGDAS-D e validação documental.
 
@@ -96,14 +97,17 @@ Dependências:
 python -m pip install -r requirements.txt
 ```
 
-O runtime atual usa apenas a biblioteca padrão do Python. O arquivo `requirements.txt` existe para deixar o onboarding e a CI explícitos. A leitura de `.xlsx` é feita por parser interno baseado em `zipfile`; `openpyxl`/`xlrd` não são obrigatórios no estado atual do projeto.
+O runtime usa `jsonschema` para validar formalmente os contratos JSON. A leitura de `.xlsx` é feita por parser interno baseado em `zipfile`; `openpyxl`/`xlrd` não são obrigatórios no estado atual do projeto.
 
 Para desenvolvimento local:
 
 ```powershell
 python -m pip install -r requirements-dev.txt
-python -m unittest discover -v
+python -m playwright install chromium
+python -m coverage run -m unittest discover -v
+python -m coverage report
 python -m mypy src/auditoria --config-file pyproject.toml
+Get-ChildItem src/auditoria/static/app*.js | ForEach-Object { node --check $_.FullName }
 ```
 
 ### Servidor web (recomendado)
@@ -124,7 +128,7 @@ campo opcional: atividade = servicos | comercio | comercio_servicos
 
 Schema de saída:
 ```text
-GET /api/auditorias/schema            # JSON Schema trimestral v3.1.0
+GET /api/auditorias/schema            # JSON Schema trimestral v3.2.0
 GET /api/auditorias/schema/trimestral # alias explícito do trimestral
 GET /api/auditorias/schema/anual      # JSON Schema anual annual-1.1.0
 ```
@@ -162,6 +166,15 @@ python -m src.auditoria.api --port 8000 --cors-origin http://127.0.0.1:8000
 ```
 
 Também é possível usar a variável `AUDIT_CORS_ORIGIN`. Se não for informado, o servidor local usa `*`.
+
+Segurança ao expor em rede:
+```powershell
+$env:AUDIT_API_KEY = "segredo-forte"
+$env:AUDIT_CORS_ORIGIN = "https://seu-dominio-interno.example"
+python -m src.auditoria.api --host 0.0.0.0 --port 8000
+```
+
+Hosts não locais, como `0.0.0.0`, exigem API key e CORS restrito por padrão. O flag `--allow-unsafe-network` existe apenas para laboratório isolado e não deve ser usado em produção.
 
 Regime tributário personalizado:
 ```powershell
@@ -216,10 +229,13 @@ resultado, estoques, fornecedores, CMV/custos, serviços de terceiros/conta 325,
 créditos fiscais, saldos finais relevantes, RBT12 consolidado, recorrência de achados,
 tendência de risco e risco anual.
 
-### Testes
+### Testes e qualidade
 
 ```powershell
-python -m unittest discover -v
+python -m coverage run -m unittest discover -v
+python -m coverage report
+python -m mypy src/auditoria --config-file pyproject.toml
+Get-ChildItem src/auditoria/static/app*.js | ForEach-Object { node --check $_.FullName }
 ```
 
 ## Formato esperado do balancete
@@ -264,7 +280,7 @@ Esse mapa já inclui a conta `325`/`serviços prestados por terceiros`, contas d
 
 ## Integração com IA
 
-O motor de regras entrega o JSON trimestral resumido v3.1.0 e o CLI também pode gerar parecer consultivo em Markdown com `--markdown`. O relatório em linguagem natural usa o system prompt consultivo em `src/auditoria/report_ai.py`, com fallback local quando `--no-ai` é usado ou quando a IA não está disponível.
+O motor de regras entrega o JSON trimestral resumido v3.2.0 e o CLI também pode gerar parecer consultivo em Markdown com `--markdown`. O relatório em linguagem natural usa o system prompt consultivo em `src/auditoria/report_ai.py`, com fallback local quando `--no-ai` é usado ou quando a IA não está disponível.
 
 O cliente OpenRouter (`src/auditoria/ai_client.py`) pode ser usado para esse fim, mas é independente do motor de regras.
 
@@ -272,7 +288,7 @@ O cliente OpenRouter (`src/auditoria/ai_client.py`) pode ser usado para esse fim
 
 Para uso em chats treinados ou assistentes externos, mantenha dois chats separados:
 
-- **Parecer Trimestral via JSON** — recebe o JSON trimestral `v3.1.0` gerado pelo motor.
+- **Parecer Trimestral via JSON** — recebe o JSON trimestral `v3.2.0` gerado pelo motor.
 - **Parecer Anual Comparativo via JSON** — recebe o JSON anual `annual-1.1.0` gerado pela consolidação dos trimestres.
 
 Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`. Em ambos os casos, a orientação é enviar apenas o JSON gerado pelo sistema como entrada e solicitar a saída em Markdown.
@@ -290,14 +306,23 @@ Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`.
 - `src/auditoria/rules/rulesets.py` — normalização dos conjuntos de regras por atividade
 - `src/auditoria/risk.py` — classificação de risco + `suggest_opinion_type`
 - `src/auditoria/audit.py` — orquestração: métricas, contexto do regime, explicação do score
-- `src/auditoria/annual.py` — consolidação anual dos JSONs trimestrais e parecer anual comparativo
-- `src/auditoria/serializers.py` — serialização para JSON trimestral resumido v3.1.0
+- `src/auditoria/annual.py` — orquestração da consolidação anual dos JSONs trimestrais
+- `src/auditoria/annual_metrics.py` — normalização trimestral, RBT12 e métricas anuais
+- `src/auditoria/annual_findings.py` — achados anuais, recorrências e explicação da pontuação
+- `src/auditoria/annual_consultivo.py` — leitura consultiva e plano de ação anual
+- `src/auditoria/annual_report.py` — renderização Markdown do relatório anual comparativo
+- `src/auditoria/static/app.js` — fluxo principal do dashboard trimestral
+- `src/auditoria/static/app-utils.js` — utilitários puros de formatação e normalização
+- `src/auditoria/static/app-dashboard.js` — renderização das seções do dashboard trimestral
+- `src/auditoria/static/app-print.js` — montagem do documento de impressão/PDF
+- `src/auditoria/static/app-annual.js` — painel de trimestres e geração do JSON anual
+- `src/auditoria/serializers.py` — serialização para JSON trimestral resumido v3.2.0
 - `src/auditoria/evidence.py` — evidência estruturada por achado, com fonte, confiança e documentos recomendados
 - `src/auditoria/storage.py` — persistência SQLite dos trimestres e consolidações anuais
 - `src/auditoria/schema_loader.py` — carregamento dos JSON Schemas formais trimestral/anual
 - `src/auditoria/schema_validator.py` — validação interna dos JSONs gerados contra os schemas formais
 - `src/auditoria/api.py` — servidor HTTP com upload, schemas e rotas estáticas do dashboard
-- `src/auditoria/static/` — frontend do dashboard, download JSON, filtros de achados e impressão em PDF
+- `src/auditoria/static/` — frontend do dashboard, utilitários JS, download JSON, filtros de achados e impressão em PDF
 - `src/auditoria/report_ai.py` — system prompt para geração de parecer via IA
 - `src/auditoria/ai_client.py` — cliente OpenRouter (stdlib, sem dependências)
 - `src/auditoria/main.py` — CLI para processamento em lote (JSON por padrão, Markdown com `--markdown`)
@@ -307,7 +332,7 @@ Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`.
 - `config/consultivo_por_regra.json` — textos consultivos, documentos, responsáveis e prazos por regra
 - `schemas/` — contratos JSON Schema versionados para integrações com chats/IA
 - `requirements.txt` / `requirements-dev.txt` — dependências de runtime e ferramentas de desenvolvimento
-- `.github/workflows/ci.yml` — pipeline de CI com validação de JSON, compile, testes e mypy
+- `.github/workflows/ci.yml` — pipeline de CI com validação de JSON, compile, coverage, JavaScript do dashboard e mypy
 - `REGRAS.md` — tabela das regras fiscais configuradas
 - `docs/PROMPTS_IA.md` — prompts para chats externos de parecer trimestral e anual
 - `docs/legado/` — materiais antigos preservados apenas como histórico

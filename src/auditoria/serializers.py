@@ -10,7 +10,7 @@ from .models import AuditResult, RiskLevel, RuleFinding
 from .risk import suggest_opinion_type
 from .schema_validator import validate_payload_against_schema
 
-SCHEMA_VERSION = "3.1.0"
+SCHEMA_VERSION = "3.2.0"
 VERIFY = "[VERIFICAR: dado necessário]"
 
 _NORMA_LABELS = {
@@ -73,6 +73,7 @@ def audit_result_to_dict(result: AuditResult) -> dict[str, Any]:
         "conclusao_tecnica": {
             "risco_geral": result.nivel_geral.value,
             "conclusao_sugerida": _opinion_label(opinion),
+            "orientacao_consultiva": _orientacao_por_opiniao(opinion),
             "ressalva_base_json": True,
             "necessita_validacao_documental": True,
             "texto_conclusivo": _texto_conclusivo(result, opinion, findings),
@@ -276,8 +277,8 @@ def _texto_conclusivo(result: AuditResult, opinion: str, findings: list[RuleFind
         )
     if opinion == "com_ressalva":
         return (
-            "Com base exclusivamente no JSON de auditoria trimestral, os achados indicam pontos que exigem ressalva "
-            "técnica e saneamento antes do fechamento definitivo do período. A conclusão depende da validação "
+            "Com base exclusivamente no JSON de auditoria trimestral, os achados indicam pontos que exigem validação "
+            "documental e saneamento antes do fechamento definitivo do período. A conclusão depende da validação "
             "documental dos saldos, documentos fiscais e registros contábeis."
         )
     return (
@@ -290,7 +291,7 @@ def _orientacao_por_opiniao(opinion: str) -> str:
     if opinion == "adversa":
         return "regularizar os achados relevantes antes de usar os dados para decisões externas ou fechamento anual"
     if opinion == "com_ressalva":
-        return "corrigir ou documentar os pontos ressalvados antes do fechamento definitivo"
+        return "corrigir, documentar e validar os pontos destacados antes do fechamento definitivo"
     if opinion == "abstencao_opiniao":
         return "obter documentação complementar antes de concluir a análise"
     return "manter a documentação suporte e acompanhar os controles nos próximos trimestres"

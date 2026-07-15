@@ -80,6 +80,7 @@
       "required": [
         "risco_geral",
         "conclusao_sugerida",
+        "orientacao_consultiva",
         "ressalva_base_json",
         "necessita_validacao_documental",
         "texto_conclusivo"
@@ -90,6 +91,7 @@
           "type": "string",
           "enum": ["sem ressalva", "com ressalva", "adversa", "abstencao de opiniao", "abstenção de opinião"]
         },
+        "orientacao_consultiva": { "type": "string" },
         "ressalva_base_json": { "type": "boolean" },
         "necessita_validacao_documental": { "type": "boolean" },
         "texto_conclusivo": { "type": "string" }
@@ -106,7 +108,7 @@
       "required": ["data_analise", "versao_schema", "versao_regras", "conjunto_regras"],
       "properties": {
         "data_analise": { "type": "string" },
-        "versao_schema": { "const": "3.1.0" },
+        "versao_schema": { "const": "3.2.0" },
         "versao_regras": { "type": "string" },
         "conjunto_regras": {
           "type": "string",

@@ -299,6 +299,7 @@
   "conclusao_tecnica": {
     "conclusao_sugerida": "adversa",
     "necessita_validacao_documental": true,
+    "orientacao_consultiva": "regularizar os achados relevantes antes de usar os dados para decis\u00f5es externas ou fechamento anual",
     "ressalva_base_json": true,
     "risco_geral": "alto",
     "texto_conclusivo": "Com base exclusivamente no JSON de auditoria trimestral, os achados indicam risco t\u00e9cnico elevado e requerem regulariza\u00e7\u00e3o priorit\u00e1ria. A conclus\u00e3o n\u00e3o representa auditoria independente definitiva e depende da valida\u00e7\u00e3o documental dos fatos identificados."
@@ -447,7 +448,7 @@
     "conjunto_regras": "simples_servicos",
     "data_analise": "2000-01-01T00:00:00",
     "versao_regras": "1.11.0",
-    "versao_schema": "3.1.0"
+    "versao_schema": "3.2.0"
   },
   "principais_achados": [
     {

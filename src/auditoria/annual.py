@@ -2,28 +2,34 @@ from __future__ import annotations
 
 import datetime
 import re
-from collections import Counter, defaultdict
+from collections import Counter
 from decimal import Decimal
 from typing import Any
 
-from .consultivo import consultivo_for_code
-from .config_loader import get_rule_config
-from .evidence import structured_evidence
-from .schema_validator import validate_payload_against_schema
-from .utils import format_brl, format_percent
+from .annual_consultivo import build_annual_consultivo
+from .annual_findings import annual_findings, annual_score_explanation
+from .annual_metrics import (
+    annual_totals,
+    missing_quarters,
+    quarter_summary,
+    rbt12_context as build_quarter_rbt12_context,
+    safe_percent,
+)
+from .annual_report import generate_annual_markdown_report
+from .schema_validator import SchemaValidationError, validate_payload_against_schema
 
 ANNUAL_SCHEMA_VERSION = "annual-1.1.0"
-SIMPLES_ANNUAL_LIMIT = Decimal("4800000")
 
 
 def build_annual_comparison(quarterly_payloads: list[dict[str, Any]]) -> dict[str, Any]:
     if not quarterly_payloads:
         raise ValueError("Informe ao menos um JSON trimestral para consolidar o parecer anual.")
+    _validate_formal_quarterly_payloads(quarterly_payloads)
 
-    quarters = sorted((_quarter_summary(payload) for payload in quarterly_payloads), key=lambda item: item["ordem"])
-    rbt12_context = _rbt12_context(quarters)
-    totals = _annual_totals(quarters, rbt12_context)
-    findings = _annual_findings(quarters, totals)
+    quarters = sorted((quarter_summary(payload) for payload in quarterly_payloads), key=lambda item: item["ordem"])
+    rbt12 = build_quarter_rbt12_context(quarters)
+    totals = annual_totals(quarters, rbt12)
+    findings = annual_findings(quarters, totals)
     risk = _annual_risk(quarters, findings)
     identificacao = _annual_identification(quarters)
     evolution = _evolution_summary(quarters, totals, findings)
@@ -34,7 +40,7 @@ def build_annual_comparison(quarterly_payloads: list[dict[str, Any]]) -> dict[st
             "versao_schema": ANNUAL_SCHEMA_VERSION,
             "data_analise": datetime.datetime.now().isoformat(timespec="seconds"),
             "total_trimestres_informados": len(quarters),
-            "trimestres_ausentes": _missing_quarters(quarters),
+            "trimestres_ausentes": missing_quarters(quarters),
             "fontes": [q["periodo"] for q in quarters],
         },
         "identificacao": identificacao,
@@ -43,522 +49,49 @@ def build_annual_comparison(quarterly_payloads: list[dict[str, Any]]) -> dict[st
         "comparativo_trimestral": quarters,
         "achados_anuais": findings,
         "resumo_evolucao": evolution,
-        "consultivo": _annual_consultivo(risk, totals, quarters, findings, evolution),
+        "consultivo": build_annual_consultivo(risk, totals, quarters, findings, evolution),
     }
     validate_payload_against_schema(payload, "anual")
     return payload
 
 
+def _validate_formal_quarterly_payloads(quarterly_payloads: list[dict[str, Any]]) -> None:
+    for index, payload in enumerate(quarterly_payloads, start=1):
+        if not _is_formal_quarterly_payload(payload):
+            continue
+        formal_payload = _formal_quarterly_payload(payload)
+        try:
+            validate_payload_against_schema(formal_payload, "trimestral")
+        except SchemaValidationError as exc:
+            raise ValueError(f"JSON trimestral #{index} inválido para consolidação anual: {exc}") from exc
+
+
+def _is_formal_quarterly_payload(payload: dict[str, Any]) -> bool:
+    return "identificacao_empresa" in payload and "resumo_analise" in payload
+
+
+def _formal_quarterly_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    keys = {
+        "identificacao_empresa",
+        "resumo_analise",
+        "classificacao_contas",
+        "principais_achados",
+        "fundamentacao_tecnica_resumida",
+        "conclusao_tecnica",
+        "consultivo",
+        "recomendacoes_tecnicas",
+        "metadados",
+    }
+    return {key: payload[key] for key in keys if key in payload}
+
+
 def build_rbt12_context(quarterly_payloads: list[dict[str, Any]]) -> dict[str, Any]:
     if not quarterly_payloads:
         return {}
-    quarters = sorted((_quarter_summary(payload) for payload in quarterly_payloads), key=lambda item: item["ordem"])
-    return _rbt12_context(quarters)
+    quarters = sorted((quarter_summary(payload) for payload in quarterly_payloads), key=lambda item: item["ordem"])
+    return build_quarter_rbt12_context(quarters)
 
 
-def generate_annual_markdown_report(payload: dict[str, Any]) -> str:
-    identificacao = payload["identificacao"]
-    risco = payload["risco_anual"]
-    metricas = payload["metricas_anual"]
-    findings = payload["achados_anuais"]
-    evolution = payload["resumo_evolucao"]
-    meta = payload["meta"]
-
-    return "\n\n".join(
-        [
-            "Parecer técnico contábil consultivo anual comparativo\n"
-            f"Cliente:  {identificacao.get('cliente', '')}\n"
-            f"CNPJ:     {identificacao.get('cnpj', '')}\n"
-            f"Regime:   {identificacao.get('regime_tributario', '')}\n"
-            f"Exercício:{identificacao.get('exercicio', '')}\n"
-            f"Emissão:  {str(meta['data_analise']).split('T', 1)[0]}",
-            "## 1. Resumo executivo\n\n" + _render_annual_summary(payload),
-            "## 2. Leitura consultiva para o cliente\n\n" + _render_annual_client_guidance(payload),
-            "## 3. Plano de ação anual\n\n" + _render_annual_action_plan(payload),
-            "## 4. Comparativo trimestral\n\n" + _render_quarter_table(payload),
-            "## 5. Achados anuais e recorrências\n\n" + _render_annual_findings(findings),
-            "## 6. Indicadores consolidados\n\n" + _render_annual_metrics(metricas, evolution),
-            "## 7. Conclusão técnica anual e próximos passos\n\n" + _render_annual_opinion(payload),
-        ]
-    )
-
-
-def _quarter_summary(payload: dict[str, Any]) -> dict[str, Any]:
-    if "identificacao_empresa" in payload and "resumo_analise" in payload:
-        identificacao = payload.get("identificacao_empresa", {})
-        resumo = payload.get("resumo_analise", {})
-        conclusao = payload.get("conclusao_tecnica", {})
-        achados = payload.get("principais_achados", [])
-        metricas = payload.get("metricas", {})
-        periodo = str(identificacao.get("periodo_analisado") or "[VERIFICAR: período]")
-        trimestre = _quarter_label(periodo)
-
-        return {
-            "trimestre": trimestre,
-            "ordem": _quarter_order(trimestre, periodo),
-            "periodo": periodo,
-            "cliente": resumo.get("empresa", ""),
-            "cnpj": identificacao.get("cnpj", ""),
-            "regime_tributario": identificacao.get("regime_tributario", ""),
-            "risco": resumo.get("risco_geral") or conclusao.get("risco_geral") or "baixo",
-            "pontuacao": int(resumo.get("pontuacao_total") or 0),
-            "modalidade_opiniao_sugerida": _opinion_code(conclusao.get("conclusao_sugerida", "sem ressalva")),
-            "metricas": {
-                "receita_servicos": _metric(metricas, "receita_servicos"),
-                "deducoes_receita": _metric(metricas, "deducoes_receita"),
-                "tributos_registrados": _metric(metricas, "tributos_registrados"),
-                "tributos_a_recolher": _metric(metricas, "tributos_a_recolher"),
-                "folha_pro_labore": _metric(metricas, "folha_pro_labore"),
-                "despesas_operacionais": _metric(metricas, "despesas_operacionais"),
-                "servicos_terceiros": _metric(metricas, "servicos_terceiros"),
-                "saldo_contas_socios": _metric(metricas, "saldo_contas_socios"),
-                "lucros_distribuidos": _metric(metricas, "lucros_distribuidos"),
-                "lucro_apurado_base": _metric(metricas, "lucro_apurado_base"),
-                "caixa_e_bancos": _metric(metricas, "caixa_e_bancos"),
-                "clientes_recebiveis": _metric(metricas, "clientes_recebiveis"),
-                "adiantamentos": _metric(metricas, "adiantamentos"),
-                "adiantamentos_clientes": _metric(metricas, "adiantamentos_clientes"),
-                "emprestimos": _metric(metricas, "emprestimos"),
-                "fornecedores": _metric(metricas, "fornecedores"),
-                "estoques": _metric(metricas, "estoques"),
-                "cmv_custos": _metric(metricas, "cmv_custos"),
-                "creditos_fiscais": _metric(metricas, "creditos_fiscais"),
-            },
-            "achados": achados,
-            "achados_codigos": [str(item.get("codigo", "")) for item in achados if item.get("codigo")],
-        }
-
-    identificacao = payload.get("identificacao", {})
-    metricas = payload.get("metricas", {})
-    risco = payload.get("risco", {})
-    achados = payload.get("achados", [])
-    periodo = str(identificacao.get("periodo") or "[VERIFICAR: período]")
-    trimestre = _quarter_label(periodo)
-
-    return {
-        "trimestre": trimestre,
-        "ordem": _quarter_order(trimestre, periodo),
-        "periodo": periodo,
-        "cliente": identificacao.get("cliente", ""),
-        "cnpj": identificacao.get("cnpj", ""),
-        "regime_tributario": identificacao.get("regime_tributario", ""),
-        "risco": risco.get("nivel_geral", "baixo"),
-        "pontuacao": int(risco.get("pontuacao_total") or 0),
-        "modalidade_opiniao_sugerida": risco.get("modalidade_opiniao_sugerida", "sem_ressalva"),
-        "metricas": {
-            "receita_servicos": _metric(metricas, "receita_servicos"),
-            "deducoes_receita": _metric(metricas, "deducoes_receita"),
-            "tributos_registrados": _metric(metricas, "tributos_registrados"),
-            "tributos_a_recolher": _metric(metricas, "tributos_a_recolher"),
-            "folha_pro_labore": _metric(metricas, "folha_pro_labore"),
-            "despesas_operacionais": _metric(metricas, "despesas_operacionais"),
-            "servicos_terceiros": _metric(metricas, "servicos_terceiros"),
-            "saldo_contas_socios": _metric(metricas, "saldo_contas_socios"),
-            "lucros_distribuidos": _metric(metricas, "lucros_distribuidos"),
-            "lucro_apurado_base": _metric(metricas, "lucro_apurado_base"),
-            "caixa_e_bancos": _metric(metricas, "caixa_e_bancos"),
-            "clientes_recebiveis": _metric(metricas, "clientes_recebiveis"),
-            "adiantamentos": _metric(metricas, "adiantamentos"),
-            "adiantamentos_clientes": _metric(metricas, "adiantamentos_clientes"),
-            "emprestimos": _metric(metricas, "emprestimos"),
-            "fornecedores": _metric(metricas, "fornecedores"),
-            "estoques": _metric(metricas, "estoques"),
-            "cmv_custos": _metric(metricas, "cmv_custos"),
-            "creditos_fiscais": _metric(metricas, "creditos_fiscais"),
-        },
-        "achados": achados,
-        "achados_codigos": [str(item.get("codigo", "")) for item in achados if item.get("codigo")],
-    }
-
-
-def _annual_totals(quarters: list[dict[str, Any]], rbt12_context: dict[str, Any] | None = None) -> dict[str, Any]:
-    last = quarters[-1]
-
-    def sum_metric(key: str) -> Decimal:
-        return sum((q["metricas"][key] for q in quarters), Decimal("0"))
-
-    revenue = sum_metric("receita_servicos")
-    deductions = sum_metric("deducoes_receita")
-    taxes = sum_metric("tributos_registrados")
-    expenses = sum_metric("despesas_operacionais")
-    third_party_services = sum_metric("servicos_terceiros")
-    payroll = sum_metric("folha_pro_labore")
-    profit = sum_metric("lucro_apurado_base")
-    profit_distribution = sum_metric("lucros_distribuidos")
-    cogs = sum_metric("cmv_custos")
-    partner_accounts = last["metricas"]["saldo_contas_socios"]
-    debt = last["metricas"]["emprestimos"]
-    tax_liability = last["metricas"]["tributos_a_recolher"]
-    suppliers = last["metricas"]["fornecedores"]
-    inventory = last["metricas"]["estoques"]
-    tax_credits = last["metricas"]["creditos_fiscais"]
-
-    result = {
-        "receita_servicos_total": _entry(revenue),
-        "deducoes_receita_total": _entry(deductions),
-        "tributos_registrados_total": _entry(taxes),
-        "folha_pro_labore_total": _entry(payroll),
-        "despesas_operacionais_total": _entry(expenses),
-        "servicos_terceiros_total": _entry(third_party_services),
-        "saldo_contas_socios_final": _entry(partner_accounts),
-        "lucro_apurado_total": _entry(profit),
-        "lucros_distribuidos_total": _entry(profit_distribution),
-        "tributos_a_recolher_final": _entry(tax_liability),
-        "emprestimos_final": _entry(debt),
-        "fornecedores_final": _entry(suppliers),
-        "estoques_final": _entry(inventory),
-        "cmv_custos_total": _entry(cogs),
-        "creditos_fiscais_final": _entry(tax_credits),
-        "rbt12_receita": _entry(Decimal(str((rbt12_context or {}).get("receita") or revenue))),
-        "rbt12_folha": _entry(Decimal(str((rbt12_context or {}).get("folha") or payroll))),
-        "contexto_rbt12": {
-            "dados_suficientes": bool((rbt12_context or {}).get("dados_suficientes")),
-            "origem": str((rbt12_context or {}).get("origem") or ""),
-            "base_calculo": str((rbt12_context or {}).get("base_calculo") or ""),
-            "trimestres_considerados": list((rbt12_context or {}).get("trimestres_considerados") or []),
-            "fator_r_rbt12": str((rbt12_context or {}).get("fator_r_formatado") or "0,0%"),
-        },
-        "caixa_e_bancos_final": _entry(last["metricas"]["caixa_e_bancos"]),
-        "clientes_recebiveis_final": _entry(last["metricas"]["clientes_recebiveis"]),
-        "adiantamentos_final": _entry(last["metricas"]["adiantamentos"]),
-        "adiantamentos_clientes_final": _entry(last["metricas"]["adiantamentos_clientes"]),
-        "indicadores_derivados": {
-            "carga_tributaria_efetiva_anual": _safe_percent(taxes, revenue),
-            "deducoes_sobre_receita_anual": _safe_percent(deductions, revenue),
-            "despesas_sobre_receita_anual": _safe_percent(expenses, revenue),
-            "servicos_terceiros_sobre_despesas_anual": _safe_percent(third_party_services, expenses),
-            "folha_sobre_receita_anual": _safe_percent(payroll, revenue),
-            "lucro_sobre_receita_anual": _safe_percent(profit, revenue),
-            "cmv_sobre_receita_anual": _safe_percent(cogs, revenue),
-            "estoques_finais_sobre_receita_anual": _safe_percent(inventory, revenue),
-            "fornecedores_finais_sobre_receita_anual": _safe_percent(suppliers, revenue),
-            "creditos_fiscais_finais_sobre_receita_anual": _safe_percent(tax_credits, revenue),
-            "distribuicao_lucros_sobre_lucro": _safe_percent(profit_distribution, profit),
-            "receita_sobre_limite_simples": _safe_percent(revenue, SIMPLES_ANNUAL_LIMIT),
-            "endividamento_sobre_receita": _safe_percent(debt, revenue),
-            "adiantamentos_clientes_sobre_receita": _safe_percent(last["metricas"]["adiantamentos_clientes"], revenue),
-        },
-    }
-    return result
-
-
-def _rbt12_context(quarters: list[dict[str, Any]]) -> dict[str, Any]:
-    revenue = sum((q["metricas"]["receita_servicos"] for q in quarters), Decimal("0"))
-    payroll = sum((q["metricas"]["folha_pro_labore"] for q in quarters), Decimal("0"))
-    missing = _missing_quarters(quarters)
-    considered = [q["trimestre"] for q in quarters]
-    sufficient = len(quarters) >= 4 and not missing
-    fator_r = payroll / revenue if revenue > 0 else Decimal("0")
-
-    return {
-        "receita": float(revenue),
-        "folha": float(payroll),
-        "origem": "soma dos quatro trimestres informados" if sufficient else "soma parcial dos trimestres informados",
-        "base_calculo": "RBT12 anual consolidado pelos quatro trimestres" if sufficient else "base anual parcial; exige completar os quatro trimestres",
-        "trimestres_considerados": considered,
-        "trimestres_ausentes": missing,
-        "dados_suficientes": sufficient,
-        "fator_r": float(fator_r),
-        "fator_r_formatado": format_percent(fator_r),
-    }
-
-
-def _annual_findings(quarters: list[dict[str, Any]], totals: dict[str, Any]) -> list[dict[str, Any]]:
-    findings: list[dict[str, Any]] = []
-    codes = Counter(code for q in quarters for code in q["achados_codigos"])
-
-    for code, count in sorted(codes.items()):
-        if count >= 2:
-            findings.append(
-                _finding(
-                    "AN-REC-" + code,
-                    f"Achado recorrente: {code}",
-                    "alto" if count >= 3 or code.startswith("SN-COMP") else "medio",
-                    18 if count >= 3 else 10,
-                    f"O achado {code} foi identificado em {count} trimestres do exercício.",
-                    {"codigo_base": code, "recorrencias": str(count)},
-                    "Priorizar plano de ação corretivo e validar se a causa raiz foi eliminada antes do próximo fechamento.",
-                )
-            )
-
-    revenue = _value(totals, "receita_servicos_total")
-    expenses = _value(totals, "despesas_operacionais_total")
-    third_party_services = _value(totals, "servicos_terceiros_total")
-    profit = _value(totals, "lucro_apurado_total")
-    profit_distribution = _value(totals, "lucros_distribuidos_total")
-    partner_accounts = _value(totals, "saldo_contas_socios_final")
-    debt = _value(totals, "emprestimos_final")
-    tax_liability = _value(totals, "tributos_a_recolher_final")
-    inventory = _value(totals, "estoques_final")
-    suppliers = _value(totals, "fornecedores_final")
-    cogs = _value(totals, "cmv_custos_total")
-    tax_credits = _value(totals, "creditos_fiscais_final")
-    clients = _value(totals, "clientes_recebiveis_final")
-
-    if revenue >= SIMPLES_ANNUAL_LIMIT * Decimal("0.90"):
-        findings.append(
-            _finding(
-                "AN-SN-001B",
-                "Receita anual próxima ao limite do Simples Nacional",
-                "alto",
-                30,
-                "A receita anual atingiu 90% ou mais do limite anual do Simples Nacional.",
-                {"receita_anual": format_brl(revenue), "limite_simples": format_brl(SIMPLES_ANNUAL_LIMIT)},
-                "Projetar a receita dos próximos meses e validar risco de excesso de sublimite ou desenquadramento.",
-            )
-        )
-    elif revenue >= SIMPLES_ANNUAL_LIMIT * Decimal("0.70"):
-        findings.append(
-            _finding(
-                "AN-SN-001A",
-                "Receita anual em faixa de atenção do Simples Nacional",
-                "medio",
-                15,
-                "A receita anual atingiu 70% ou mais do limite anual do Simples Nacional.",
-                {"receita_anual": format_brl(revenue), "limite_simples": format_brl(SIMPLES_ANNUAL_LIMIT)},
-                "Acompanhar receita acumulada e simular cenários de crescimento para o exercício seguinte.",
-            )
-        )
-
-    if profit_distribution > profit and profit_distribution > 0:
-        findings.append(
-            _finding(
-                "AN-LUC-001",
-                "Lucros distribuídos acima do lucro anual apurado",
-                "alto",
-                30,
-                "A distribuição anual de lucros supera o resultado contábil acumulado no exercício.",
-                {"lucro_anual": format_brl(profit), "lucros_distribuidos": format_brl(profit_distribution)},
-                "Validar escrituração anual, balancetes de suporte e base legal antes de manter a distribuição isenta.",
-            )
-        )
-
-    if revenue > 0 and profit > 0 and profit / revenue > Decimal("0.64"):
-        findings.append(
-            _finding(
-                "AN-MAR-001",
-                "Margem anual de lucro muito elevada",
-                "medio",
-                12,
-                "O lucro anual representa percentual elevado da receita consolidada, sugerindo possivel ausencia de despesas, custos ou apropriacoes de competencia.",
-                {"lucro_anual": format_brl(profit), "receita_anual": format_brl(revenue), "margem_lucro": format_percent(profit / revenue)},
-                "Revisar custos, despesas, folha, pro-labore, servicos tomados, competencia contabila e documentos de suporte antes de concluir sobre a margem anual.",
-            )
-        )
-
-    if expenses > 0 and third_party_services >= Decimal("10000") and third_party_services / expenses >= Decimal("0.20"):
-        findings.append(
-            _finding(
-                "AN-DOC-325-001",
-                "Servicos prestados por terceiros relevantes no ano",
-                "medio",
-                12,
-                "A conta 325/servicos prestados por terceiros representa percentual relevante das despesas anuais, exigindo validacao documental dos lancamentos.",
-                {
-                    "conta_referencia": "325 - Servicos prestados por terceiros",
-                    "servicos_terceiros_total": format_brl(third_party_services),
-                    "despesas_operacionais_total": format_brl(expenses),
-                    "percentual_sobre_despesas": format_percent(third_party_services / expenses),
-                    "criterio_rastreio": "consolidacao anual da metrica servicos_terceiros dos JSONs trimestrais",
-                },
-                "Validar contratos, notas fiscais, comprovantes bancarios, retencoes aplicaveis e a correta apropriacao dos pagamentos lancados diretamente em despesas.",
-            )
-        )
-
-    if partner_accounts > 0:
-        cfg = get_rule_config("SN-005")
-        lim_abs = Decimal(str(cfg.get("limite_medio_absoluto", 10000)))
-        lim_ratio = Decimal(str(cfg.get("limite_medio_receita", cfg.get("limite_medio", 0.05))))
-        partner_ratio = partner_accounts / revenue if revenue > 0 else None
-        material = partner_accounts >= lim_abs or (partner_ratio is not None and partner_ratio >= lim_ratio)
-        level = "medio" if material else "baixo"
-        score = int(cfg.get("pontuacao_medio", 12) if material else cfg.get("pontuacao_baixo", 6))
-        findings.append(
-            _finding(
-                "AN-DOC-MUTUO-001",
-                "Saldo final em contas de socios exige validacao documental",
-                level,
-                score,
-                (
-                    "O consolidado anual apresenta saldo material em contas de socios, administradores, pessoas ligadas ou mutuos, exigindo validacao de contrato, razao, extratos e IOF quando aplicavel."
-                    if material
-                    else "O consolidado anual apresenta saldo de baixa materialidade em contas de socios, administradores, pessoas ligadas ou mutuos, exigindo conciliacao e suporte documental."
-                ),
-                {
-                    "saldo_contas_socios_final": format_brl(partner_accounts),
-                    "percentual_sobre_receita_anual": format_percent(partner_ratio) if partner_ratio is not None else "[VERIFICAR: receita anual]",
-                    "limite_absoluto_relevancia": format_brl(lim_abs),
-                    "limite_percentual_relevancia": format_percent(lim_ratio),
-                    "classificacao_materialidade": "material" if material else "baixa_materialidade",
-                    "criterio_rastreio": "saldo_contas_socios_final consolidado a partir do ultimo JSON trimestral",
-                    "contrato_mutuo": "[VERIFICAR: existência, valor, prazo, juros, partes e assinatura]",
-                    "iof_recolhido": "[VERIFICAR: memoria de calculo, guia e comprovante de recolhimento quando aplicavel]",
-                },
-                "Validar razao contabil, extratos, contrato de mutuo ou instrumento equivalente, natureza da movimentacao, prazo, juros e IOF antes do encerramento anual.",
-            )
-        )
-
-    if revenue > 0 and debt / revenue > Decimal("0.60"):
-        findings.append(
-            _finding(
-                "AN-END-001",
-                "Endividamento final elevado em relação à receita anual",
-                "medio",
-                12,
-                "O saldo final de empréstimos representa percentual relevante da receita anual.",
-                {"emprestimos_final": format_brl(debt), "receita_anual": format_brl(revenue), "percentual": format_percent(debt / revenue)},
-                "Avaliar cronograma de amortização, contratos bancários e capacidade de geração de caixa.",
-            )
-        )
-
-    if revenue >= Decimal("800000") and clients <= 0:
-        findings.append(
-            _finding(
-                "AN-CLI-001",
-                "Clientes zerados no fechamento anual com receita relevante",
-                "baixo",
-                6,
-                "O saldo final de clientes/recebiveis esta zerado apesar de receita anual relevante, exigindo confirmacao do recebimento a vista ou no proprio periodo.",
-                {"clientes_recebiveis_final": format_brl(clients), "receita_anual": format_brl(revenue)},
-                "Conciliar notas fiscais, extratos bancarios, baixas de recebiveis e meios de pagamento para confirmar se nao ha saldo pendente.",
-            )
-        )
-
-    if revenue > 0 and inventory / revenue > Decimal("0.50"):
-        findings.append(
-            _finding(
-                "AN-COM-EST-001",
-                "Estoque final relevante em relacao a receita anual",
-                "medio",
-                12,
-                "O saldo final de estoques representa percentual relevante da receita anual consolidada.",
-                {"estoques_final": format_brl(inventory), "receita_anual": format_brl(revenue), "percentual": format_percent(inventory / revenue)},
-                "Conciliar inventario final, compras, notas fiscais de venda, perdas, devolucoes e baixas por CMV antes do parecer anual.",
-            )
-        )
-
-    if revenue > 0 and suppliers / revenue > Decimal("0.30"):
-        findings.append(
-            _finding(
-                "AN-COM-FOR-001",
-                "Fornecedores finais relevantes em relacao a receita anual",
-                "medio",
-                10,
-                "O saldo final de fornecedores e relevante frente a receita anual, exigindo conciliacao com compras e pagamentos posteriores.",
-                {"fornecedores_final": format_brl(suppliers), "receita_anual": format_brl(revenue), "percentual": format_percent(suppliers / revenue)},
-                "Validar aging de fornecedores, documentos fiscais de compra, duplicatas pagas, mercadorias recebidas e vinculo com estoque.",
-            )
-        )
-
-    if revenue > 0 and (inventory > 0 or suppliers > 0) and cogs <= 0:
-        findings.append(
-            _finding(
-                "AN-COM-CMV-001",
-                "Operacao comercial anual sem CMV consolidado",
-                "alto",
-                20,
-                "Ha sinais comerciais no fechamento anual, mas nao foi identificado CMV/custo de mercadorias consolidado.",
-                {"estoques_final": format_brl(inventory), "fornecedores_final": format_brl(suppliers), "cmv_custos_total": format_brl(cogs)},
-                "Verificar baixas de estoque, custo medio, classificacao de contas de custo e demonstracoes de resultado antes de concluir a margem anual.",
-            )
-        )
-
-    if tax_credits > 0 and revenue > 0 and tax_credits / revenue > Decimal("0.01"):
-        findings.append(
-            _finding(
-                "AN-COM-ST-001",
-                "Creditos fiscais finais exigem validacao de ICMS-ST e recuperabilidade",
-                "baixo",
-                6,
-                "Foram identificados creditos fiscais finais relevantes em empresa do Simples, com potencial relacao com ICMS-ST, retencoes ou ressarcimentos.",
-                {"creditos_fiscais_final": format_brl(tax_credits), "receita_anual": format_brl(revenue), "percentual": format_percent(tax_credits / revenue)},
-                "Validar NCM/CFOP, produtos sujeitos a substituicao tributaria, ressarcimentos, retencoes e documentacao de suporte dos creditos.",
-            )
-        )
-
-    if len(quarters) >= 2:
-        findings.extend(_trend_findings(quarters))
-        first_tax = quarters[0]["metricas"]["tributos_a_recolher"]
-        last_tax = quarters[-1]["metricas"]["tributos_a_recolher"]
-        if first_tax > 0 and last_tax > first_tax * Decimal("1.50"):
-            findings.append(
-                _finding(
-                    "AN-TRIB-001",
-                    "Passivo tributário cresceu de forma relevante no ano",
-                    "medio",
-                    14,
-                    "O saldo de tributos a recolher aumentou mais de 50% entre o primeiro e o último trimestre informado.",
-                    {"saldo_inicial": format_brl(first_tax), "saldo_final": format_brl(last_tax), "crescimento": format_percent((last_tax - first_tax) / first_tax)},
-                    "Conciliar guias, parcelamentos, pagamentos e saldos fiscais antes do encerramento anual.",
-                )
-            )
-        elif tax_liability > 0 and revenue > 0 and tax_liability / revenue > Decimal("0.10"):
-            findings.append(
-                _finding(
-                    "AN-TRIB-002",
-                    "Passivo tributário final relevante",
-                    "medio",
-                    10,
-                    "O saldo final de tributos a recolher é relevante em relação à receita anual.",
-                    {"tributos_a_recolher_final": format_brl(tax_liability), "receita_anual": format_brl(revenue), "percentual": format_percent(tax_liability / revenue)},
-                    "Validar composição do saldo e eventual necessidade de regularização ou parcelamento.",
-                )
-            )
-
-    return findings
-
-
-def _trend_findings(quarters: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    if len(quarters) < 2:
-        return []
-
-    findings: list[dict[str, Any]] = []
-    first = quarters[0]
-    last = quarters[-1]
-    first_score = Decimal(str(first.get("pontuacao") or 0))
-    last_score = Decimal(str(last.get("pontuacao") or 0))
-    first_revenue = first["metricas"]["receita_servicos"]
-    last_revenue = last["metricas"]["receita_servicos"]
-    risk_rank = {"baixo": 1, "medio": 2, "alto": 3}
-    first_risk = risk_rank.get(str(first.get("risco")).lower(), 1)
-    last_risk = risk_rank.get(str(last.get("risco")).lower(), 1)
-
-    if last_risk > first_risk or (first_score > 0 and last_score >= first_score * Decimal("1.50")):
-        findings.append(
-            _finding(
-                "AN-TEND-RIS-001",
-                "Tendencia de piora no risco ao longo do ano",
-                "medio",
-                10,
-                "O risco ou a pontuacao do ultimo trimestre piorou em relacao ao inicio do exercicio.",
-                {
-                    "risco_inicial": str(first.get("risco") or ""),
-                    "risco_final": str(last.get("risco") or ""),
-                    "pontuacao_inicial": str(int(first_score)),
-                    "pontuacao_final": str(int(last_score)),
-                },
-                "Investigar causas da piora, priorizar achados recorrentes e acompanhar plano de acao no trimestre seguinte.",
-            )
-        )
-
-    if first_revenue > 0 and last_revenue < first_revenue * Decimal("0.70"):
-        findings.append(
-            _finding(
-                "AN-TEND-REC-001",
-                "Queda relevante de receita entre o primeiro e o ultimo trimestre",
-                "medio",
-                10,
-                "A receita do ultimo trimestre caiu mais de 30% em relacao ao primeiro trimestre informado.",
-                {
-                    "receita_inicial": format_brl(first_revenue),
-                    "receita_final": format_brl(last_revenue),
-                    "variacao": format_percent((last_revenue - first_revenue) / first_revenue),
-                },
-                "Validar sazonalidade, contratos, notas fiscais, cancelamentos e continuidade operacional antes da conclusao anual.",
-            )
-        )
-
-    return findings
 
 
 def _annual_risk(quarters: list[dict[str, Any]], findings: list[dict[str, Any]]) -> dict[str, Any]:
@@ -580,7 +113,7 @@ def _annual_risk(quarters: list[dict[str, Any]], findings: list[dict[str, Any]])
         "nivel_geral": level,
         "pontuacao_total": score,
         "modalidade_opiniao_sugerida": opinion,
-        "explicacao_pontuacao": _annual_score_explanation(quarters, findings, level, score),
+        "explicacao_pontuacao": annual_score_explanation(quarters, findings, level, score),
         "classificacao": {
             "achados_alto": sum(1 for f in findings if f["nivel"] == "alto"),
             "achados_medio": sum(1 for f in findings if f["nivel"] == "medio"),
@@ -609,8 +142,8 @@ def _evolution_summary(quarters: list[dict[str, Any]], totals: dict[str, Any], f
     worst = min(quarters, key=lambda q: q["metricas"]["lucro_apurado_base"])
 
     return {
-        "variacao_receita_primeiro_ultimo": _safe_percent(last_revenue - first_revenue, first_revenue),
-        "variacao_pontuacao_primeiro_ultimo": _safe_percent(
+        "variacao_receita_primeiro_ultimo": safe_percent(last_revenue - first_revenue, first_revenue),
+        "variacao_pontuacao_primeiro_ultimo": safe_percent(
             Decimal(str(quarters[-1]["pontuacao"] - quarters[0]["pontuacao"])),
             Decimal(str(quarters[0]["pontuacao"] or 1)),
         ),
@@ -623,105 +156,6 @@ def _evolution_summary(quarters: list[dict[str, Any]], totals: dict[str, Any], f
         "receita_anual_formatada": totals["receita_servicos_total"]["formatado"],
         "resultado_anual_formatado": totals["lucro_apurado_total"]["formatado"],
     }
-
-
-def _annual_consultivo(
-    risk: dict[str, Any],
-    totals: dict[str, Any],
-    quarters: list[dict[str, Any]],
-    findings: list[dict[str, Any]],
-    evolution: dict[str, Any],
-) -> dict[str, Any]:
-    return {
-        "leitura_cliente": _annual_consultivo_leitura_cliente(risk, totals, findings, evolution),
-        "proximos_passos": _annual_next_steps(risk, quarters, findings, evolution),
-        "plano_acao_anual": [_annual_consultivo_item(finding, evolution) for finding in findings],
-    }
-
-
-def _annual_consultivo_leitura_cliente(
-    risk: dict[str, Any],
-    totals: dict[str, Any],
-    findings: list[dict[str, Any]],
-    evolution: dict[str, Any],
-) -> str:
-    recurrent = evolution.get("achados_recorrentes") or []
-    recurrent_text = ", ".join(f"{item['codigo']} ({item['trimestres']} trimestres)" for item in recurrent[:5])
-    if not recurrent_text:
-        recurrent_text = "sem recorrência material indicada pelo motor"
-    main_findings = "; ".join(f"{item['codigo']} - {item['titulo']}" for item in findings[:4]) or "nenhum achado anual adicional"
-    return (
-        f"A análise anual consolidou receita de {totals['receita_servicos_total']['formatado']} e resultado de "
-        f"{totals['lucro_apurado_total']['formatado']}. O risco anual foi classificado como {risk['nivel_geral']}, "
-        f"com tendência de {evolution.get('tendencia_risco', 'insuficiente')} e recorrências em {recurrent_text}. "
-        f"Principais pontos para orientação ao cliente: {main_findings}."
-    )
-
-
-def _annual_next_steps(
-    risk: dict[str, Any],
-    quarters: list[dict[str, Any]],
-    findings: list[dict[str, Any]],
-    evolution: dict[str, Any],
-) -> list[str]:
-    steps = [
-        "validar os achados anuais com balancetes, razões contábeis, documentos fiscais e extratos",
-        "registrar responsável e prazo para cada providência do plano de ação anual",
-        "acompanhar a baixa das pendências no primeiro fechamento trimestral do próximo exercício",
-    ]
-    if risk.get("nivel_geral") == "alto":
-        steps.insert(0, "priorizar a regularização antes de distribuição de lucros, tomada de crédito ou decisões societárias")
-    if len(quarters) < 4:
-        steps.append("complementar os trimestres ausentes antes de emitir conclusão anual definitiva")
-    if evolution.get("achados_recorrentes"):
-        steps.append("criar rotina preventiva para achados recorrentes, evitando repetição nos próximos trimestres")
-    if not findings:
-        steps.append("manter documentação suporte e conciliações periódicas mesmo sem achados anuais adicionais")
-    return steps
-
-
-def _annual_consultivo_item(finding: dict[str, Any], evolution: dict[str, Any]) -> dict[str, Any]:
-    consultive = consultivo_for_code(str(finding.get("codigo") or ""), severity=str(finding.get("nivel") or ""))
-    has_consultive_mapping = bool(consultive.get("matched"))
-    return {
-        "codigo": finding["codigo"],
-        "prioridade": _annual_priority_label(finding["nivel"]),
-        "ponto_atencao": finding["titulo"],
-        "o_que_significa": (
-            str(consultive.get("o_que_significa") or "")
-            if has_consultive_mapping
-            else _annual_meaning(finding, evolution)
-        ),
-        "como_solucionar": (
-            str(consultive.get("como_solucionar") or "")
-            if has_consultive_mapping
-            else finding["recomendacao"]
-        ),
-        "documentos_necessarios": _annual_documents_for_finding(finding),
-        "responsavel_sugerido": (
-            str(consultive.get("responsavel_sugerido") or "")
-            if has_consultive_mapping
-            else _annual_owner(finding)
-        ),
-        "prazo_sugerido": (
-            str(consultive.get("prazo_sugerido") or "")
-            if has_consultive_mapping
-            else _annual_deadline(finding["nivel"])
-        ),
-    }
-
-
-def _annual_priority_label(level: str) -> str:
-    labels = {"alto": "alta", "medio": "media", "baixo": "baixa"}
-    return labels.get(str(level).lower(), "media")
-
-
-def _annual_deadline(level: str) -> str:
-    if str(level).lower() == "alto":
-        return "imediato, antes do próximo fechamento societário ou fiscal relevante"
-    if str(level).lower() == "medio":
-        return "até o primeiro fechamento trimestral do próximo exercício"
-    return "acompanhar no próximo ciclo anual"
 
 
 def _risk_trend(quarters: list[dict[str, Any]]) -> str:
@@ -767,363 +201,7 @@ def _severity_for_code(quarters: list[dict[str, Any]], code: str) -> str:
     return best_label
 
 
-def _render_annual_summary(payload: dict[str, Any]) -> str:
-    risco = payload["risco_anual"]
-    metricas = payload["metricas_anual"]
-    meta = payload["meta"]
-    identificacao = payload["identificacao"]
-    return (
-        f"A análise comparativa do exercício {identificacao.get('exercicio')} considerou "
-        f"{meta['total_trimestres_informados']} trimestre(s) informado(s). O nível de risco anual "
-        f"apurado é {_risk_label(risco['nivel_geral']).lower()}, com pontuação de {risco['pontuacao_total']} pontos "
-        f"e {len(payload['achados_anuais'])} achado(s) anual(is). A receita anual consolidada foi "
-        f"{metricas['receita_servicos_total']['formatado']} e o resultado anual apurado foi "
-        f"{metricas['lucro_apurado_total']['formatado']}."
-    )
 
-
-def _render_annual_client_guidance(payload: dict[str, Any]) -> str:
-    consultivo = payload.get("consultivo") or {}
-    if consultivo.get("leitura_cliente"):
-        steps = consultivo.get("proximos_passos") or []
-        if steps:
-            return consultivo["leitura_cliente"] + "\n\n**Próximos passos:**\n\n" + "\n".join(f"- {step}" for step in steps)
-        return consultivo["leitura_cliente"]
-
-    risco = payload["risco_anual"]
-    evolution = payload["resumo_evolucao"]
-    findings = payload["achados_anuais"]
-    level = str(risco.get("nivel_geral") or "baixo").lower()
-    priority = {
-        "alto": "regularização prioritária antes de decisões externas, distribuição de lucros ou fechamento final",
-        "medio": "correção e documentação dos pontos recorrentes no início do próximo exercício",
-        "baixo": "manutenção dos controles e acompanhamento trimestral preventivo",
-    }.get(level, "acompanhamento preventivo")
-    recurrent = evolution.get("achados_recorrentes") or []
-    recurrent_text = ", ".join(f"{item['codigo']} ({item['trimestres']} trimestres)" for item in recurrent[:6])
-    if not recurrent_text:
-        recurrent_text = "sem recorrência relevante informada pelo motor"
-    main_findings = "; ".join(f"{item['codigo']} - {item['titulo']}" for item in findings[:4])
-    if not main_findings:
-        main_findings = "nenhum achado anual adicional identificado"
-
-    return (
-        f"A leitura anual indica {priority}. A tendência de risco foi classificada como "
-        f"{evolution.get('tendencia_risco', 'insuficiente')}, com recorrências em {recurrent_text}. "
-        f"Os principais pontos para explicar ao cliente são: {main_findings}. "
-        "A recomendação consultiva é transformar esses pontos em plano de ação documentado, com responsáveis, "
-        "prazo de regularização e conferência já no primeiro trimestre do próximo exercício."
-    )
-
-
-def _render_annual_action_plan(payload: dict[str, Any]) -> str:
-    consultivo = payload.get("consultivo") or {}
-    plano = consultivo.get("plano_acao_anual") or []
-    if plano:
-        lines = []
-        for index, item in enumerate(plano, start=1):
-            lines.extend(
-                [
-                    f"### {index}. {item['codigo']} — {item['ponto_atencao']}",
-                    "",
-                    f"- **Prioridade:** {_risk_label(item['prioridade'])}",
-                    f"- **O que significa:** {item['o_que_significa']}",
-                    f"- **Como solucionar:** {item['como_solucionar']}",
-                    f"- **Documentos necessários:** {', '.join(item['documentos_necessarios'])}",
-                    f"- **Responsável sugerido:** {item['responsavel_sugerido']}",
-                    f"- **Prazo sugerido:** {item['prazo_sugerido']}",
-                    "",
-                ]
-            )
-        return "\n".join(lines).strip()
-
-    findings = payload["achados_anuais"]
-    evolution = payload["resumo_evolucao"]
-    if not findings:
-        return (
-            "Nenhuma ação anual corretiva adicional foi indicada pela consolidação. Manter conciliações trimestrais, "
-            "guarda documental e acompanhamento do limite do Simples Nacional no próximo exercício."
-        )
-
-    lines = []
-    for index, finding in enumerate(findings, start=1):
-        docs = _annual_documents_for_finding(finding)
-        lines.extend(
-            [
-                f"### {index}. {finding['codigo']} — {finding['titulo']}",
-                "",
-                f"- **Prioridade:** {_risk_label(finding['nivel'])}",
-                f"- **O que significa:** {_annual_meaning(finding, evolution)}",
-                f"- **Como solucionar:** {finding['recomendacao']}",
-                f"- **Documentos necessários:** {', '.join(docs)}",
-                f"- **Responsável sugerido:** {_annual_owner(finding)}",
-                "",
-            ]
-        )
-    return "\n".join(lines).strip()
-
-
-def _render_quarter_table(payload: dict[str, Any]) -> str:
-    lines = [
-        "| Trimestre | Período | Receita | Resultado | Risco | Achados |",
-        "|-----------|---------|---------|-----------|-------|---------|",
-    ]
-    for q in payload["comparativo_trimestral"]:
-        metrics = q["metricas"]
-        lines.append(
-            "| "
-            f"{q['trimestre']} | {q['periodo']} | {format_brl(metrics['receita_servicos'])} | "
-            f"{format_brl(metrics['lucro_apurado_base'])} | {_risk_label(q['risco'])} | "
-            f"{', '.join(q['achados_codigos']) or 'nenhum'} |"
-        )
-    return "\n".join(lines)
-
-
-def _render_annual_findings(findings: list[dict[str, Any]]) -> str:
-    if not findings:
-        return "Nenhum achado anual adicional foi identificado a partir da consolidação dos trimestres."
-
-    lines = []
-    for finding in findings:
-        structured = finding["evidencia"]
-        extracted = structured.get("campos_extraidos") or {}
-        evidence = "; ".join(f"{key}: {value}" for key, value in extracted.items()) or "Não aplicável"
-        documents = ", ".join(structured.get("documentos_recomendados") or [])
-        lines.extend(
-            [
-                f"### {finding['codigo']} — {finding['titulo']}",
-                "",
-                f"- **Nível:** {_risk_label(finding['nivel'])}",
-                f"- **Evidência:** {evidence}",
-                f"- **Fonte:** {structured.get('fonte_dado', '') or '[VERIFICAR: fonte]'}",
-                f"- **Confiança:** {_risk_label(structured.get('confianca', ''))}",
-                f"- **Documentos recomendados:** {documents or '[VERIFICAR: documentos recomendados]'}",
-                f"- **Recomendação técnica:** {finding['recomendacao']}",
-                "",
-            ]
-        )
-    return "\n".join(lines)
-
-
-def _render_annual_metrics(metricas: dict[str, Any], evolution: dict[str, Any]) -> str:
-    indicators = metricas["indicadores_derivados"]
-    return (
-        f"Receita anual: {metricas['receita_servicos_total']['formatado']}. "
-        f"Deduções da receita: {metricas['deducoes_receita_total']['formatado']}. "
-        f"Tributos registrados: {metricas['tributos_registrados_total']['formatado']} "
-        f"({indicators['carga_tributaria_efetiva_anual']}). "
-        f"Despesas operacionais: {metricas['despesas_operacionais_total']['formatado']} "
-        f"({indicators['despesas_sobre_receita_anual']}). "
-        f"Servicos de terceiros: {metricas['servicos_terceiros_total']['formatado']} "
-        f"({indicators['servicos_terceiros_sobre_despesas_anual']} das despesas). "
-        f"Saldo final em contas de socios: {metricas['saldo_contas_socios_final']['formatado']}. "
-        f"CMV/custos anual: {metricas['cmv_custos_total']['formatado']} "
-        f"({indicators['cmv_sobre_receita_anual']}). "
-        f"Estoques finais: {metricas['estoques_final']['formatado']}. "
-        f"Fornecedores finais: {metricas['fornecedores_final']['formatado']}. "
-        f"Créditos fiscais finais: {metricas['creditos_fiscais_final']['formatado']}. "
-        f"RBT12 consolidado: {metricas['rbt12_receita']['formatado']} "
-        f"({metricas['contexto_rbt12']['base_calculo']}). "
-        f"Adiantamentos de clientes finais: {metricas['adiantamentos_clientes_final']['formatado']}. "
-        f"Resultado anual: {metricas['lucro_apurado_total']['formatado']}. "
-        f"Melhor trimestre por resultado: {evolution['melhor_trimestre_resultado']}. "
-        f"Pior trimestre por resultado: {evolution['pior_trimestre_resultado']}."
-    )
-
-
-def _render_annual_opinion(payload: dict[str, Any]) -> str:
-    identificacao = payload["identificacao"]
-    risco = payload["risco_anual"]
-    findings = payload["achados_anuais"]
-    codes = ", ".join(f["codigo"] for f in findings) or "nenhum achado anual adicional"
-    return (
-        f"Com base na consolidação dos trimestres do exercício {identificacao.get('exercicio')}, "
-        f"a orientação técnica anual é {_annual_orientation(risco['modalidade_opiniao_sugerida'])}. "
-        f"Os principais achados anuais considerados foram: {codes}. A conclusão anual não substitui "
-        "auditoria independente completa e deve ser lida em conjunto com os pareceres trimestrais que "
-        "serviram de base para esta consolidação. Para o próximo exercício, recomenda-se manter fechamento "
-        "trimestral, documentação suporte por achado e acompanhamento das providências até sua baixa."
-    )
-
-
-def _annual_orientation(value: str) -> str:
-    if value == "sem_ressalva":
-        return "manter controles e documentação suporte sem ressalvas relevantes adicionais"
-    if value == "com_ressalva":
-        return "regularizar ou documentar os pontos ressalvados antes do próximo fechamento anual"
-    if value == "adversa":
-        return "priorizar a regularização dos achados relevantes antes de usar os dados para crédito, distribuição de lucros ou decisões societárias"
-    if value == "abstencao_opiniao":
-        return "obter documentação complementar antes de concluir sobre o exercício"
-    return str(value).replace("_", " ")
-
-
-def _annual_meaning(finding: dict[str, Any], evolution: dict[str, Any]) -> str:
-    code = str(finding.get("codigo") or "")
-    if code.startswith("AN-REC"):
-        return "O mesmo tipo de achado apareceu em mais de um trimestre, indicando que o ponto não foi apenas pontual e precisa de rotina de correção."
-    if code.startswith("AN-SN-001"):
-        return "A receita anual exige acompanhamento do limite do Simples Nacional e validação do enquadramento fiscal."
-    if code.startswith("AN-LUC"):
-        return "A distribuição de lucros precisa ser conciliada com o resultado anual, lucros acumulados e documentação societária."
-    if code.startswith("AN-MAR"):
-        return "A margem anual elevada pode indicar despesas, custos ou apropriações de competência não reconhecidos."
-    if code.startswith("AN-DOC-MUTUO"):
-        return "Saldos finais com sócios exigem contrato, conciliação financeira e validação de IOF quando houver mútuo."
-    if code.startswith("AN-COM"):
-        return "A operação comercial precisa de validação de estoque, fornecedores, CMV e créditos fiscais."
-    if code.startswith("AN-TRIB"):
-        return "Há ponto tributário acumulado que deve ser conciliado com DAS, parcelamentos, guias e saldos fiscais."
-    if code.startswith("AN-TEND"):
-        return f"A evolução anual indica tendência de {evolution.get('tendencia_risco', 'risco não informada')}, exigindo acompanhamento no próximo exercício."
-    return str(finding.get("descricao") or "O achado anual requer validação documental e acompanhamento no próximo exercício.")
-
-
-def _annual_documents_for_finding(finding: dict[str, Any]) -> list[str]:
-    evidence = finding.get("evidencia") or {}
-    docs = evidence.get("documentos_recomendados") or []
-    if docs:
-        return [str(item) for item in docs]
-    consultive = consultivo_for_code(str(finding.get("codigo") or ""), severity=str(finding.get("nivel") or ""))
-    if consultive.get("matched") and consultive.get("documentos_necessarios"):
-        return [str(item) for item in consultive["documentos_necessarios"]]
-    code = str(finding.get("codigo") or "")
-    if code.startswith("AN-LUC"):
-        return ["balancete anual", "DRE", "razão de lucros", "comprovantes de distribuição"]
-    if code.startswith("AN-DOC-MUTUO"):
-        return ["razão das contas de sócios", "extratos bancários", "contrato de mútuo", "guia/comprovante de IOF"]
-    if code.startswith("AN-COM"):
-        return ["inventário", "relatório de estoque", "notas de compra e venda", "memória do CMV"]
-    if code.startswith("AN-TRIB"):
-        return ["PGDAS-D", "DAS", "parcelamentos", "razão de tributos a recolher"]
-    return ["JSONs trimestrais", "balancetes", "razões contábeis", "documentos fiscais e extratos"]
-
-
-def _annual_owner(finding: dict[str, Any]) -> str:
-    code = str(finding.get("codigo") or "")
-    if code.startswith(("AN-SN", "AN-TRIB")):
-        return "Fiscal + contabilidade"
-    if code.startswith(("AN-LUC", "AN-DOC-MUTUO")):
-        return "Sócios/administradores + contabilidade"
-    if code.startswith("AN-COM"):
-        return "Cliente/estoque/financeiro + contabilidade"
-    return "Cliente + contabilidade"
-
-
-def _metric(metricas: dict[str, Any], key: str) -> Decimal:
-    value = metricas.get(key, {})
-    if isinstance(value, dict):
-        return Decimal(str(value.get("valor") or 0))
-    return Decimal("0")
-
-
-def _risk_label(value: str) -> str:
-    labels = {"alto": "Alto", "medio": "Médio", "baixo": "Baixo", "alta": "Alta", "media": "Média", "baixa": "Baixa"}
-    return labels.get(str(value).lower(), str(value).capitalize())
-
-
-def _opinion_label(value: str) -> str:
-    labels = {
-        "sem_ressalva": "sem ressalva",
-        "com_ressalva": "com ressalva",
-        "adversa": "adversa",
-        "abstencao_opiniao": "com abstenção de opinião",
-    }
-    return labels.get(str(value), str(value).replace("_", " "))
-
-
-def _opinion_code(value: str) -> str:
-    text = str(value or "").strip().lower().replace("_", " ")
-    if text in ("adversa", "opinião adversa", "opiniao adversa"):
-        return "adversa"
-    if text in ("com ressalva", "ressalva"):
-        return "com_ressalva"
-    if text in ("abstenção de opinião", "abstencao de opiniao"):
-        return "abstencao_opiniao"
-    return "sem_ressalva"
-
-
-def _entry(value: Decimal) -> dict[str, Any]:
-    return {"valor": float(value), "formatado": format_brl(value)}
-
-
-def _value(metricas: dict[str, Any], key: str) -> Decimal:
-    return Decimal(str(metricas.get(key, {}).get("valor") or 0))
-
-
-def _safe_percent(numerator: Decimal, denominator: Decimal) -> str:
-    if denominator == 0:
-        return "0,0%"
-    return format_percent(numerator / denominator)
-
-
-def _finding(
-    code: str,
-    title: str,
-    level: str,
-    score: int,
-    description: str,
-    evidence: dict[str, str],
-    recommendation: str,
-) -> dict[str, Any]:
-    return {
-        "codigo": code,
-        "titulo": title,
-        "nivel": level,
-        "pontuacao": score,
-        "descricao": description,
-        "evidencia": structured_evidence(code, evidence, severity=level, source="json_trimestral_consolidado"),
-        "recomendacao": recommendation,
-        "normas_aplicaveis": [
-            "NBC PG 100 (R1) de 2018",
-            "NBC TA 700 (R1)",
-            "NBC TG 26 (R3) = CPC 26 R1",
-        ],
-    }
-
-
-def _annual_score_explanation(
-    quarters: list[dict[str, Any]],
-    findings: list[dict[str, Any]],
-    level: str,
-    score: int,
-) -> list[str]:
-    explanations = [f"Nível anual {level} com pontuação consolidada de {score} pontos."]
-    if any(q["risco"] == "alto" for q in quarters):
-        explanations.append("Ao menos um trimestre apresentou risco alto.")
-    recurring = [f for f in findings if f["codigo"].startswith("AN-REC-")]
-    if recurring:
-        explanations.append(f"Foram identificados {len(recurring)} achado(s) recorrente(s).")
-    if not findings:
-        explanations.append("Não houve achados anuais adicionais além dos pareceres trimestrais.")
-    return explanations
-
-
-def _missing_quarters(quarters: list[dict[str, Any]]) -> list[str]:
-    found = {q["trimestre"] for q in quarters if q["trimestre"] in {"T1", "T2", "T3", "T4"}}
-    return [q for q in ("T1", "T2", "T3", "T4") if q not in found]
-
-
-def _quarter_label(period: str) -> str:
-    normalized = period.upper()
-    match = re.search(r"\bT([1-4])\b", normalized)
-    if match:
-        return "T" + match.group(1)
-
-    dates = re.findall(r"(\d{2})/(\d{2})/((?:19|20)\d{2})", period)
-    if dates:
-        month = int(dates[-1][1])
-        return "T" + str(((month - 1) // 3) + 1)
-    return "[VERIFICAR: trimestre]"
-
-
-def _quarter_order(label: str, period: str) -> int:
-    if label in {"T1", "T2", "T3", "T4"}:
-        return int(label[1])
-    dates = re.findall(r"(\d{2})/(\d{2})/((?:19|20)\d{2})", period)
-    if dates:
-        return int(dates[-1][1])
-    return 99
 
 
 def _first_non_empty(values: Any) -> str:

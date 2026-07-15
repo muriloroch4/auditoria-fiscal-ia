@@ -14,7 +14,7 @@ Motor para empresas enquadradas no Simples Nacional, com conjuntos para serviço
 
 A pontuação total é a soma dos pesos das regras acionadas no trimestre. A classificação geral também considera a severidade qualitativa do achado: um achado alto torna o risco geral alto, e um achado médio torna o risco geral pelo menos médio.
 
-A opinião sugerida segue a classificação geral: risco baixo tende a `sem_ressalva`, risco médio tende a `com_ressalva` e risco alto tende a `adversa`. Regras compostas de nível médio não forçam opinião adversa isoladamente.
+A orientação consultiva segue a classificação geral: risco baixo tende a acompanhamento preventivo, risco médio tende a validação documental antes do fechamento e risco alto tende a regularização prioritária. O campo técnico legado `conclusao_sugerida` continua existindo para compatibilidade com integrações, mas a comunicação ao cliente deve priorizar `orientacao_consultiva`.
 
 | Faixa / condição | Classificação geral | Interpretação |
 |---|---|---|
@@ -112,7 +112,7 @@ Notas de versao 1.10.0:
 
 - As regras compostas `SN-COMP-*` foram recalibradas como reforço contextual de 6 a 8 pontos, reduzindo a duplicidade de score quando as regras-base já capturam o risco principal.
 - A explicação da pontuação passou a separar score base e pontos de regras compostas quando houver achados `SN-COMP-*`.
-- A opinião sugerida passou a tratar apenas regras compostas de nível alto como fator de opinião adversa; compostas médias seguem como ressalva.
+- A orientação técnica passou a tratar regras compostas de nível alto como prioridade de regularização; compostas médias seguem como pontos de validação documental.
 - A matriz de pontuação foi documentada para facilitar revisão técnica, calibração futura e justificativa do risco geral no parecer.
 
 Notas de versao 1.11.0:

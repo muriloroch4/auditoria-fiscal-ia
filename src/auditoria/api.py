@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import argparse
+import hmac
 import json
 import logging
 import os
@@ -121,7 +122,7 @@ class AuditApiHandler(BaseHTTPRequestHandler):
 
     def _check_auth(self) -> bool:
         provided = self.headers.get("X-API-Key", "")
-        if not provided or provided != self.api_key:
+        if not hmac.compare_digest(provided, self.api_key or ""):
             logger.warning("Falha de autenticação: %s", self.address_string())
             self._send_json({"erro": "Autenticacao necessaria. Envie o header X-API-Key."}, status=HTTPStatus.UNAUTHORIZED)
             return False
@@ -441,7 +442,9 @@ def run_server(
     regime_tributario: str | None = None,
     atividade: str = "servicos",
     db_path: str | None = None,
+    allow_unsafe_network: bool = False,
 ) -> None:
+    _validate_runtime_security(host, api_key, cors_origin, allow_unsafe_network)
     AuditApiHandler.api_key = api_key
     AuditApiHandler.cors_origin = cors_origin
     AuditApiHandler.regime_tributario = regime_tributario
@@ -455,6 +458,8 @@ def run_server(
     logger.info("Banco de dados local: %s", db_path or os.environ.get("AUDIT_DB_PATH") or "data/auditoria.sqlite")
     if api_key:
         logger.info("Autenticacao por API key: habilitada.")
+    if allow_unsafe_network:
+        logger.warning("Modo de rede inseguro habilitado explicitamente.")
     server.serve_forever()
 
 
@@ -469,6 +474,7 @@ def main() -> None:
         regime_tributario=args.regime_tributario,
         atividade=args.atividade,
         db_path=args.db_path,
+        allow_unsafe_network=args.allow_unsafe_network,
     )
 
 
@@ -486,6 +492,11 @@ def _parse_args() -> argparse.Namespace:
         help="Conjunto de regras do Simples Nacional.",
     )
     parser.add_argument("--db-path", help="Caminho do SQLite local (ou use AUDIT_DB_PATH).")
+    parser.add_argument(
+        "--allow-unsafe-network",
+        action="store_true",
+        help="Permite host nao local sem API key ou CORS restrito. Use apenas em ambiente isolado.",
+    )
     parser.add_argument("--verbose", action="store_true", help="Ativar logging detalhado.")
     return parser.parse_args()
 
@@ -497,6 +508,33 @@ def _setup_logging(verbose: bool = False) -> None:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
+
+
+def _validate_runtime_security(
+    host: str,
+    api_key: str | None,
+    cors_origin: str,
+    allow_unsafe_network: bool,
+) -> None:
+    if _is_loopback_host(host) or allow_unsafe_network:
+        return
+
+    if not (api_key or "").strip():
+        raise ValueError(
+            "API exposta em host nao local exige API key. Use --api-key/AUDIT_API_KEY "
+            "ou --allow-unsafe-network apenas em ambiente isolado."
+        )
+
+    if (cors_origin or "*").strip() == "*":
+        raise ValueError(
+            "API exposta em host nao local exige CORS restrito. Informe --cors-origin/AUDIT_CORS_ORIGIN "
+            "ou --allow-unsafe-network apenas em ambiente isolado."
+        )
+
+
+def _is_loopback_host(host: str) -> bool:
+    normalized = (host or "").strip().lower()
+    return normalized in {"127.0.0.1", "localhost", "::1"}
 
 
 def _form_text(form: dict[str, str | UploadedFile], field: str, default: str) -> str:

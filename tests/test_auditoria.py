@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import re
 import unittest
 import unittest.mock
 import zipfile
@@ -49,7 +50,7 @@ class AuditPrototypeTest(unittest.TestCase):
         payload = audit_result_to_dict(result)
 
         self.assertEqual(result.nivel_geral, RiskLevel.ALTO)
-        self.assertEqual(payload["metadados"]["versao_schema"], "3.1.0")
+        self.assertEqual(payload["metadados"]["versao_schema"], "3.2.0")
         self.assertIn("identificacao_empresa", payload)
         self.assertIn("resumo_analise", payload)
         self.assertIn("principais_achados", payload)
@@ -59,6 +60,7 @@ class AuditPrototypeTest(unittest.TestCase):
         self.assertEqual(payload["resumo_analise"]["risco_geral"], "alto")
         self.assertIn("principais_pontos", payload["resumo_analise"])
         self.assertIn("conclusao_sugerida", payload["conclusao_tecnica"])
+        self.assertIn("orientacao_consultiva", payload["conclusao_tecnica"])
         self.assertIn("consultivo", payload)
         self.assertIn("plano_acao", payload["consultivo"])
 
@@ -417,6 +419,7 @@ class ProjectQualityTest(unittest.TestCase):
             Path(".github"),
             Path("README.md"),
             Path("REGRAS.md"),
+            Path("CHANGELOG.md"),
             Path("pyproject.toml"),
             Path("requirements.txt"),
             Path("requirements-dev.txt"),
@@ -439,13 +442,64 @@ class ProjectQualityTest(unittest.TestCase):
 
         self.assertEqual(offenders, [])
 
+    def test_consultivo_config_covers_all_documented_rules(self):
+        rules_config = json.loads(Path("config/rules.json").read_text(encoding="utf-8"))
+        consultivo_config = json.loads(Path("config/consultivo_por_regra.json").read_text(encoding="utf-8"))
+        regras_doc = Path("REGRAS.md").read_text(encoding="utf-8")
+
+        configured_codes = {
+            code
+            for codes in rules_config.get("conjuntos_regras", {}).values()
+            for code in codes
+        }
+        configured_codes.update(
+            code
+            for code in rules_config
+            if re.fullmatch(r"SN-(?:\d{3}|COMP-\d{2})", code)
+        )
+        documented_codes = set(re.findall(r"\b(?:SN-COMP-\d{2}|SN-\d{3}[A-Z]?|AN-[A-Z0-9-]+)\b", regras_doc))
+        expected_codes = configured_codes | documented_codes
+
+        entries = consultivo_config.get("por_prefixo") or []
+        prefixes = [str(entry.get("prefixo") or "") for entry in entries]
+        missing = sorted(
+            code
+            for code in expected_codes
+            if not any(code.startswith(prefix) for prefix in prefixes)
+        )
+
+        self.assertEqual(missing, [], "Regras sem cobertura em config/consultivo_por_regra.json")
+        self.assertEqual(len(prefixes), len(set(prefixes)), "Prefixos consultivos duplicados")
+
+        required_fields = (
+            "documentos_necessarios",
+            "o_que_significa",
+            "como_solucionar",
+            "responsavel_sugerido",
+            "prazo_sugerido",
+        )
+        incomplete = []
+        for entry in entries:
+            prefix = str(entry.get("prefixo") or "[sem prefixo]")
+            if not any(code.startswith(prefix) for code in expected_codes):
+                incomplete.append(f"{prefix}: prefixo sem regra documentada ou configurada")
+            for field in required_fields:
+                value = entry.get(field)
+                if field == "documentos_necessarios":
+                    if not isinstance(value, list) or not value or not all(str(item).strip() for item in value):
+                        incomplete.append(f"{prefix}: {field}")
+                elif not str(value or "").strip():
+                    incomplete.append(f"{prefix}: {field}")
+
+        self.assertEqual(incomplete, [])
+
     def test_formal_json_schemas_are_valid_json_files(self):
         quarterly = json.loads(Path("schemas/auditoria_trimestral.v3.schema.json").read_text(encoding="utf-8"))
         annual = json.loads(Path("schemas/auditoria_anual.v1.schema.json").read_text(encoding="utf-8"))
 
         self.assertEqual(quarterly["$schema"], "https://json-schema.org/draft/2020-12/schema")
         self.assertIn("identificacao_empresa", quarterly["properties"])
-        self.assertEqual(quarterly["properties"]["metadados"]["properties"]["versao_schema"]["const"], "3.1.0")
+        self.assertEqual(quarterly["properties"]["metadados"]["properties"]["versao_schema"]["const"], "3.2.0")
         self.assertEqual(annual["properties"]["_schema_version"]["const"], "annual-1.1.0")
         self.assertIn("achados_anuais", annual["properties"])
 
@@ -1097,7 +1151,7 @@ class SchemaV3ResumoTest(unittest.TestCase):
                 "metadados",
             ],
         )
-        self.assertEqual(payload["metadados"]["versao_schema"], "3.1.0")
+        self.assertEqual(payload["metadados"]["versao_schema"], "3.2.0")
         self.assertEqual(payload["identificacao_empresa"]["regime_tributario"], "Simples Nacional")
         self.assertIn("total_regras_verificadas", payload["resumo_analise"])
         self.assertIn("total_regras_acionadas", payload["resumo_analise"])
@@ -1122,6 +1176,8 @@ class SchemaV3ResumoTest(unittest.TestCase):
 
         self.assertIn("achados_por_severidade", resumo)
         self.assertIn("conclusao_sugerida", conclusao)
+        self.assertIn("orientacao_consultiva", conclusao)
+        self.assertNotIn("adversa", conclusao["orientacao_consultiva"].lower())
         self.assertIn("alta", resumo["achados_por_severidade"])
         self.assertIn("media", resumo["achados_por_severidade"])
         self.assertIn("baixa", resumo["achados_por_severidade"])
@@ -1284,6 +1340,15 @@ class AnnualComparisonTest(unittest.TestCase):
         self.assertIn("AN-REC-SN-007", codes)
         self.assertEqual(len(annual["comparativo_trimestral"]), 4)
         validate_payload_against_schema(annual, "anual")
+
+    def test_build_annual_comparison_valida_json_trimestral_formal(self):
+        payload = self._quarter_payload("2026-T1", revenue=100000, expenses=80000)
+        payload["resumo_analise"]["total_regras_verificadas"] = "invalido"
+
+        with self.assertRaises(ValueError) as context:
+            build_annual_comparison([payload])
+
+        self.assertIn("JSON trimestral #1 inválido", str(context.exception))
 
     def test_build_annual_comparison_consolida_metricas_comerciais(self):
         payloads = [

@@ -5,6 +5,11 @@ from typing import Any
 
 from .schema_loader import load_json_schema
 
+try:
+    import jsonschema as _jsonschema
+except ImportError:  # pragma: no cover - exercised in dependency-free local runtimes.
+    _jsonschema = None
+
 
 class SchemaValidationError(ValueError):
     pass
@@ -16,6 +21,14 @@ def validate_payload_against_schema(payload: Any, schema_name: str) -> None:
 
 
 def validate_payload(payload: Any, schema: dict[str, Any]) -> None:
+    if _jsonschema is not None:
+        try:
+            _jsonschema.Draft202012Validator(schema).validate(payload)
+        except _jsonschema.ValidationError as exc:
+            path = "$" + "".join(f".{part}" if isinstance(part, str) else f"[{part}]" for part in exc.path)
+            raise SchemaValidationError(f"{path}: {exc.message}") from exc
+        return
+
     _validate(payload, schema, schema, "$")
 
 

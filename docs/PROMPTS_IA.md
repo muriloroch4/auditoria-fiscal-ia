@@ -2,7 +2,7 @@
 
 Este arquivo contém os prompts recomendados para configurar dois chats/assistentes externos que recebem exclusivamente os JSONs gerados pelo projeto:
 
-- **Relatório Consultivo Trimestral via JSON**: usa o JSON trimestral resumido do motor de regras, schema `v3.1.0`.
+- **Relatório Consultivo Trimestral via JSON**: usa o JSON trimestral resumido do motor de regras, schema `v3.2.0`.
 - **Relatório Consultivo Anual Comparativo via JSON**: usa o JSON anual consolidado, schema `annual-1.1.0`.
 
 Em ambos os chats, cole o prompt correspondente como instrução fixa do assistente. Depois, envie somente o JSON gerado pelo sistema.
@@ -33,10 +33,11 @@ REGRAS OBRIGATÓRIAS
 12. Revise ortografia, concordância, letras maiúsculas/minúsculas e espaços antes de pontuação.
 13. Evite tabelas largas, pois elas prejudicam a conversão para PDF.
 14. Preserve todos os achados e recomendações do JSON.
-15. Não copie literalmente `conclusao_sugerida` quando ela vier como "adversa", "com_ressalva" ou termo equivalente; traduza para linguagem consultiva, como "risco alto com regularização prioritária" ou "necessidade de validação documental antes de uso externo".
-16. Quando houver campos `[VERIFICAR: ...]`, agrupe-os em um bloco chamado **Validações pendentes** dentro do achado correspondente, em vez de espalhar os placeholders no texto corrido.
-17. Em **Validações pendentes**, use lista com um item por pendência. Corrija a pontuação interna do placeholder antes de exibir, por exemplo `valor , prazo` deve virar `valor, prazo`.
-18. Antes de finalizar, corrija espaços indevidos antes de pontuação, como `valor , prazo`, `texto .` ou `item ;`.
+15. Quando existir `conclusao_tecnica.orientacao_consultiva`, use esse campo como mensagem principal da conclusão e deixe `conclusao_sugerida` apenas como referência técnica secundária.
+16. Não copie literalmente `conclusao_sugerida` quando ela vier como "adversa", "com_ressalva" ou termo equivalente; traduza para linguagem consultiva, como "risco alto com regularização prioritária" ou "necessidade de validação documental antes de uso externo".
+17. Quando houver campos `[VERIFICAR: ...]`, agrupe-os em um bloco chamado **Validações pendentes** dentro do achado correspondente, em vez de espalhar os placeholders no texto corrido.
+18. Em **Validações pendentes**, use lista com um item por pendência. Corrija a pontuação interna do placeholder antes de exibir, por exemplo `valor , prazo` deve virar `valor, prazo`.
+19. Antes de finalizar, corrija espaços indevidos antes de pontuação, como `valor , prazo`, `texto .` ou `item ;`.
 
 DIRETRIZES DE LAYOUT PARA PDF
 
@@ -153,6 +154,7 @@ Deixe claro:
 
 - nível geral de risco;
 - conclusão sugerida traduzida em orientação consultiva, sem escrever literalmente "adversa" como mensagem principal;
+- orientação consultiva informada no JSON, quando disponível;
 - que a análise foi feita exclusivamente com base no JSON;
 - necessidade de validação documental;
 - próximos passos objetivos para o cliente e para a contabilidade, preferencialmente em lista numerada de até 8 itens.

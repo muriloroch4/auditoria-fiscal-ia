@@ -308,15 +308,18 @@ def _render_consultivo_opiniao(payload: dict[str, Any]) -> str:
     achados = payload["principais_achados"]
     periodo = identificacao["periodo_analisado"]
     regime = identificacao["regime_tributario"]
+    orientacao = conclusao.get("orientacao_consultiva") or _orientacao_consultiva_de_conclusao(
+        str(conclusao.get("conclusao_sugerida") or "")
+    )
 
     abertura = (
         f"Com base na análise do balancete do período {periodo}, compreendendo "
-        f"{resumo['total_regras_verificadas']} regras fiscais verificadas, emito a seguinte opinião técnica:"
+        f"{resumo['total_regras_verificadas']} regras fiscais verificadas, apresenta-se a seguinte orientação técnica consultiva:"
     )
 
     codigos = ", ".join(str(achado.get("codigo")) for achado in achados) or "nenhum achado acionado"
     bloco = (
-        f"Conclusão sugerida: {conclusao['conclusao_sugerida']}. "
+        f"Orientação consultiva: {orientacao}. "
         f"Risco geral {conclusao['risco_geral']} para o regime {regime}, considerando os achados {codigos}. "
         f"{conclusao['texto_conclusivo']}"
     )
@@ -327,6 +330,17 @@ def _render_consultivo_opiniao(payload: dict[str, Any]) -> str:
         "com a NBC PG 100 (R1) de 2018, NBC TA 700 (R1), NBC TG 26 (R3) = CPC 26 R1 e Resolução CFC n.º 1.244/2009."
     )
     return "\n\n".join([abertura, bloco, encerramento])
+
+
+def _orientacao_consultiva_de_conclusao(value: str) -> str:
+    normalized = value.strip().lower().replace("_", " ")
+    if normalized in {"adversa", "opiniao adversa", "opinião adversa"}:
+        return "regularizar os achados relevantes antes de usar os dados para decisões externas ou fechamento anual"
+    if normalized in {"com ressalva", "ressalva", "com ressalvas"}:
+        return "corrigir, documentar e validar os pontos destacados antes do fechamento definitivo"
+    if normalized in {"abstencao de opiniao", "abstenção de opinião"}:
+        return "obter documentação complementar antes de concluir a análise"
+    return "manter a documentação suporte e acompanhar os controles nos próximos trimestres"
 
 
 def _recommendation_for_finding(recommendations: list[dict[str, Any]], achado: dict[str, Any], index: int) -> str:
@@ -839,7 +853,7 @@ def _label(value: str) -> str:
 def _system_prompt() -> str:
     return """
 # System Prompt — Relatório consultivo trimestral
-# Compatível com o schema resumido v3.1.0 do motor de regras
+# Compatível com o schema resumido v3.2.0 do motor de regras
 
 Você é um contador consultivo, especialista em auditoria fiscal, contabilidade
 societária e direito tributário brasileiro, com registro ativo no CRC. Sua função é
@@ -885,10 +899,11 @@ O JSON terá estes blocos:
 14. Evite termos acusatórios ao cliente. Quando houver risco sensível, use linguagem como
     "risco fiscal/documental", "receita possivelmente não reconhecida" ou "tratamento fiscal pendente".
 15. Não suavize a gravidade técnica: informe risco alto, materialidade e prioridade, mas de forma profissional e orientada à solução.
-16. Não copie literalmente `conclusao_sugerida` quando ela vier como "adversa", "com_ressalva" ou termo equivalente; traduza para linguagem consultiva, como "risco alto com regularização prioritária" ou "necessidade de validação documental antes de uso externo".
-17. Quando houver campos `[VERIFICAR: ...]`, agrupe-os em um bloco chamado **Validações pendentes** dentro do achado correspondente, em vez de espalhar os placeholders no texto corrido.
-18. Em **Validações pendentes**, use lista com um item por pendência. Corrija a pontuação interna do placeholder antes de exibir, por exemplo `valor , prazo` deve virar `valor, prazo`.
-19. Antes de finalizar, corrija espaços indevidos antes de pontuação, como `valor , prazo`, `texto .` ou `item ;`.
+16. Use `conclusao_tecnica.orientacao_consultiva` como mensagem principal da conclusão, quando disponível.
+17. Não copie literalmente `conclusao_sugerida` quando ela vier como "adversa", "com_ressalva" ou termo equivalente; traduza para linguagem consultiva, como "risco alto com regularização prioritária" ou "necessidade de validação documental antes de uso externo".
+18. Quando houver campos `[VERIFICAR: ...]`, agrupe-os em um bloco chamado **Validações pendentes** dentro do achado correspondente, em vez de espalhar os placeholders no texto corrido.
+19. Em **Validações pendentes**, use lista com um item por pendência. Corrija a pontuação interna do placeholder antes de exibir, por exemplo `valor , prazo` deve virar `valor, prazo`.
+20. Antes de finalizar, corrija espaços indevidos antes de pontuação, como `valor , prazo`, `texto .` ou `item ;`.
 
 ## Diretrizes de layout para PDF
 
