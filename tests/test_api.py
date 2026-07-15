@@ -224,6 +224,7 @@ class APIHealthTest(unittest.TestCase):
             self.assertIn('/static/dashboard.css', html_content)
             self.assertIn('/static/print.css', html_content)
             self.assertIn('/static/app-utils.js', html_content)
+            self.assertIn('/static/app-print-sections.js', html_content)
             self.assertIn('/static/app-print.js', html_content)
             self.assertIn('/static/app-dashboard-summary.js', html_content)
             self.assertIn('/static/app-dashboard-sections.js', html_content)
@@ -326,7 +327,20 @@ class APIHealthTest(unittest.TestCase):
         content = handler.wfile.getvalue().decode("utf-8")
         self.assertIn("function printDashboardPdf", content)
         self.assertIn("function buildPrintDocumentHtml", content)
+        self.assertIn("/static/dashboard.css", content)
         self.assertIn("/static/print.css", content)
+
+    def test_static_javascript_print_sections_returns_asset(self):
+        handler = TestableAuditApiHandler()
+        handler.path = "/static/app-print-sections.js"
+
+        handler.do_GET()
+
+        self.assertEqual(handler._response_code, HTTPStatus.OK)
+        self.assertEqual(handler._response_headers["Content-Type"], "text/javascript; charset=utf-8")
+        content = handler.wfile.getvalue().decode("utf-8")
+        self.assertIn("function renderPrintMetricSection", content)
+        self.assertIn("function renderPrintFindingsSection", content)
 
     def test_static_javascript_dashboard_returns_asset(self):
         handler = TestableAuditApiHandler()

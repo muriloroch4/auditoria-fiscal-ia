@@ -14,9 +14,9 @@ from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
 from .annual import build_annual_comparison, build_rbt12_context
+from .api_payloads import audit_result_to_annual_source, audit_result_to_dashboard_payload
 from .audit import run_quarterly_audit
 from .http_multipart import UploadedFile, read_multipart_form
-from .models import AuditResult
 from .parser import read_trial_balance_upload
 from .schema_loader import load_json_schema
 from .serializers import audit_result_to_dict
@@ -157,7 +157,7 @@ class AuditApiHandler(BaseHTTPRequestHandler):
                 atividade=atividade,
             )
             payload = audit_result_to_dict(result)
-            annual_source = _audit_result_to_annual_source(result)
+            annual_source = audit_result_to_annual_source(result)
             storage = self._storage()
             storage_id = storage.save_quarterly_audit(
                 result,
@@ -177,7 +177,7 @@ class AuditApiHandler(BaseHTTPRequestHandler):
                     contexto_rbt12=rbt12_context,
                 )
                 payload = audit_result_to_dict(result)
-                annual_source = _audit_result_to_annual_source(result)
+                annual_source = audit_result_to_annual_source(result)
                 storage_id = storage.save_quarterly_audit(
                     result,
                     payload,
@@ -186,7 +186,7 @@ class AuditApiHandler(BaseHTTPRequestHandler):
                     file_hash=file_sha256(uploaded_file.content),
                     atividade=atividade,
                 )
-            self._send_json(_audit_result_to_dashboard_payload(result, payload))
+            self._send_json(audit_result_to_dashboard_payload(result, payload))
             logger.info(
                 "Auditoria concluida: id=%s nivel=%s score=%d achados=%d",
                 storage_id,
@@ -252,7 +252,7 @@ class AuditApiHandler(BaseHTTPRequestHandler):
                     regime_tributario=self.regime_tributario or "Simples Nacional",
                     atividade=atividade,
                 )
-                annual_sources.append(_audit_result_to_annual_source(result))
+                annual_sources.append(audit_result_to_annual_source(result))
 
             annual_payload = build_annual_comparison(annual_sources)
             self._send_json(annual_payload)
@@ -541,76 +541,6 @@ def _json_default(value):
     if isinstance(value, Decimal):
         return float(value)
     raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
-
-
-def _audit_result_to_annual_source(result: AuditResult) -> dict:
-    return {
-        "identificacao": {
-            "cliente": result.cliente,
-            "cnpj": result.cnpj,
-            "regime_tributario": result.regime_tributario,
-            "periodo": result.periodo,
-        },
-        "risco": {
-            "nivel_geral": result.nivel_geral.value,
-            "pontuacao_total": result.pontuacao_total,
-            "pontuacao_bruta": result.pontuacao_bruta,
-            "pontuacao_maxima_aplicavel": result.pontuacao_maxima_aplicavel,
-            "escala_pontuacao": result.escala_pontuacao,
-            "modalidade_opiniao_sugerida": "com_ressalva" if result.achados else "sem_ressalva",
-        },
-        "metricas": _annual_metric_entries(result),
-        "achados": [
-            {
-                "codigo": finding.codigo,
-                "titulo": finding.titulo,
-                "nivel": finding.nivel.value,
-                "pontuacao": finding.pontuacao,
-                "descricao": finding.descricao,
-                "evidencia": finding.evidencia,
-                "recomendacao": finding.recomendacao,
-                "normas_aplicaveis": list(finding.normas_aplicaveis),
-            }
-            for finding in result.achados
-        ],
-    }
-
-
-def _audit_result_to_dashboard_payload(result: AuditResult, summary_payload: dict[str, Any]) -> dict[str, Any]:
-    """Return the formal quarterly JSON plus UI-only data for the local dashboard."""
-    payload = dict(summary_payload)
-    metricas = _annual_metric_entries(result)
-    indicadores = result.metricas_valores.get("indicadores_derivados")
-    if isinstance(indicadores, dict):
-        metricas["indicadores_derivados"] = indicadores
-
-    payload["dashboard"] = {
-        "metricas": metricas,
-        "contexto_regime": result.contexto_regime,
-        "resumo_metricas": result.resumo_metricas,
-        "meta": {
-            "total_contas_analisadas": result.total_contas_analisadas,
-            "total_regras_verificadas": result.total_regras_verificadas,
-            "total_regras_acionadas": len(result.achados),
-        },
-    }
-    return payload
-
-
-def _annual_metric_entries(result: AuditResult) -> dict:
-    metricas: dict[str, dict] = {}
-    for key, value in result.metricas_valores.items():
-        if key == "indicadores_derivados" or not isinstance(value, (int, float)):
-            continue
-        metricas[key] = {
-            "valor": value,
-            "formatado": result.resumo_metricas.get(key, str(value)),
-        }
-    return metricas
-
-
-def _schema_summary_definition() -> dict:
-    return load_json_schema("trimestral")
 
 
 def _index_html() -> str:

@@ -333,7 +333,8 @@ Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`.
 - `src/auditoria/static/app-dashboard.js` — composição principal do dashboard trimestral
 - `src/auditoria/static/app-dashboard-summary.js` — renderização da leitura executiva e dos cards visuais
 - `src/auditoria/static/app-dashboard-sections.js` — renderização de contexto, métricas, achados e evidências
-- `src/auditoria/static/app-print.js` — montagem do documento de impressão/PDF
+- `src/auditoria/static/app-print.js` — composição do documento e acionamento da impressão/PDF
+- `src/auditoria/static/app-print-sections.js` — renderização das seções internas do documento de impressão/PDF
 - `src/auditoria/static/app-annual.js` — painel de trimestres e geração do JSON anual
 - `src/auditoria/static/styles.css` — estilos base do dashboard
 - `src/auditoria/static/dashboard.css` — refinamentos visuais específicos do dashboard
@@ -344,6 +345,7 @@ Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`.
 - `src/auditoria/schema_validator.py` — validação interna dos JSONs gerados contra os schemas formais
 - `src/auditoria/xlsx_reader.py` — leitura de linhas XLSX a partir do XML interno da planilha
 - `src/auditoria/api.py` — servidor HTTP com upload, schemas e rotas estáticas do dashboard
+- `src/auditoria/api_payloads.py` — conversão de resultados de auditoria para payloads auxiliares da API e dashboard
 - `src/auditoria/http_multipart.py` — parser de formulários multipart usados no upload da API
 - `src/auditoria/static/` — frontend do dashboard, utilitários JS, download JSON, filtros de achados e impressão em PDF
 - `src/auditoria/static/print.css` — estilos dedicados ao relatório de impressão/PDF
