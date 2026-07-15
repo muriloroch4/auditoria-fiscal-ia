@@ -315,6 +315,8 @@ Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`.
 - `src/auditoria/rules/servicos.py` — checagens específicas de serviços, incluindo Fator R/folha
 - `src/auditoria/rules/comercio.py` — checagens específicas de comércio, incluindo estoque, fornecedores, CMV, sublimite e ICMS-ST
 - `src/auditoria/rules/misto.py` — checagens de empresas mistas com receitas de comércio e serviços
+- `src/auditoria/rules/financeiro.py` — checagens de caixa, recebíveis e adiantamentos
+- `src/auditoria/rules/patrimonial.py` — checagens patrimoniais/documentais, incluindo natureza inversa e empréstimos sem juros por competência
 - `src/auditoria/rules/metricas.py` — cálculo de métricas contábeis usadas pelo motor de regras
 - `src/auditoria/rules/compostas.py` — regras compostas que combinam achados correlacionados
 - `src/auditoria/rules/rulesets.py` — normalização dos conjuntos de regras por atividade
