@@ -555,6 +555,7 @@ function printDashboardPdf() {
   const title = `Relatório consultivo de pré-auditoria fiscal - ${ident.cliente || "cliente"} - ${ident.periodo || "periodo"}`;
   const content = buildPrintDocumentHtml(viewData);
   const styleUrl = `${window.location.origin}/static/styles.css`;
+  const printStyleUrl = `${window.location.origin}/static/print.css`;
   const printWindow = window.open("", "_blank");
 
   if (!printWindow) {
@@ -569,6 +570,7 @@ function printDashboardPdf() {
   <meta charset="utf-8">
   <title>${esc(title)}</title>
   <link rel="stylesheet" href="${esc(styleUrl)}">
+  <link rel="stylesheet" href="${esc(printStyleUrl)}">
 </head>
 <body>
   <main class="print-page">${content}</main>

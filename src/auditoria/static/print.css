@@ -1,0 +1,788 @@
+/* Printable report */
+.print-page {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 0;
+  background: #fff;
+}
+
+.pdf-document {
+  display: grid;
+  gap: 14px;
+  color: #111827;
+}
+
+.pdf-cover {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 18px;
+  align-items: stretch;
+  padding: 24px;
+  border: 1px solid #d0d5dd;
+  border-left: 8px solid var(--accent);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.pdf-cover.alto {
+  border-left-color: var(--danger);
+  background: #fff7f6;
+}
+
+.pdf-cover.medio {
+  border-left-color: var(--warning);
+  background: #fffbeb;
+}
+
+.pdf-cover.baixo {
+  border-left-color: var(--success);
+  background: #f0fdf4;
+}
+
+.pdf-kicker {
+  display: inline-flex;
+  margin-bottom: 8px;
+  color: #475467;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.pdf-cover h1 {
+  margin: 0;
+  color: #101828;
+  font-size: 26px;
+  line-height: 1.15;
+}
+
+.pdf-cover p {
+  max-width: 680px;
+  margin: 8px 0 0;
+  color: #475467;
+  font-size: 13px;
+}
+
+.pdf-risk-card {
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  padding: 16px;
+  border: 1px solid rgba(148, 163, 184, .34);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .82);
+}
+
+.pdf-risk-card span,
+.pdf-meta-item span,
+.pdf-summary-card span,
+.pdf-metric-item span {
+  color: #667085;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.pdf-risk-card strong {
+  color: #101828;
+  font-size: 24px;
+}
+
+.pdf-risk-card small {
+  color: #475467;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pdf-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pdf-meta-item,
+.pdf-summary-card,
+.pdf-metric-item {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid #eaecf0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.pdf-meta-item strong,
+.pdf-summary-card strong,
+.pdf-metric-item strong {
+  color: #101828;
+  font-size: 13px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.pdf-section {
+  display: grid;
+  gap: 10px;
+  padding: 15px;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.pdf-section h2 {
+  margin: 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #eef2f7;
+  color: #101828;
+  font-size: 15px;
+}
+
+.pdf-section p {
+  margin: 0;
+  color: #344054;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.pdf-client-section {
+  border-color: #99d6cf;
+  background: #f0fdfa;
+}
+
+.pdf-client-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.pdf-client-grid > div,
+.pdf-action-empty {
+  display: grid;
+  gap: 7px;
+  padding: 11px;
+  border: 1px solid rgba(148, 163, 184, .28);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .78);
+}
+
+.pdf-client-grid h3,
+.pdf-action-card h3 {
+  margin: 0;
+  color: #101828;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.pdf-consultive-note {
+  padding: 10px 11px;
+  border-left: 4px solid var(--accent);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .74);
+  font-weight: 700;
+}
+
+.pdf-action-section {
+  border-color: #d0d5dd;
+}
+
+.pdf-action-list {
+  display: grid;
+  gap: 10px;
+}
+
+.pdf-action-card {
+  display: grid;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid #eaecf0;
+  border-left: 4px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.pdf-action-card.alto {
+  border-left-color: var(--danger);
+}
+
+.pdf-action-card.medio {
+  border-left-color: var(--warning);
+}
+
+.pdf-action-card.baixo {
+  border-left-color: var(--success);
+}
+
+.pdf-action-card header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pdf-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pdf-action-grid > div {
+  padding: 9px;
+  border: 1px solid #eef2f7;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.pdf-action-grid span {
+  display: block;
+  margin-bottom: 3px;
+  color: #667085;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.pdf-action-grid p,
+.pdf-action-grid ul {
+  margin: 0;
+  color: #344054;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.pdf-action-grid ul {
+  padding-left: 16px;
+}
+
+.pdf-action-grid li {
+  margin: 2px 0;
+}
+
+.pdf-action-empty span {
+  color: #475467;
+  font-size: 12px;
+}
+
+.pdf-summary-grid,
+.pdf-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pdf-visual-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pdf-visual-card {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid #eaecf0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.pdf-visual-card span,
+.pdf-severity-row span {
+  color: #667085;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.pdf-visual-card strong {
+  color: #101828;
+  font-size: 14px;
+}
+
+.pdf-progress,
+.pdf-severity-row i {
+  display: block;
+  overflow: hidden;
+  height: 7px;
+  border-radius: 8px;
+  background: #e5e7eb;
+}
+
+.pdf-progress i,
+.pdf-severity-row b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+.pdf-severity-card {
+  gap: 5px;
+}
+
+.pdf-severity-row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 24px;
+  gap: 6px;
+  align-items: center;
+}
+
+.pdf-severity-row strong {
+  color: #101828;
+  font-size: 11px;
+  text-align: right;
+}
+
+.pdf-severity-row.alto b {
+  background: var(--danger);
+}
+
+.pdf-severity-row.medio b {
+  background: var(--warning);
+}
+
+.pdf-severity-row.baixo b {
+  background: var(--success);
+}
+
+.pdf-finding-list {
+  display: grid;
+  gap: 10px;
+}
+
+.pdf-finding-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #eaecf0;
+  border-left: 4px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.pdf-finding-card.alto {
+  border-left-color: var(--danger);
+}
+
+.pdf-finding-card.medio {
+  border-left-color: var(--warning);
+}
+
+.pdf-finding-card.baixo {
+  border-left-color: var(--success);
+}
+
+.pdf-finding-card header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pdf-score {
+  color: #475467;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.pdf-finding-card h3 {
+  margin: 0;
+  color: #101828;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.pdf-finding-card dl {
+  display: grid;
+  grid-template-columns: 118px minmax(0, 1fr);
+  gap: 5px 10px;
+  margin: 0;
+}
+
+.pdf-finding-card dt {
+  color: #667085;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.pdf-finding-card dd {
+  margin: 0;
+  color: #344054;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.pdf-list,
+.pdf-account-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+  color: #344054;
+  font-size: 12px;
+}
+
+.pdf-account-list li {
+  padding: 6px 0;
+}
+
+.pdf-account-list strong,
+.pdf-account-list span {
+  display: block;
+}
+
+.pdf-account-list span {
+  color: #667085;
+  font-size: 11px;
+}
+
+.pdf-note-section {
+  border-color: #fedf89;
+  background: #fffbeb;
+}
+
+.pdf-footer {
+  padding: 8px 0 0;
+  border-top: 1px solid #eaecf0;
+  color: #667085;
+  font-size: 11px;
+  text-align: center;
+}
+
+@media (max-width: 980px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: calc(100vh - 24px);
+    width: min(100vw - 24px, 820px);
+    margin: 12px auto;
+  }
+
+  .sidebar {
+    max-height: none;
+  }
+
+  .workspace {
+    min-height: 640px;
+  }
+
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .status-chips,
+  .action-bar {
+    width: 100%;
+  }
+
+  .action-bar {
+    justify-content: flex-start;
+  }
+
+  .risk-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .risk-stats {
+    min-width: 0;
+  }
+
+  .section-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .analysis-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .executive-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .priority-board {
+    grid-template-columns: 1fr;
+  }
+
+  .pdf-cover,
+  .pdf-meta-grid,
+  .pdf-summary-grid,
+  .pdf-metric-grid,
+  .pdf-visual-grid,
+  .pdf-client-grid,
+  .pdf-action-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .visual-grid,
+  .trend-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .trend-chart {
+    min-height: 180px;
+  }
+}
+
+@media (max-width: 620px) {
+  .app-shell {
+    width: 100%;
+    margin: 0;
+  }
+
+  .sidebar,
+  .workspace {
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .report {
+    padding: 14px;
+  }
+
+  .risk-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar-title {
+    min-width: 0;
+  }
+
+  .metric-grid,
+  .context-grid,
+  .analysis-grid .context-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .secondary-button,
+  .filter-button {
+    white-space: normal;
+  }
+
+  .finding-detail-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .executive-grid,
+  .executive-metric-strip,
+  .visual-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .priority-item {
+    grid-template-columns: 1fr;
+  }
+
+  .pdf-finding-card dl {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm 10mm 16mm;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body {
+    background: #fff;
+    color: #111827;
+    font-size: 11px;
+  }
+
+  .app-shell,
+  .workspace,
+  .report {
+    display: block;
+    width: 100%;
+    height: auto;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    box-shadow: none;
+    overflow: visible;
+  }
+
+  .sidebar,
+  .topbar,
+  .finding-toolbar,
+  .toggle-button,
+  .raw-json {
+    display: none !important;
+  }
+
+  .print-page {
+    max-width: none;
+    width: 100%;
+  }
+
+  .pdf-document {
+    gap: 7px;
+    padding-bottom: 0;
+  }
+
+  .pdf-cover {
+    padding: 10px;
+    grid-template-columns: minmax(0, 1fr) 150px;
+  }
+
+  .pdf-cover h1 {
+    font-size: 20px;
+  }
+
+  .pdf-cover p {
+    margin-top: 5px;
+    font-size: 10.5px;
+    line-height: 1.35;
+  }
+
+  .pdf-section {
+    gap: 7px;
+    padding: 8px;
+  }
+
+  .pdf-section h2,
+  .pdf-finding-card h3,
+  .pdf-action-card h3 {
+    break-after: avoid;
+  }
+
+  .pdf-meta-item,
+  .pdf-summary-card,
+  .pdf-metric-item {
+    padding: 6px 7px;
+  }
+
+  .pdf-meta-item strong,
+  .pdf-summary-card strong,
+  .pdf-metric-item strong {
+    font-size: 12px;
+  }
+
+  .pdf-risk-card {
+    padding: 9px;
+  }
+
+  .pdf-risk-card strong {
+    font-size: 21px;
+  }
+
+  .pdf-meta-grid,
+  .pdf-summary-grid,
+  .pdf-metric-grid,
+  .pdf-visual-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .pdf-client-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pdf-cover,
+  .pdf-meta-grid,
+  .pdf-finding-card,
+  .pdf-action-card,
+  .pdf-visual-card,
+  .pdf-summary-card,
+  .pdf-metric-item {
+    break-inside: avoid;
+    box-shadow: none;
+  }
+
+  .pdf-section,
+  .pdf-client-section,
+  .pdf-action-section,
+  .pdf-technical-section {
+    break-inside: auto;
+  }
+
+  .pdf-finding-list {
+    gap: 7px;
+  }
+
+  .pdf-finding-card {
+    padding: 9px;
+  }
+
+  .pdf-finding-card dd {
+    font-size: 10px;
+  }
+
+  .pdf-client-section,
+  .pdf-note-section {
+    background: #fff;
+    border-left-width: 4px;
+  }
+
+  .pdf-action-section,
+  .pdf-technical-section {
+    break-before: auto;
+  }
+
+  .pdf-action-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pdf-action-grid > div {
+    padding: 7px;
+  }
+
+  .pdf-action-grid p,
+  .pdf-action-grid ul {
+    font-size: 10px;
+  }
+
+  .pdf-client-grid h3,
+  .pdf-action-card h3,
+  .pdf-finding-card h3 {
+    font-size: 12px;
+  }
+
+  .pdf-footer {
+    display: block;
+    margin-top: 8px;
+  }
+
+  p,
+  li,
+  dd {
+    orphans: 3;
+    widows: 3;
+  }
+
+  .dashboard-stack {
+    gap: 12px;
+  }
+
+  .section {
+    break-inside: avoid;
+  }
+
+  .metric-card,
+  .context-item,
+  .section,
+  .risk-panel {
+    break-inside: avoid;
+    box-shadow: none;
+  }
+
+  .table-wrap {
+    overflow: visible;
+  }
+
+  .findings-table {
+    min-width: 0;
+    font-size: 10px;
+  }
+
+  .findings-table th,
+  .findings-table td {
+    padding: 6px;
+  }
+}

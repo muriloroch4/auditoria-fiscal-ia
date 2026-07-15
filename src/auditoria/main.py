@@ -8,6 +8,7 @@ from pathlib import Path
 from .audit import run_quarterly_audit
 from .parser import read_trial_balance
 from .serializers import audit_result_to_dict
+from .utils import sanitize_for_latin1
 
 
 def main() -> None:
@@ -24,7 +25,7 @@ def main() -> None:
             output = generate_annual_markdown_report(annual_payload)
         else:
             output = json.dumps(annual_payload, ensure_ascii=False, indent=2)
-        _write_or_print(output, args.saida)
+        _write_or_print(output, args.saida, ascii_output=args.ascii_output)
         return
 
     if not args.balancete:
@@ -43,7 +44,7 @@ def main() -> None:
     else:
         output = json.dumps(payload, ensure_ascii=False, indent=2)
 
-    _write_or_print(output, args.saida)
+    _write_or_print(output, args.saida, ascii_output=args.ascii_output)
 
 
 def _parse_args() -> argparse.Namespace:
@@ -63,10 +64,18 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--markdown", action="store_true", help="Gerar relatório Markdown em vez de JSON.")
     parser.add_argument("--no-ai", action="store_true", help="Desabilitar IA no relatório Markdown.")
     parser.add_argument("--openrouter-key", help="Chave da API OpenRouter (ou use OPENROUTER_API_KEY).")
+    parser.add_argument(
+        "--ascii-output",
+        action="store_true",
+        help="Remove acentos e caracteres especiais da saida para compatibilidade com sistemas legados.",
+    )
     return parser.parse_args()
 
 
-def _write_or_print(output: str, output_path: str | None) -> None:
+def _write_or_print(output: str, output_path: str | None, *, ascii_output: bool = False) -> None:
+    if ascii_output:
+        output = sanitize_for_latin1(output)
+
     if output_path:
         path = Path(output_path)
         path.write_text(output, encoding="utf-8")

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from decimal import Decimal
 from typing import Any
 
@@ -37,6 +38,22 @@ def _validate(value: Any, schema: dict[str, Any], root: dict[str, Any], path: st
         _validate(value, _resolve_ref(root, str(schema["$ref"])), root, path)
         return
 
+    for child_schema in schema.get("allOf", []):
+        if isinstance(child_schema, dict):
+            _validate(value, child_schema, root, path)
+
+    if "anyOf" in schema:
+        errors = _collect_combinator_errors(value, schema["anyOf"], root, path)
+        if len(errors) == len(schema["anyOf"]):
+            detail = "; ".join(errors[:3])
+            raise SchemaValidationError(f"{path}: valor nao atende a nenhuma alternativa anyOf ({detail})")
+
+    if "oneOf" in schema:
+        errors = _collect_combinator_errors(value, schema["oneOf"], root, path)
+        valid_count = len(schema["oneOf"]) - len(errors)
+        if valid_count != 1:
+            raise SchemaValidationError(f"{path}: valor deve atender exatamente uma alternativa oneOf; validas: {valid_count}")
+
     if "const" in schema and value != schema["const"]:
         raise SchemaValidationError(f"{path}: esperado valor constante {schema['const']!r}; recebido {value!r}")
 
@@ -51,8 +68,22 @@ def _validate(value: Any, schema: dict[str, Any], root: dict[str, Any], path: st
         _validate_object(value, schema, root, path)
     elif isinstance(value, list):
         _validate_array(value, schema, root, path)
+    elif isinstance(value, str):
+        _validate_string(value, schema, path)
     elif isinstance(value, (int, float, Decimal)) and not isinstance(value, bool):
         _validate_number(value, schema, path)
+
+
+def _collect_combinator_errors(value: Any, schemas: list[Any], root: dict[str, Any], path: str) -> list[str]:
+    errors: list[str] = []
+    for child_schema in schemas:
+        if not isinstance(child_schema, dict):
+            continue
+        try:
+            _validate(value, child_schema, root, path)
+        except SchemaValidationError as exc:
+            errors.append(str(exc))
+    return errors
 
 
 def _validate_object(value: dict[str, Any], schema: dict[str, Any], root: dict[str, Any], path: str) -> None:
@@ -76,10 +107,24 @@ def _validate_object(value: dict[str, Any], schema: dict[str, Any], root: dict[s
 
 
 def _validate_array(value: list[Any], schema: dict[str, Any], root: dict[str, Any], path: str) -> None:
+    if "minItems" in schema and len(value) < schema["minItems"]:
+        raise SchemaValidationError(f"{path}: quantidade de itens menor que o minimo {schema['minItems']}")
+    if "maxItems" in schema and len(value) > schema["maxItems"]:
+        raise SchemaValidationError(f"{path}: quantidade de itens maior que o maximo {schema['maxItems']}")
+
     item_schema = schema.get("items")
     if isinstance(item_schema, dict):
         for index, item in enumerate(value):
             _validate(item, item_schema, root, f"{path}[{index}]")
+
+
+def _validate_string(value: str, schema: dict[str, Any], path: str) -> None:
+    if "minLength" in schema and len(value) < schema["minLength"]:
+        raise SchemaValidationError(f"{path}: texto menor que o tamanho minimo {schema['minLength']}")
+    if "maxLength" in schema and len(value) > schema["maxLength"]:
+        raise SchemaValidationError(f"{path}: texto maior que o tamanho maximo {schema['maxLength']}")
+    if "pattern" in schema and re.search(str(schema["pattern"]), value) is None:
+        raise SchemaValidationError(f"{path}: texto nao atende ao padrao {schema['pattern']!r}")
 
 
 def _validate_number(value: int | float | Decimal, schema: dict[str, Any], path: str) -> None:
@@ -114,6 +159,8 @@ def _resolve_ref(root: dict[str, Any], ref: str) -> dict[str, Any]:
         raise SchemaValidationError(f"Referencia externa nao suportada: {ref}")
     current: Any = root
     for part in ref[2:].split("/"):
+        if not isinstance(current, dict) or part not in current:
+            raise SchemaValidationError(f"Referencia invalida: {ref}")
         current = current[part]
     if not isinstance(current, dict):
         raise SchemaValidationError(f"Referencia invalida: {ref}")

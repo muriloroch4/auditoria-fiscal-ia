@@ -221,6 +221,7 @@ class APIHealthTest(unittest.TestCase):
             self.assertIn("Auditoria Fiscal IA", html_content)
             self.assertIn('/static/favicon.svg', html_content)
             self.assertIn('/static/styles.css', html_content)
+            self.assertIn('/static/print.css', html_content)
             self.assertIn('/static/app-utils.js', html_content)
             self.assertIn('/static/app-print.js', html_content)
             self.assertIn('/static/app-dashboard.js', html_content)
@@ -275,6 +276,18 @@ class APIHealthTest(unittest.TestCase):
         self.assertIn("renderDashboard", content)
         self.assertIn("bindDynamicControls", content)
 
+    def test_static_print_css_returns_asset(self):
+        handler = TestableAuditApiHandler()
+        handler.path = "/static/print.css"
+
+        handler.do_GET()
+
+        self.assertEqual(handler._response_code, HTTPStatus.OK)
+        self.assertEqual(handler._response_headers["Content-Type"], "text/css; charset=utf-8")
+        content = handler.wfile.getvalue().decode("utf-8")
+        self.assertIn(".pdf-document", content)
+        self.assertIn("@media print", content)
+
     def test_static_javascript_utils_returns_asset(self):
         handler = TestableAuditApiHandler()
         handler.path = "/static/app-utils.js"
@@ -298,6 +311,7 @@ class APIHealthTest(unittest.TestCase):
         content = handler.wfile.getvalue().decode("utf-8")
         self.assertIn("function printDashboardPdf", content)
         self.assertIn("function buildPrintDocumentHtml", content)
+        self.assertIn("/static/print.css", content)
 
     def test_static_javascript_dashboard_returns_asset(self):
         handler = TestableAuditApiHandler()

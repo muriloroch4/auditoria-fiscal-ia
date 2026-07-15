@@ -32,6 +32,10 @@ O formato segue uma versao simplificada de "Keep a Changelog": novas mudancas en
 
 - Evidencias com listas de contas passaram a priorizar materialidade antes de truncar a exibicao, evitando ocultar contas relevantes quando ha muitos itens no mesmo achado.
 - Evidencia da regra `SN-011A` passou a separar o percentual de relevancia do limite calculado em reais, evitando rotulo de percentual com valor monetario.
+- Validador interno de JSON Schema passou a cobrir combinadores, limites de arrays/textos, padroes e referencias invalidas quando `jsonschema` nao esta disponivel.
+- CLI passou a oferecer `--ascii-output` para gerar arquivos sem acentos/caracteres especiais em integracoes legadas.
+- Relatorio consultivo local ganhou testes dedicados de estrutura/fallback e `report_ai.py` teve helpers legados sem uso removidos para reduzir manutencao.
+- Estilos de impressao/PDF foram separados de `styles.css` para `static/print.css`, reduzindo o CSS principal do dashboard.
 
 ## Historico consolidado
 

@@ -2,6 +2,7 @@ import io
 import json
 import os
 import re
+import tempfile
 import unittest
 import unittest.mock
 import zipfile
@@ -13,11 +14,12 @@ from xml.sax.saxutils import escape
 
 from src.auditoria.audit import run_quarterly_audit
 from src.auditoria.annual import build_annual_comparison, generate_annual_markdown_report
+from src.auditoria.main import _write_or_print
 from src.auditoria.models import LedgerAccount, RiskLevel, RuleFinding
 from src.auditoria.parser import read_trial_balance_csv, read_trial_balance_csv_text, read_trial_balance_upload
 from src.auditoria.report_ai import generate_markdown_report
 from src.auditoria.rules.metricas import format_account_trace
-from src.auditoria.schema_validator import SchemaValidationError, validate_payload_against_schema
+from src.auditoria.schema_validator import SchemaValidationError, validate_payload, validate_payload_against_schema
 from src.auditoria.serializers import audit_result_to_dict
 from src.auditoria.storage import infer_year_quarter
 from src.auditoria.risk import (
@@ -641,6 +643,18 @@ class UtilsTest(unittest.TestCase):
         self.assertEqual(sanitize_for_latin1("Teste com — travessão"), "Teste com - travessao")
         self.assertIn("caixa", sanitize_for_latin1("caixa"))
         self.assertEqual(sanitize_for_latin1("joão"), "joao")
+
+    def test_write_or_print_ascii_output_is_opt_in(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            default_path = Path(tmpdir) / "default.md"
+            ascii_path = Path(tmpdir) / "ascii.md"
+
+            with unittest.mock.patch("builtins.print"):
+                _write_or_print("Relatório técnico — João", str(default_path))
+                _write_or_print("Relatório técnico — João", str(ascii_path), ascii_output=True)
+
+            self.assertEqual(default_path.read_text(encoding="utf-8"), "Relatório técnico — João")
+            self.assertEqual(ascii_path.read_text(encoding="utf-8"), "Relatorio tecnico - Joao")
 
 
 class ParserEdgeCaseTest(unittest.TestCase):
@@ -1412,6 +1426,67 @@ class SchemaV3ResumoTest(unittest.TestCase):
 
         with self.assertRaises(SchemaValidationError):
             validate_payload_against_schema(payload, "trimestral")
+
+    def test_schema_fallback_supports_common_contract_keywords(self):
+        schema = {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["codigo", "modo", "itens", "valor"],
+            "properties": {
+                "codigo": {"type": "string", "pattern": r"^SN-\d{3}$", "minLength": 6, "maxLength": 6},
+                "modo": {"oneOf": [{"const": "trimestral"}, {"const": "anual"}]},
+                "itens": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 2,
+                    "items": {"$ref": "#/$defs/item"},
+                },
+                "valor": {"anyOf": [{"type": "number"}, {"type": "null"}]},
+            },
+            "$defs": {
+                "item": {
+                    "allOf": [
+                        {"type": "object"},
+                        {
+                            "additionalProperties": False,
+                            "required": ["nome"],
+                            "properties": {"nome": {"type": "string", "minLength": 3}},
+                        },
+                    ]
+                }
+            },
+        }
+
+        with unittest.mock.patch("src.auditoria.schema_validator._jsonschema", None):
+            validate_payload(
+                {"codigo": "SN-011", "modo": "trimestral", "itens": [{"nome": "abc"}], "valor": Decimal("10.5")},
+                schema,
+            )
+            validate_payload({"codigo": "SN-011", "modo": "anual", "itens": [{"nome": "abc"}], "valor": None}, schema)
+
+            invalid_payloads = [
+                {"codigo": "SN-11", "modo": "trimestral", "itens": [{"nome": "abc"}], "valor": 1},
+                {"codigo": "SN-011", "modo": "mensal", "itens": [{"nome": "abc"}], "valor": 1},
+                {"codigo": "SN-011", "modo": "trimestral", "itens": [], "valor": 1},
+                {"codigo": "SN-011", "modo": "trimestral", "itens": [{"nome": "abc"}], "valor": "10"},
+                {"codigo": "SN-011", "modo": "trimestral", "itens": [{"nome": "ab"}], "valor": 1},
+                {"codigo": "SN-011", "modo": "trimestral", "itens": [{"nome": "abc"}], "valor": 1, "extra": True},
+            ]
+            for payload in invalid_payloads:
+                with self.subTest(payload=payload):
+                    with self.assertRaises(SchemaValidationError):
+                        validate_payload(payload, schema)
+
+    def test_schema_fallback_reports_invalid_refs_as_schema_errors(self):
+        schema = {
+            "type": "object",
+            "properties": {"campo": {"$ref": "#/$defs/ausente"}},
+            "$defs": {},
+        }
+
+        with unittest.mock.patch("src.auditoria.schema_validator._jsonschema", None):
+            with self.assertRaises(SchemaValidationError):
+                validate_payload({"campo": "x"}, schema)
 
     def test_classificacao_contas_lista_contas_para_revisao(self):
         content = dedent(

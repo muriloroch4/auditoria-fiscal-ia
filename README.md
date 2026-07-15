@@ -215,6 +215,12 @@ Para gerar o parecer consultivo em Markdown:
 python -m src.auditoria.main samples/balancete_simples_servicos.csv --periodo "2026-T1" --cliente "Cliente Exemplo" --cnpj "00.000.000/0001-00" --markdown --no-ai --saida parecer.md
 ```
 
+Para gerar uma saida sem acentos/caracteres especiais, util em sistemas legados que nao tratam UTF-8 corretamente, adicione `--ascii-output`:
+
+```powershell
+python -m src.auditoria.main samples/balancete_simples_servicos.csv --periodo "2026-T1" --cliente "Cliente Exemplo" --markdown --no-ai --ascii-output --saida parecer_ascii.md
+```
+
 ### Parecer anual comparativo
 
 Depois de gerar os JSONs trimestrais, consolide o exercício:
@@ -331,6 +337,7 @@ Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`.
 - `src/auditoria/schema_validator.py` — validação interna dos JSONs gerados contra os schemas formais
 - `src/auditoria/api.py` — servidor HTTP com upload, schemas e rotas estáticas do dashboard
 - `src/auditoria/static/` — frontend do dashboard, utilitários JS, download JSON, filtros de achados e impressão em PDF
+- `src/auditoria/static/print.css` — estilos dedicados ao relatório de impressão/PDF
 - `src/auditoria/report_ai.py` — system prompt para geração de parecer via IA
 - `src/auditoria/ai_client.py` — cliente OpenRouter (stdlib, sem dependências)
 - `src/auditoria/main.py` — CLI para processamento em lote (JSON por padrão, Markdown com `--markdown`)
