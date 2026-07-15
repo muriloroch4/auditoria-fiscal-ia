@@ -311,6 +311,7 @@ Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`.
 
 - `src/auditoria/models.py` — modelos de dados (RuleFinding, AuditResult, etc.)
 - `src/auditoria/parser.py` — leitura e normalização do balancete (CSV, XLSX, XLS)
+- `src/auditoria/account_classifier.py` — classificação de contas por grupo contábil, mapa configurável e fallbacks por descrição/prefixo
 - `src/auditoria/rules/simples_servicos.py` — orquestração das regras fiscais para Simples Nacional serviços, comércio e misto
 - `src/auditoria/rules/servicos.py` — checagens específicas de serviços, incluindo Fator R/folha
 - `src/auditoria/rules/comercio.py` — checagens específicas de comércio, incluindo estoque, fornecedores, CMV, sublimite e ICMS-ST

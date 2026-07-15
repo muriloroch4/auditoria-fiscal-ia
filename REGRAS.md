@@ -166,7 +166,7 @@ Notas de versao 1.12.0:
 - `_active_movement` é calculado apenas com `bancos` e `caixa`, sem `clientes`.
 - `_operational_movement` inclui `bancos`, `caixa` e `clientes` para o cálculo do índice da `SN-008B`.
 - Regras compostas (`SN-COMP-*`) são acionadas quando as regras base correspondentes estão presentes e funcionam como reforço contextual de baixa pontuação incremental.
-- O parser infere automaticamente o grupo via `_infer_grupo_from_conta` quando o grupo informado não está em `VALID_GRUPOS`.
+- O parser usa `src/auditoria/account_classifier.py` para inferir automaticamente o grupo quando o grupo informado não está em `VALID_GRUPOS`, combinando mapa configurável, prefixos e descrição da conta.
 
 ## Consolidação anual
 

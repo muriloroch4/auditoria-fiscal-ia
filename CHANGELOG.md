@@ -37,6 +37,7 @@ O formato segue uma versao simplificada de "Keep a Changelog": novas mudancas en
 - Relatorio consultivo local ganhou testes dedicados de estrutura/fallback e `report_ai.py` teve helpers legados sem uso removidos para reduzir manutencao.
 - Estilos de impressao/PDF foram separados de `styles.css` para `static/print.css`, reduzindo o CSS principal do dashboard.
 - Parser de multipart da API e leitor baixo nivel de XLSX foram movidos para modulos dedicados, reduzindo `api.py` e `parser.py`.
+- Classificacao de contas foi movida para `account_classifier.py`, deixando `parser.py` focado na leitura dos arquivos.
 - Regras financeiras de caixa, recebiveis e adiantamentos foram movidas para `rules/financeiro.py`, reduzindo o orquestrador do Simples Nacional.
 - Regras patrimoniais `SN-027` e `SN-028` foram movidas para `rules/patrimonial.py`, reduzindo o tamanho de `simples_servicos.py`.
 
