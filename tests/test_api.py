@@ -221,9 +221,12 @@ class APIHealthTest(unittest.TestCase):
             self.assertIn("Auditoria Fiscal IA", html_content)
             self.assertIn('/static/favicon.svg', html_content)
             self.assertIn('/static/styles.css', html_content)
+            self.assertIn('/static/dashboard.css', html_content)
             self.assertIn('/static/print.css', html_content)
             self.assertIn('/static/app-utils.js', html_content)
             self.assertIn('/static/app-print.js', html_content)
+            self.assertIn('/static/app-dashboard-summary.js', html_content)
+            self.assertIn('/static/app-dashboard-sections.js', html_content)
             self.assertIn('/static/app-dashboard.js', html_content)
             self.assertIn('/static/app-annual.js', html_content)
             self.assertIn('/static/app.js', html_content)
@@ -288,6 +291,18 @@ class APIHealthTest(unittest.TestCase):
         self.assertIn(".pdf-document", content)
         self.assertIn("@media print", content)
 
+    def test_static_dashboard_css_returns_asset(self):
+        handler = TestableAuditApiHandler()
+        handler.path = "/static/dashboard.css"
+
+        handler.do_GET()
+
+        self.assertEqual(handler._response_code, HTTPStatus.OK)
+        self.assertEqual(handler._response_headers["Content-Type"], "text/css; charset=utf-8")
+        content = handler.wfile.getvalue().decode("utf-8")
+        self.assertIn("Dashboard visual refinements", content)
+        self.assertIn(".dashboard-stack", content)
+
     def test_static_javascript_utils_returns_asset(self):
         handler = TestableAuditApiHandler()
         handler.path = "/static/app-utils.js"
@@ -323,6 +338,28 @@ class APIHealthTest(unittest.TestCase):
         self.assertEqual(handler._response_headers["Content-Type"], "text/javascript; charset=utf-8")
         content = handler.wfile.getvalue().decode("utf-8")
         self.assertIn("function buildDashboardHtml", content)
+
+    def test_static_javascript_dashboard_summary_returns_asset(self):
+        handler = TestableAuditApiHandler()
+        handler.path = "/static/app-dashboard-summary.js"
+
+        handler.do_GET()
+
+        self.assertEqual(handler._response_code, HTTPStatus.OK)
+        self.assertEqual(handler._response_headers["Content-Type"], "text/javascript; charset=utf-8")
+        content = handler.wfile.getvalue().decode("utf-8")
+        self.assertIn("function renderRiskPanel", content)
+        self.assertIn("function renderExecutiveSummary", content)
+
+    def test_static_javascript_dashboard_sections_returns_asset(self):
+        handler = TestableAuditApiHandler()
+        handler.path = "/static/app-dashboard-sections.js"
+
+        handler.do_GET()
+
+        self.assertEqual(handler._response_code, HTTPStatus.OK)
+        self.assertEqual(handler._response_headers["Content-Type"], "text/javascript; charset=utf-8")
+        content = handler.wfile.getvalue().decode("utf-8")
         self.assertIn("function renderAccountClassification", content)
         self.assertIn("data-finding-filter", content)
 

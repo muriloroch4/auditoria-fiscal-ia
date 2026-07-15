@@ -36,6 +36,8 @@ O formato segue uma versao simplificada de "Keep a Changelog": novas mudancas en
 - CLI passou a oferecer `--ascii-output` para gerar arquivos sem acentos/caracteres especiais em integracoes legadas.
 - Relatorio consultivo local ganhou testes dedicados de estrutura/fallback e `report_ai.py` teve helpers legados sem uso removidos para reduzir manutencao.
 - Estilos de impressao/PDF foram separados de `styles.css` para `static/print.css`, reduzindo o CSS principal do dashboard.
+- Refinamentos visuais do dashboard foram separados para `static/dashboard.css`, deixando `styles.css` como base visual.
+- Renderizadores do dashboard trimestral foram separados em `app-dashboard-summary.js` e `app-dashboard-sections.js`, deixando `app-dashboard.js` apenas como composição da tela.
 - Parser de multipart da API e leitor baixo nivel de XLSX foram movidos para modulos dedicados, reduzindo `api.py` e `parser.py`.
 - Classificacao de contas foi movida para `account_classifier.py`, deixando `parser.py` focado na leitura dos arquivos.
 - Regras financeiras de caixa, recebiveis e adiantamentos foram movidas para `rules/financeiro.py`, reduzindo o orquestrador do Simples Nacional.

@@ -330,9 +330,13 @@ Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`.
 - `src/auditoria/annual_report.py` — renderização Markdown do relatório anual comparativo
 - `src/auditoria/static/app.js` — fluxo principal do dashboard trimestral
 - `src/auditoria/static/app-utils.js` — utilitários puros de formatação e normalização
-- `src/auditoria/static/app-dashboard.js` — renderização das seções do dashboard trimestral
+- `src/auditoria/static/app-dashboard.js` — composição principal do dashboard trimestral
+- `src/auditoria/static/app-dashboard-summary.js` — renderização da leitura executiva e dos cards visuais
+- `src/auditoria/static/app-dashboard-sections.js` — renderização de contexto, métricas, achados e evidências
 - `src/auditoria/static/app-print.js` — montagem do documento de impressão/PDF
 - `src/auditoria/static/app-annual.js` — painel de trimestres e geração do JSON anual
+- `src/auditoria/static/styles.css` — estilos base do dashboard
+- `src/auditoria/static/dashboard.css` — refinamentos visuais específicos do dashboard
 - `src/auditoria/serializers.py` — serialização para JSON trimestral resumido v3.3.0
 - `src/auditoria/evidence.py` — evidência estruturada por achado, com fonte, confiança e documentos recomendados
 - `src/auditoria/storage.py` — persistência SQLite dos trimestres e consolidações anuais
