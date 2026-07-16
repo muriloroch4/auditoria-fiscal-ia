@@ -24,6 +24,7 @@ O formato segue uma versao simplificada de "Keep a Changelog": novas mudancas en
 
 - Defaults internos de regras, mapa contábil e anexos foram movidos para `config_defaults.py`, deixando `config_loader.py` focado em leitura/cache.
 - Inferência de ano/trimestre foi movida para `periods.py`, deixando `storage.py` mais focado em persistência.
+- Operações de upload da API, respostas HTTP, heurísticas Domínio, helpers consultivos do relatório local e utilitários de achados anuais foram separados em módulos próprios.
 - Pontuação executiva trimestral e anual passou a ser normalizada em escala de 0 a 100, mantendo a pontuação bruta apenas como trilha técnica.
 - Mapa contábil passou a reconhecer empréstimos/financiamentos e contas de juros/encargos financeiros por descrição.
 - Autenticacao da API passou a comparar a chave enviada com `hmac.compare_digest`.

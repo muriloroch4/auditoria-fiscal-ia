@@ -9,33 +9,33 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, urlparse
 
 from .annual import build_annual_comparison
 from .api_helpers import (
     form_text as _form_text,
-    json_default as _json_default,
     payload_int as _payload_int,
     query_int as _query_int,
     query_text as _query_text,
-    saved_rbt12_context as _saved_rbt12_context,
 )
-from .api_payloads import audit_result_to_annual_source, audit_result_to_dashboard_payload
+from .api_operations import build_uploaded_annual_payload, process_quarterly_upload
+from .api_responses import (
+    index_html as _index_html,
+    send_html_response as _send_html_response,
+    send_json_response as _send_json_response,
+    send_static_response as _send_static_response,
+)
 from .api_runtime import (
     is_loopback_host as _is_loopback_host,
     parse_args as _parse_args,
     setup_logging as _setup_logging,
     validate_runtime_security as _validate_runtime_security,
 )
-from .audit import run_quarterly_audit
 from .http_multipart import UploadedFile, read_multipart_form
-from .parser import read_trial_balance_upload
 from .schema_loader import load_json_schema
-from .serializers import audit_result_to_dict
-from .storage import DB_SCHEMA_VERSION, AuditStorage, file_sha256
+from .storage import DB_SCHEMA_VERSION, AuditStorage
 
 logger = logging.getLogger(__name__)
-_STATIC_DIR = Path(__file__).with_name("static")
 
 
 class AuditApiHandler(BaseHTTPRequestHandler):
@@ -156,55 +156,22 @@ class AuditApiHandler(BaseHTTPRequestHandler):
                 return
 
             logger.info("Processando auditoria: cliente=%s periodo=%s arquivo=%s", cliente, periodo, uploaded_file.filename)
-            balance = read_trial_balance_upload(
-                uploaded_file.filename,
-                uploaded_file.content,
+            outcome = process_quarterly_upload(
+                uploaded_file,
                 cliente=cliente,
                 periodo=periodo,
                 cnpj=cnpj,
-            )
-            result = run_quarterly_audit(
-                balance,
+                atividade=atividade,
                 regime_tributario=self.regime_tributario or "Simples Nacional",
-                atividade=atividade,
+                storage=self._storage(),
             )
-            payload = audit_result_to_dict(result)
-            annual_source = audit_result_to_annual_source(result)
-            storage = self._storage()
-            storage_id = storage.save_quarterly_audit(
-                result,
-                payload,
-                annual_source,
-                filename=uploaded_file.filename,
-                file_hash=file_sha256(uploaded_file.content),
-                atividade=atividade,
-            )
-
-            rbt12_context = _saved_rbt12_context(storage, result.cnpj, result.periodo)
-            if rbt12_context.get("dados_suficientes"):
-                result = run_quarterly_audit(
-                    balance,
-                    regime_tributario=self.regime_tributario or "Simples Nacional",
-                    atividade=atividade,
-                    contexto_rbt12=rbt12_context,
-                )
-                payload = audit_result_to_dict(result)
-                annual_source = audit_result_to_annual_source(result)
-                storage_id = storage.save_quarterly_audit(
-                    result,
-                    payload,
-                    annual_source,
-                    filename=uploaded_file.filename,
-                    file_hash=file_sha256(uploaded_file.content),
-                    atividade=atividade,
-                )
-            self._send_json(audit_result_to_dashboard_payload(result, payload))
+            self._send_json(outcome.payload)
             logger.info(
                 "Auditoria concluida: id=%s nivel=%s score=%d achados=%d",
-                storage_id,
-                result.nivel_geral.value,
-                result.pontuacao_total,
-                len(result.achados),
+                outcome.storage_id,
+                outcome.risk_level,
+                outcome.score,
+                outcome.findings_count,
             )
         except ValueError as exc:
             logger.warning("Erro de validacao: %s", exc)
@@ -238,37 +205,14 @@ class AuditApiHandler(BaseHTTPRequestHandler):
                 self._send_json({"erro": "Informe no máximo 4 trimestres para a análise anual."}, status=HTTPStatus.BAD_REQUEST)
                 return
 
-            annual_sources = []
-            for index, quarter in enumerate(quarters, start=1):
-                if not isinstance(quarter, dict):
-                    raise ValueError(f"Trimestre {index}: item inválido no manifest.")
-                field = str(quarter.get("field") or f"balancete_{index - 1}")
-                uploaded_file = form.get(field)
-                if not isinstance(uploaded_file, UploadedFile) or not uploaded_file.content:
-                    raise ValueError(f"Trimestre {index}: arquivo não encontrado no campo '{field}'.")
-
-                cliente = str(quarter.get("cliente") or "Cliente sem nome")
-                periodo = str(quarter.get("periodo") or f"2025-T{index}")
-                cnpj = str(quarter.get("cnpj") or "")
-                atividade = str(quarter.get("atividade") or self.atividade)
-
-                balance = read_trial_balance_upload(
-                    uploaded_file.filename,
-                    uploaded_file.content,
-                    cliente=cliente,
-                    periodo=periodo,
-                    cnpj=cnpj,
-                )
-                result = run_quarterly_audit(
-                    balance,
-                    regime_tributario=self.regime_tributario or "Simples Nacional",
-                    atividade=atividade,
-                )
-                annual_sources.append(audit_result_to_annual_source(result))
-
-            annual_payload = build_annual_comparison(annual_sources)
+            annual_payload = build_uploaded_annual_payload(
+                form,
+                quarters,
+                default_atividade=self.atividade,
+                regime_tributario=self.regime_tributario or "Simples Nacional",
+            )
             self._send_json(annual_payload)
-            logger.info("Auditoria anual concluida: trimestres=%d", len(annual_sources))
+            logger.info("Auditoria anual concluida: trimestres=%d", len(quarters))
         except json.JSONDecodeError as exc:
             logger.warning("Manifest anual invalido: %s", exc)
             self._send_json({"erro": "Manifest anual inválido. Envie JSON válido."}, status=HTTPStatus.BAD_REQUEST)
@@ -369,42 +313,13 @@ class AuditApiHandler(BaseHTTPRequestHandler):
         return AuditStorage(self.db_path)
 
     def _send_json(self, payload: Any, status: HTTPStatus = HTTPStatus.OK) -> None:
-        content = json.dumps(payload, ensure_ascii=False, indent=2, default=_json_default).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self._send_cors_headers()
-        self.send_header("Content-Length", str(len(content)))
-        self.end_headers()
-        self.wfile.write(content)
+        _send_json_response(self, payload, self._send_cors_headers, status)
 
     def _send_html(self, content: str, status: HTTPStatus = HTTPStatus.OK) -> None:
-        encoded = content.encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self._send_cors_headers()
-        self.send_header("Content-Length", str(len(encoded)))
-        self.end_headers()
-        self.wfile.write(encoded)
+        _send_html_response(self, content, self._send_cors_headers, status)
 
     def _send_static(self, path: str) -> None:
-        requested = unquote(path.removeprefix("/static/"))
-        target = (_STATIC_DIR / requested).resolve()
-        static_root = _STATIC_DIR.resolve()
-
-        if not target.is_relative_to(static_root) or not target.is_file():
-            logger.warning("Arquivo estatico nao encontrado: %s", path)
-            self._send_json({"erro": "Arquivo nao encontrado."}, status=HTTPStatus.NOT_FOUND)
-            return
-
-        content_type = _static_content_type(target)
-        content = target.read_bytes()
-        self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", content_type)
-        self._send_cors_headers()
-        self.send_header("Cache-Control", "no-cache")
-        self.send_header("Content-Length", str(len(content)))
-        self.end_headers()
-        self.wfile.write(content)
+        _send_static_response(self, path, self._send_cors_headers, lambda payload, status: self._send_json(payload, status=status))
 
 
 def run_server(
@@ -449,26 +364,6 @@ def main() -> None:
         db_path=args.db_path,
         allow_unsafe_network=args.allow_unsafe_network,
     )
-
-
-def _index_html() -> str:
-    return _read_static_text("index.html")
-
-
-def _read_static_text(filename: str) -> str:
-    return (_STATIC_DIR / filename).read_text(encoding="utf-8")
-
-
-def _static_content_type(path: Path) -> str:
-    if path.suffix == ".css":
-        return "text/css; charset=utf-8"
-    if path.suffix == ".js":
-        return "text/javascript; charset=utf-8"
-    if path.suffix == ".svg":
-        return "image/svg+xml; charset=utf-8"
-    if path.suffix == ".html":
-        return "text/html; charset=utf-8"
-    return "application/octet-stream"
 
 
 if __name__ == "__main__":

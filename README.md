@@ -316,6 +316,7 @@ Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`.
 - `src/auditoria/dominio_parser.py` — reconhecimento e parsing do layout de balancete Domínio
 - `src/auditoria/xls_converter.py` — conversão operacional de `.xls` para `.xlsx` via Excel/PowerShell
 - `src/auditoria/account_classifier.py` — classificação de contas por grupo contábil, mapa configurável e fallbacks por descrição/prefixo
+- `src/auditoria/account_dominio_rules.py` — heurísticas específicas do plano/layout Domínio para classificação de contas
 - `src/auditoria/rules/simples_servicos.py` — orquestração das regras fiscais para Simples Nacional serviços, comércio e misto
 - `src/auditoria/rules/servicos.py` — checagens específicas de serviços, incluindo Fator R/folha
 - `src/auditoria/rules/comercio.py` — checagens específicas de comércio, incluindo estoque, fornecedores, CMV, sublimite e ICMS-ST
@@ -334,6 +335,7 @@ Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`.
 - `src/auditoria/annual.py` — orquestração da consolidação anual dos JSONs trimestrais
 - `src/auditoria/annual_metrics.py` — normalização trimestral, RBT12 e métricas anuais
 - `src/auditoria/annual_findings.py` — achados anuais, recorrências e explicação da pontuação
+- `src/auditoria/annual_finding_utils.py` — fábrica, tendências e explicações compartilhadas dos achados anuais
 - `src/auditoria/annual_consultivo.py` — leitura consultiva e plano de ação anual
 - `src/auditoria/annual_report.py` — renderização Markdown do relatório anual comparativo
 - `src/auditoria/static/app.js` — fluxo principal do dashboard trimestral
@@ -359,6 +361,8 @@ Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`.
 - `src/auditoria/config_defaults.py` — defaults internos usados quando os arquivos de configuracao nao existem
 - `src/auditoria/xlsx_reader.py` — leitura de linhas XLSX a partir do XML interno da planilha
 - `src/auditoria/api.py` — servidor HTTP com upload, schemas e rotas estáticas do dashboard
+- `src/auditoria/api_operations.py` — operações de upload trimestral/anual usadas pela API
+- `src/auditoria/api_responses.py` — respostas JSON/HTML e entrega de arquivos estáticos da API
 - `src/auditoria/api_payloads.py` — conversão de resultados de auditoria para payloads auxiliares da API e dashboard
 - `src/auditoria/api_helpers.py` — helpers de query/body, serialização JSON e contexto RBT12 salvo usados pela API
 - `src/auditoria/api_runtime.py` — configuração de CLI, logging e validação de segurança do runtime HTTP
@@ -367,6 +371,7 @@ Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`.
 - `src/auditoria/static/print.css` — estilos dedicados ao relatório de impressão/PDF
 - `src/auditoria/report_ai.py` — escolha entre geração via IA e fallback local, além do system prompt
 - `src/auditoria/report_local.py` — renderização Markdown local do relatório consultivo trimestral
+- `src/auditoria/report_consultivo_helpers.py` — textos auxiliares, sanitização consultiva e documentos recomendados do relatório local
 - `src/auditoria/report_payload.py` — montagem do payload JSON usado nos prompts e relatórios
 - `src/auditoria/ai_client.py` — cliente OpenRouter (stdlib, sem dependências)
 - `src/auditoria/main.py` — CLI para processamento em lote (JSON por padrão, Markdown com `--markdown`)
