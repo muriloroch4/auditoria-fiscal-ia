@@ -5,7 +5,8 @@ from typing import Any
 
 from .annual import build_rbt12_context
 from .http_multipart import UploadedFile
-from .storage import AuditStorage, infer_year_quarter
+from .periods import infer_year_quarter
+from .storage import AuditStorage
 
 
 def form_text(form: dict[str, str | UploadedFile], field: str, default: str) -> str:
