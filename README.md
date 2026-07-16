@@ -354,6 +354,8 @@ Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`.
 - `src/auditoria/storage.py` — persistência SQLite dos trimestres e consolidações anuais
 - `src/auditoria/schema_loader.py` — carregamento dos JSON Schemas formais trimestral/anual
 - `src/auditoria/schema_validator.py` — validação interna dos JSONs gerados contra os schemas formais
+- `src/auditoria/config_loader.py` — leitura e cache dos arquivos de configuracao
+- `src/auditoria/config_defaults.py` — defaults internos usados quando os arquivos de configuracao nao existem
 - `src/auditoria/xlsx_reader.py` — leitura de linhas XLSX a partir do XML interno da planilha
 - `src/auditoria/api.py` — servidor HTTP com upload, schemas e rotas estáticas do dashboard
 - `src/auditoria/api_payloads.py` — conversão de resultados de auditoria para payloads auxiliares da API e dashboard
