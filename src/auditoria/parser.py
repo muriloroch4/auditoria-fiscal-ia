@@ -1,50 +1,61 @@
 from __future__ import annotations
 
-import csv
-import subprocess
 import tempfile
-import re
-from collections.abc import Iterable
-from decimal import Decimal, InvalidOperation
 from io import StringIO
 from pathlib import Path
 
-from .models import LedgerAccount, TrialBalance
 from .account_classifier import (
     VALID_GRUPOS,
-    classify_dominio_group as _dominio_group_classification,
-    classify_group as _classify_group,
     dominio_group as _dominio_group,
     normalize_key as _normalize_key,
 )
-from .xlsx_reader import xlsx_table_rows
-
-
-REQUIRED_COLUMNS = {
-    "codigo",
-    "conta",
-    "grupo",
-    "saldo_anterior",
-    "debito",
-    "credito",
-    "saldo_atual",
-}
-
-_DOM_COL_CODIGO = 1
-_DOM_COL_DESCRICAO = 3
-_DOM_COL_SALDO_ANTERIOR = 7
-_DOM_COL_DEBITO = 9
-_DOM_COL_CREDITO = 11
-_DOM_COL_SALDO_ATUAL = 13
-_DOM_LINHA_EMPRESA = 0
-_DOM_LINHA_CNPJ = 1
-_DOM_LINHA_PERIODO = 2
-_DOM_LINHA_HEADER = 6
-_DOM_LINHA_DADOS = 7
-_DOM_MIN_COLUNAS = 14
-_DOM_MIN_SEGMENTOS_FOLHA = 5
-_CNPJ_RE = re.compile(r"\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}")
-_CODE_RE = re.compile(r"^\d+(?:\.\d+)*$")
+from .dominio_parser import (
+    CNPJ_RE as _CNPJ_RE,
+    CODE_RE as _CODE_RE,
+    DOM_COL_CODIGO as _DOM_COL_CODIGO,
+    DOM_COL_CREDITO as _DOM_COL_CREDITO,
+    DOM_COL_DEBITO as _DOM_COL_DEBITO,
+    DOM_COL_DESCRICAO as _DOM_COL_DESCRICAO,
+    DOM_COL_SALDO_ANTERIOR as _DOM_COL_SALDO_ANTERIOR,
+    DOM_COL_SALDO_ATUAL as _DOM_COL_SALDO_ATUAL,
+    DOM_LINHA_CNPJ as _DOM_LINHA_CNPJ,
+    DOM_LINHA_DADOS as _DOM_LINHA_DADOS,
+    DOM_LINHA_EMPRESA as _DOM_LINHA_EMPRESA,
+    DOM_LINHA_HEADER as _DOM_LINHA_HEADER,
+    DOM_LINHA_PERIODO as _DOM_LINHA_PERIODO,
+    DOM_MIN_COLUNAS as _DOM_MIN_COLUNAS,
+    DOM_MIN_SEGMENTOS_FOLHA as _DOM_MIN_SEGMENTOS_FOLHA,
+    dominio_cell as _dominio_cell,
+    dominio_decimal as _dominio_decimal,
+    dominio_extract_metadata as _dominio_extract_metadata,
+    dominio_header_index as _dominio_header_index,
+    dominio_is_leaf as _dominio_is_leaf,
+    dominio_records as _dominio_records,
+    dominio_table_rows as _dominio_table_rows,
+    find_dominio_header as _find_dominio_header,
+    is_dominio_format,
+    looks_like_periodo as _looks_like_periodo,
+    parse_dominio_balancete,
+)
+from .models import TrialBalance
+from .parser_records import (
+    REQUIRED_COLUMNS,
+    decimal_value as _decimal,
+    read_trial_balance_records as _read_trial_balance_records,
+    read_trial_balance_rows as _read_trial_balance_rows,
+    records_from_table_rows as _records_from_table_rows,
+    required_text as _required_text,
+    row_to_account as _row_to_account,
+)
+from .parser_tables import (
+    csv_table_rows as _csv_table_rows,
+    detect_csv_delimiter as _detect_csv_delimiter,
+    index_of as _index_of,
+    normalize_header as _normalize_header,
+    value_at as _value_at,
+    xlsx_table_rows as _xlsx_table_rows,
+)
+from .xls_converter import convert_xls_to_xlsx as _convert_xls_to_xlsx
 
 
 def read_trial_balance(path: str | Path, cliente: str, periodo: str, cnpj: str = "") -> TrialBalance:
@@ -82,6 +93,7 @@ def read_trial_balance_upload(
                 cnpj_override=cnpj or None,
             )
         return read_trial_balance_csv_text(text, cliente=cliente, periodo=periodo, cnpj=cnpj)
+
     if suffix == ".xlsx":
         table_rows = _xlsx_table_rows(content)
         if is_dominio_format(table_rows):
@@ -99,6 +111,7 @@ def read_trial_balance_upload(
             cnpj=cnpj,
             source_name="XLSX",
         )
+
     if suffix == ".xls":
         try:
             text = content.decode("utf-8-sig", errors="strict")
@@ -147,393 +160,6 @@ def read_trial_balance_xls_bytes(content: bytes, cliente: str, periodo: str, cnp
         return read_trial_balance_xlsx(converted, cliente=cliente, periodo=periodo, cnpj=cnpj)
 
 
-def _read_trial_balance_rows(rows: Iterable[str], cliente: str, periodo: str, cnpj: str = "") -> TrialBalance:
-    content = "".join(list(rows))
-    delimiter = _detect_csv_delimiter(content)
-    reader = csv.DictReader(StringIO(content), delimiter=delimiter)
-    if not reader.fieldnames:
-        raise ValueError("CSV vazio ou sem cabecalho.")
-
-    headers = [_normalize_header(field) for field in reader.fieldnames]
-    missing = REQUIRED_COLUMNS.difference(headers)
-    if missing:
-        columns = ", ".join(sorted(missing))
-        raise ValueError(f"CSV sem colunas obrigatorias: {columns}")
-
-    records = [
-        {_normalize_header(key): value for key, value in row.items()}
-        for row in reader
-    ]
-    return _read_trial_balance_records(records, cliente=cliente, periodo=periodo, cnpj=cnpj, source_name="CSV")
-
-
-def _detect_csv_delimiter(content: str) -> str:
-    first_line = content.splitlines()[0] if content else ""
-    candidates = [";", ",", "\t", "|"]
-    counts = {d: first_line.count(d) for d in candidates}
-    best = max(counts, key=lambda delimiter: counts[delimiter])
-    return best if counts[best] > 0 else ";"
-
-
-def _read_trial_balance_records(
-    records: Iterable[dict[str, str]],
-    cliente: str,
-    periodo: str,
-    cnpj: str,
-    source_name: str,
-) -> TrialBalance:
-    normalized_records = list(records)
-    if normalized_records:
-        missing = REQUIRED_COLUMNS.difference(normalized_records[0].keys())
-        if missing:
-            columns = ", ".join(sorted(missing))
-            raise ValueError(f"{source_name} sem colunas obrigatorias: {columns}")
-
-    accounts = [
-        _row_to_account(row, line_number)
-        for line_number, row in enumerate(normalized_records, start=2)
-        if any((value or "").strip() for value in row.values())
-    ]
-    if not accounts:
-        raise ValueError(f"{source_name} sem contas para analise.")
-
-    return TrialBalance(cliente=cliente, periodo=periodo, contas=accounts, cnpj=cnpj)
-
-
-def _row_to_account(row: dict[str, str], line_number: int) -> LedgerAccount:
-    codigo = _required_text(row, "codigo", line_number)
-    conta = _required_text(row, "conta", line_number)
-    grupo_original = _required_text(row, "grupo", line_number).lower()
-    grupo, origem, confianca, observacao = _classify_group(codigo, conta, grupo_original)
-
-    return LedgerAccount(
-        codigo=codigo,
-        conta=conta,
-        grupo=grupo,
-        saldo_anterior=_decimal(row["saldo_anterior"], "saldo_anterior", line_number),
-        debito=_decimal(row["debito"], "debito", line_number),
-        credito=_decimal(row["credito"], "credito", line_number),
-        saldo_atual=_decimal(row["saldo_atual"], "saldo_atual", line_number),
-        grupo_original=grupo_original,
-        classificacao_origem=origem,
-        classificacao_confianca=confianca,
-        classificacao_observacao=observacao,
-    )
-
-
-def _required_text(row: dict[str, str], field: str, line_number: int) -> str:
-    value = (row.get(field) or "").strip()
-    if not value:
-        raise ValueError(f"Linha {line_number}: campo obrigatorio vazio: {field}")
-    return value
-
-
-def _decimal(value: str, field: str, line_number: int) -> Decimal:
-    normalized = (value or "").strip()
-    if not normalized:
-        return Decimal("0")
-
-    if "," in normalized:
-        normalized = normalized.replace(".", "").replace(",", ".")
-    else:
-        normalized = normalized.replace(" ", "")
-
-    try:
-        return Decimal(normalized)
-    except InvalidOperation as exc:
-        raise ValueError(f"Linha {line_number}: valor invalido em {field}: {value}") from exc
-
-
 def _xlsx_records(content: bytes) -> list[dict[str, str]]:
-    table_rows = xlsx_table_rows(content)
+    table_rows = _xlsx_table_rows(content)
     return _records_from_table_rows(table_rows, source_name="XLSX")
-
-
-def _xlsx_table_rows(content: bytes) -> list[list[str]]:
-    return xlsx_table_rows(content)
-
-
-def _records_from_table_rows(table_rows: list[list[str]], source_name: str) -> list[dict[str, str]]:
-    headers = [_normalize_header(value) for value in table_rows[0]]
-    missing = REQUIRED_COLUMNS.difference(headers)
-    if missing:
-        dominio_records = _dominio_records(table_rows)
-        if dominio_records is not None:
-            return dominio_records
-        columns = ", ".join(sorted(missing))
-        raise ValueError(f"{source_name} sem colunas obrigatorias: {columns}")
-
-    records: list[dict[str, str]] = []
-    for row in table_rows[1:]:
-        padded = row + [""] * (len(headers) - len(row))
-        records.append(dict(zip(headers, padded)))
-
-    return records
-
-
-def _csv_table_rows(content: str) -> list[list[str]]:
-    delimiter = _detect_csv_delimiter(content)
-    return [row for row in csv.reader(StringIO(content), delimiter=delimiter)]
-
-
-def is_dominio_format(table_rows: list[list[str]]) -> bool:
-    try:
-        if len(table_rows) <= _DOM_LINHA_HEADER:
-            return False
-        if max((len(row) for row in table_rows), default=0) < _DOM_MIN_COLUNAS:
-            return False
-
-        empresa = _dominio_cell(table_rows, _DOM_LINHA_EMPRESA, 1)
-        cnpj = _dominio_cell(table_rows, _DOM_LINHA_CNPJ, 1)
-        periodo = _dominio_cell(table_rows, _DOM_LINHA_PERIODO, 1)
-        header_index = _dominio_header_index(table_rows)
-
-        if _normalize_key(empresa) in ("", "nan", "none"):
-            return False
-        if not _CNPJ_RE.search(cnpj):
-            return False
-        if not _looks_like_periodo(periodo):
-            return False
-        if header_index is None:
-            return False
-        return True
-    except (IndexError, KeyError, TypeError):
-        return False
-
-
-def _dominio_extract_metadata(table_rows: list[list[str]]) -> dict[str, str]:
-    return {
-        "cliente": _dominio_cell(table_rows, _DOM_LINHA_EMPRESA, 1).strip(),
-        "cnpj": _dominio_cell(table_rows, _DOM_LINHA_CNPJ, 1).strip(),
-        "periodo": _dominio_cell(table_rows, _DOM_LINHA_PERIODO, 1).strip(),
-    }
-
-
-def _dominio_is_leaf(codigo: str) -> bool:
-    codigo = (codigo or "").strip()
-    if not _CODE_RE.match(codigo):
-        return False
-    return len(codigo.split(".")) >= _DOM_MIN_SEGMENTOS_FOLHA
-
-
-def parse_dominio_balancete(
-    content: bytes,
-    filename: str = "balancete",
-    *,
-    cliente_override: str | None = None,
-    periodo_override: str | None = None,
-    cnpj_override: str | None = None,
-) -> TrialBalance:
-    table_rows = _dominio_table_rows(content, filename)
-    if not is_dominio_format(table_rows):
-        raise ValueError(f"O arquivo '{filename}' nao foi reconhecido como balancete Dominio.")
-
-    metadata = _dominio_extract_metadata(table_rows)
-    contas: list[LedgerAccount] = []
-
-    header_index = _dominio_header_index(table_rows)
-    data_start = (header_index + 1) if header_index is not None else _DOM_LINHA_DADOS
-
-    for row in table_rows[data_start:]:
-        codigo = _value_at(row, _DOM_COL_CODIGO).strip()
-        descricao = _value_at(row, _DOM_COL_DESCRICAO).strip()
-        if not codigo or not descricao or not _dominio_is_leaf(codigo):
-            continue
-
-        grupo, origem, confianca, observacao = _dominio_group_classification(codigo, descricao)
-        contas.append(
-            LedgerAccount(
-                codigo=codigo,
-                conta=descricao,
-                grupo=grupo,
-                saldo_anterior=_dominio_decimal(_value_at(row, _DOM_COL_SALDO_ANTERIOR)),
-                debito=_dominio_decimal(_value_at(row, _DOM_COL_DEBITO)),
-                credito=_dominio_decimal(_value_at(row, _DOM_COL_CREDITO)),
-                saldo_atual=_dominio_decimal(_value_at(row, _DOM_COL_SALDO_ATUAL)),
-                grupo_original="",
-                classificacao_origem=origem,
-                classificacao_confianca=confianca,
-                classificacao_observacao=observacao,
-            )
-        )
-
-    if not contas:
-        raise ValueError(
-            f"Nenhuma conta folha encontrada em '{filename}'. "
-            f"Esperado codigo com {_DOM_MIN_SEGMENTOS_FOLHA}+ segmentos."
-        )
-
-    return TrialBalance(
-        cliente=cliente_override or metadata["cliente"],
-        periodo=periodo_override or metadata["periodo"],
-        cnpj=cnpj_override or metadata["cnpj"],
-        contas=contas,
-    )
-
-
-def _dominio_table_rows(content: bytes, filename: str) -> list[list[str]]:
-    suffix = Path(filename).suffix.lower()
-    if suffix in (".xlsx", ".xlsm"):
-        return _xlsx_table_rows(content)
-
-    try:
-        text = content.decode("utf-8-sig")
-    except UnicodeDecodeError:
-        text = content.decode("latin-1", errors="replace")
-    return _csv_table_rows(text)
-
-
-def _dominio_cell(rows: list[list[str]], row: int, col: int) -> str:
-    if row >= len(rows) or col >= len(rows[row]):
-        return ""
-    value = rows[row][col]
-    return "" if value is None else str(value)
-
-
-def _looks_like_periodo(value: str) -> bool:
-    text = _normalize_key(value)
-    if re.search(r"\d{2}/\d{2}/\d{4}", value):
-        return True
-    return bool(re.search(r"(q[1-4]|[1-4]\s*(?:o|º|°)?\s*trim|jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez).{0,20}20\d{2}", text))
-
-
-def _dominio_header_index(table_rows: list[list[str]]) -> int | None:
-    fixed_codigo = _normalize_key(_dominio_cell(table_rows, _DOM_LINHA_HEADER, _DOM_COL_CODIGO))
-    fixed_descricao = _normalize_key(_dominio_cell(table_rows, _DOM_LINHA_HEADER, _DOM_COL_DESCRICAO))
-    if "classifica" in fixed_codigo and "descri" in fixed_descricao:
-        return _DOM_LINHA_HEADER
-    return _find_dominio_header(table_rows)
-
-
-def _dominio_decimal(value: str) -> Decimal:
-    normalized = (value or "").strip().replace("\u2212", "-")
-    if not normalized or _normalize_key(normalized) in ("nan", "none"):
-        return Decimal("0")
-    if "," in normalized:
-        normalized = normalized.replace(".", "").replace(",", ".")
-    normalized = normalized.replace(" ", "")
-    try:
-        return Decimal(normalized)
-    except InvalidOperation as exc:
-        raise ValueError(f"Valor numerico invalido no balancete Dominio: {value}") from exc
-
-
-def _dominio_records(table_rows: list[list[str]]) -> list[dict[str, str]] | None:
-    header_index = _find_dominio_header(table_rows)
-    if header_index is None:
-        return None
-
-    header = [_normalize_key(value) for value in table_rows[header_index]]
-    column_map = {
-        "codigo": _index_of(header, "codigo"),
-        "classificacao": _index_of(header, "classificacao"),
-        "conta": _index_of(header, "descricao da conta"),
-        "saldo_anterior": _index_of(header, "saldo anterior"),
-        "debito": _index_of(header, "debito"),
-        "credito": _index_of(header, "credito"),
-        "saldo_atual": _index_of(header, "saldo atual"),
-    }
-    if any(index is None for index in column_map.values()):
-        return None
-
-    raw_accounts = []
-    for row in table_rows[header_index + 1:]:
-        classification = _value_at(row, column_map["classificacao"])
-        description = _value_at(row, column_map["conta"])
-        if not classification or not description:
-            continue
-        if not re.match(r"^\d+(\.\d+)*$", classification):
-            continue
-
-        raw_accounts.append(
-            {
-                "codigo": _value_at(row, column_map["codigo"]),
-                "classificacao": classification,
-                "conta": description,
-                "saldo_anterior": _value_at(row, column_map["saldo_anterior"]),
-                "debito": _value_at(row, column_map["debito"]),
-                "credito": _value_at(row, column_map["credito"]),
-                "saldo_atual": _value_at(row, column_map["saldo_atual"]),
-            }
-        )
-
-    leaf_accounts = [
-        account
-        for account in raw_accounts
-        if _dominio_is_leaf(account["classificacao"])
-    ]
-
-    records = []
-    for account in leaf_accounts:
-        group = _dominio_group(account["classificacao"], account["conta"])
-        if not group:
-            continue
-        records.append(
-            {
-                "codigo": account["classificacao"],
-                "conta": account["conta"],
-                "grupo": group,
-                "saldo_anterior": account["saldo_anterior"],
-                "debito": account["debito"],
-                "credito": account["credito"],
-                "saldo_atual": account["saldo_atual"],
-            }
-        )
-
-    return records
-
-
-def _find_dominio_header(table_rows: list[list[str]]) -> int | None:
-    for index, row in enumerate(table_rows):
-        normalized = {_normalize_key(value) for value in row}
-        if {"codigo", "classificacao", "descricao da conta", "saldo anterior", "debito", "credito", "saldo atual"}.issubset(normalized):
-            return index
-    return None
-
-
-def _convert_xls_to_xlsx(source: Path, converted: Path) -> None:
-    script = f"""
-$excel = New-Object -ComObject Excel.Application
-$excel.Visible = $false
-$excel.DisplayAlerts = $false
-$excel.AutomationSecurity = 3
-$workbook = $excel.Workbooks.Open('{_ps_escape(source)}', 0, $true)
-try {{
-    $workbook.SaveAs('{_ps_escape(converted)}', 51)
-}} finally {{
-    if ($workbook) {{ $workbook.Close($false) }}
-    if ($excel) {{ $excel.Quit() }}
-}}
-"""
-    result = subprocess.run(
-        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
-        capture_output=True,
-        text=True,
-        timeout=60,
-    )
-    if result.returncode != 0 or not converted.exists():
-        raise ValueError(
-            "Nao foi possivel converter o .xls automaticamente. "
-            "Salve o arquivo como .xlsx no Excel e tente novamente."
-        )
-
-
-def _normalize_header(value: str | None) -> str:
-    return (value or "").strip().lower()
-
-
-def _index_of(values: list[str], wanted: str) -> int | None:
-    try:
-        return values.index(wanted)
-    except ValueError:
-        return None
-
-
-def _value_at(row: list[str], index: int | None) -> str:
-    if index is None or index >= len(row):
-        return ""
-    return row[index]
-
-
-def _ps_escape(path: Path) -> str:
-    return str(path).replace("'", "''")

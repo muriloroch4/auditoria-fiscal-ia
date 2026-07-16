@@ -310,7 +310,11 @@ Os prompts completos para configurar esses chats estão em `docs/PROMPTS_IA.md`.
 ## Estrutura do projeto
 
 - `src/auditoria/models.py` — modelos de dados (RuleFinding, AuditResult, etc.)
-- `src/auditoria/parser.py` — leitura e normalização do balancete (CSV, XLSX, XLS)
+- `src/auditoria/parser.py` — fachada pública de leitura do balancete (CSV, XLSX, XLS)
+- `src/auditoria/parser_records.py` — normalização de registros tabulares em contas contábeis
+- `src/auditoria/parser_tables.py` — utilitários de tabela CSV/XLSX, cabeçalhos e acesso a células
+- `src/auditoria/dominio_parser.py` — reconhecimento e parsing do layout de balancete Domínio
+- `src/auditoria/xls_converter.py` — conversão operacional de `.xls` para `.xlsx` via Excel/PowerShell
 - `src/auditoria/account_classifier.py` — classificação de contas por grupo contábil, mapa configurável e fallbacks por descrição/prefixo
 - `src/auditoria/rules/simples_servicos.py` — orquestração das regras fiscais para Simples Nacional serviços, comércio e misto
 - `src/auditoria/rules/servicos.py` — checagens específicas de serviços, incluindo Fator R/folha

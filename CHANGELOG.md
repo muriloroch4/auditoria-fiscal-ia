@@ -49,6 +49,7 @@ O formato segue uma versao simplificada de "Keep a Changelog": novas mudancas en
 - Regras patrimoniais `SN-027` e `SN-028` foram movidas para `rules/patrimonial.py`, reduzindo o tamanho de `simples_servicos.py`.
 - Regras fiscais gerais, societarias e de resultado/despesas foram movidas para `rules/fiscal.py`, `rules/societario.py` e `rules/resultado.py`, deixando `simples_servicos.py` como orquestrador.
 - Helpers de entrada, JSON, RBT12 salvo e runtime da API foram movidos para `api_helpers.py` e `api_runtime.py`, reduzindo o tamanho de `api.py`.
+- Parser de balancetes foi separado em fachada (`parser.py`), parser Domínio (`dominio_parser.py`), normalização tabular (`parser_records.py`/`parser_tables.py`) e conversor XLS (`xls_converter.py`).
 
 ## Historico consolidado
 
