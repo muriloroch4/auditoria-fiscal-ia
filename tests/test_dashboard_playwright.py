@@ -47,6 +47,17 @@ class DashboardPlaywrightTest(unittest.TestCase):
                 try:
                     page = browser.new_page(viewport={"width": 1440, "height": 1000})
                     page.goto(self.base_url, wait_until="networkidle")
+                    self.assertTrue(page.locator(".app-shell").is_visible())
+                    self.assertTrue(page.locator(".sidebar").is_visible())
+                    self.assertTrue(page.locator(".workspace").is_visible())
+                    sidebar_bg = page.locator(".sidebar").evaluate("el => getComputedStyle(el).backgroundColor")
+                    self.assertNotIn("rgba(0, 0, 0, 0)", sidebar_bg)
+                    self.assertLessEqual(
+                        page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth"),
+                        2,
+                    )
+                    self.assert_png_not_blank(page.screenshot(full_page=False))
+
                     page.fill("#cliente", "Cliente Playwright")
                     page.fill("#cnpj", "12.345.678/0001-90")
                     page.fill("#periodo", "2026-T1")
@@ -56,7 +67,13 @@ class DashboardPlaywrightTest(unittest.TestCase):
 
                     risk_text = page.locator(".risk-panel").inner_text().lower()
                     self.assertIn("risco", risk_text)
+                    self.assertTrue(page.locator("#action-bar:not(.is-hidden)").is_visible())
                     self.assertGreater(page.locator(".visual-card").count(), 0)
+                    self.assertGreater(page.locator(".metric-card").count(), 0)
+                    self.assertGreater(page.locator(".findings-table").count(), 0)
+                    if page.locator(".finding-detail-button").count():
+                        page.locator(".finding-detail-button").first.click()
+                        self.assertTrue(page.locator(".finding-detail-panel").first.is_visible())
                     self.assertLessEqual(
                         page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth"),
                         2,
@@ -84,9 +101,27 @@ class DashboardPlaywrightTest(unittest.TestCase):
                         self.assertTrue(print_page.locator(".pdf-document").is_visible())
                         self.assertGreater(print_page.locator(".pdf-summary-card").count(), 0)
                         self.assertGreater(print_page.locator(".pdf-visual-card").count(), 0)
+                        self.assertGreater(print_page.locator(".pdf-section").count(), 2)
+                        self.assertLessEqual(
+                            print_page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth"),
+                            2,
+                        )
                         self.assert_png_not_blank(print_page.locator(".pdf-document").screenshot())
                     finally:
                         print_page.close()
+
+                    mobile_page = browser.new_page(viewport={"width": 390, "height": 900})
+                    try:
+                        mobile_page.goto(self.base_url, wait_until="networkidle")
+                        self.assertTrue(mobile_page.locator(".brand").is_visible())
+                        self.assertTrue(mobile_page.locator("#audit-form").is_visible())
+                        self.assertLessEqual(
+                            mobile_page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth"),
+                            2,
+                        )
+                        self.assert_png_not_blank(mobile_page.screenshot(full_page=False))
+                    finally:
+                        mobile_page.close()
                 finally:
                     browser.close()
         except PlaywrightError as exc:

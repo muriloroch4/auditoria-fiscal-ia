@@ -12,17 +12,17 @@ def infer_dominio_group(classification: str, description: str, mapped_group: str
     if "lucros distribuidos" in text or "distribuicao antecipada de lucros" in text:
         return "lucros"
 
-    if c.startswith("1.1.1"):
+    if _has_prefix(c, "1.1.1"):
         if any(k in text for k in ("cliente", "duplicata", "receber")):
             return "clientes"
         if any(k in text for k in ("banco", "conta corrente", "aplicacao", "poupanca", "cdb", "lci", "lca", "rdbi", "fundo", "tesouro")):
             return "bancos"
         return "caixa"
-    if c.startswith("1.1.2"):
+    if _has_prefix(c, "1.1.2"):
         if any(k in text for k in ("caixa", "banco", "conta corrente", "aplicacao", "poupanca")):
             return "bancos"
         return "clientes"
-    if c.startswith("1.1.3"):
+    if _has_prefix(c, "1.1.3"):
         if c.startswith("1.1.3.01"):
             return "bancos"
         if c.startswith(("1.1.3.02", "1.1.3.03")):
@@ -34,7 +34,7 @@ def infer_dominio_group(classification: str, description: str, mapped_group: str
         return "outros"
     if c.startswith("1.1.40"):
         return "estoques"
-    if c.startswith("1.1.4"):
+    if _has_prefix(c, "1.1.4"):
         if "lucro" in text:
             return "lucros"
         return "investimentos"
@@ -78,21 +78,21 @@ def infer_dominio_group(classification: str, description: str, mapped_group: str
         return "patrimonio"
     if c.startswith(("1.2.30", "1.2.40")):
         return "imobilizado"
-    if c.startswith("1.2.1"):
+    if _has_prefix(c, "1.2.1"):
         if "cliente" in text or "duplicata" in text or "receber" in text:
             return "clientes"
         return "outros"
-    if c.startswith("1.2.2"):
+    if _has_prefix(c, "1.2.2"):
         if "banco" in text or "aplicacao" in text:
             return "bancos"
         if any(k in text for k in ("tributo", "recuperar", "compensar", "credito", "inss", "pis", "cofins", "irrf", "csll", "icms", "iss")):
             return "creditos_fiscais"
         return "outros"
-    if c.startswith("1.2.3"):
+    if _has_prefix(c, "1.2.3"):
         return "investimentos"
     if c.startswith(("1.2.4", "1.2.5")):
         return "imobilizado"
-    if c.startswith("1.2.6"):
+    if _has_prefix(c, "1.2.6"):
         return "outros"
     if c.startswith(("1.3.3", "1.3")):
         return "outros"
@@ -105,15 +105,15 @@ def infer_dominio_group(classification: str, description: str, mapped_group: str
         return "folha"
     if c.startswith("2.1.70"):
         return "provisoes"
-    if c.startswith("2.1.1"):
+    if _has_prefix(c, "2.1.1"):
         return "emprestimos"
-    if c.startswith("2.1.2"):
+    if _has_prefix(c, "2.1.2"):
         return "emprestimos"
-    if c.startswith("2.1.3"):
+    if _has_prefix(c, "2.1.3"):
         return "fornecedores"
-    if c.startswith("2.1.4"):
+    if _has_prefix(c, "2.1.4"):
         return "tributos_a_recolher"
-    if c.startswith("2.1.5"):
+    if _has_prefix(c, "2.1.5"):
         if c.startswith(("2.1.5.04", "2.1.5.05", "2.1.5.06")):
             return "tributos_a_recolher"
         if c.startswith("2.1.5.03"):
@@ -123,13 +123,13 @@ def infer_dominio_group(classification: str, description: str, mapped_group: str
         if any(k in text for k in ("salario", "ordenado", "pro-labore", "rescis", "ferias", "13")):
             return "folha"
         return "folha"
-    if c.startswith("2.1.6"):
+    if _has_prefix(c, "2.1.6"):
         if any(k in text for k in ("socio", "administrador", "pessoa ligada", "mutuo")):
             return "socios"
         if c.startswith("2.1.6.01") or any(k in text for k in ("adiantamento de cliente", "adiantamentos de clientes", "cliente")):
             return "adiantamentos_clientes"
         return "outros"
-    if c.startswith("2.1.7"):
+    if _has_prefix(c, "2.1.7"):
         return "lucros"
     if c.startswith(("2.1.30", "2.1.40")):
         return "tributos_a_recolher"
@@ -178,12 +178,12 @@ def infer_dominio_group(classification: str, description: str, mapped_group: str
     if c.startswith("2.3"):
         return "patrimonio"
 
-    if c.startswith("3.1.2"):
+    if _has_prefix(c, "3.1.2"):
         if any(k in text for k in ("simples", "imposto", "tributo", "iss", "icms", "pis", "cofins")):
             return "tributos_sobre_receita"
         return "receita"
-    if c.startswith(("3.1.1", "3.1.10", "3.1")):
-        if c.startswith("3.1.20"):
+    if _has_any_prefix(c, "3.1.1", "3.1.10", "3.1"):
+        if _has_prefix(c, "3.1.20"):
             return "tributos_sobre_receita"
         return "receita"
     if c.startswith("3.2"):
@@ -266,3 +266,11 @@ def _normalize_key(value: str | None) -> str:
     text = unicodedata.normalize("NFKD", value or "")
     text = "".join(char for char in text if not unicodedata.combining(char))
     return " ".join(text.strip().lower().split())
+
+
+def _has_prefix(code: str, prefix: str) -> bool:
+    return code == prefix or code.startswith(prefix + ".")
+
+
+def _has_any_prefix(code: str, *prefixes: str) -> bool:
+    return any(_has_prefix(code, prefix) for prefix in prefixes)

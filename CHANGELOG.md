@@ -8,6 +8,7 @@ O formato segue uma versao simplificada de "Keep a Changelog": novas mudancas en
 
 ### Adicionado
 
+- Testes direcionados para heurísticas de classificação Domínio, helpers consultivos do relatório local e validações visuais adicionais do dashboard/relatório de impressão via Playwright.
 - Campos `pontuacao_bruta`, `pontuacao_maxima_aplicavel` e `escala_pontuacao` no JSON trimestral v3.3.0 e no JSON anual `annual-1.2.0`.
 - Regras `SN-027` para contas patrimoniais com natureza inversa e `SN-028` para empréstimos sem evidência de juros/encargos por competência.
 - Teste automatizado para garantir que os codigos documentados em `REGRAS.md` e configurados em `config/rules.json` tenham cobertura consultiva em `config/consultivo_por_regra.json`.
@@ -25,6 +26,7 @@ O formato segue uma versao simplificada de "Keep a Changelog": novas mudancas en
 - Defaults internos de regras, mapa contábil e anexos foram movidos para `config_defaults.py`, deixando `config_loader.py` focado em leitura/cache.
 - Inferência de ano/trimestre foi movida para `periods.py`, deixando `storage.py` mais focado em persistência.
 - Operações de upload da API, respostas HTTP, heurísticas Domínio, helpers consultivos do relatório local e utilitários de achados anuais foram separados em módulos próprios.
+- Classificação de contas Domínio passou a comparar prefixos por segmento contábil, evitando que `1.1.10` seja tratado como `1.1.1` ou `2.1.30` como `2.1.3`.
 - Pontuação executiva trimestral e anual passou a ser normalizada em escala de 0 a 100, mantendo a pontuação bruta apenas como trilha técnica.
 - Mapa contábil passou a reconhecer empréstimos/financiamentos e contas de juros/encargos financeiros por descrição.
 - Autenticacao da API passou a comparar a chave enviada com `hmac.compare_digest`.
