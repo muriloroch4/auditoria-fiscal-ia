@@ -8,6 +8,8 @@ O formato segue uma versao simplificada de "Keep a Changelog": novas mudancas en
 
 ### Adicionado
 
+- Testes de borda para API, CLI, cliente OpenRouter, parser Domínio, fachada de parser e relatório consultivo anual, elevando a cobertura total automatizada de 83% para 91%.
+
 - Testes direcionados para heurísticas de classificação Domínio, helpers consultivos do relatório local e validações visuais adicionais do dashboard/relatório de impressão via Playwright.
 - Campos `pontuacao_bruta`, `pontuacao_maxima_aplicavel` e `escala_pontuacao` no JSON trimestral v3.3.0 e no JSON anual `annual-1.2.0`.
 - Regras `SN-027` para contas patrimoniais com natureza inversa e `SN-028` para empréstimos sem evidência de juros/encargos por competência.
