@@ -36,6 +36,7 @@ data/*.sqlite-*
 # Reports generated (optional, but good to keep repo clean)
 relatorio*.pdf
 relatorio*.md
+!prompts/relatorio_*.md
 teste_*.md
 test_output.pdf
 server.*.log

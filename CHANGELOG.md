@@ -8,6 +8,7 @@ O formato segue uma versao simplificada de "Keep a Changelog": novas mudancas en
 
 ### Adicionado
 
+- Arquivos oficiais `prompts/relatorio_trimestral.md` e `prompts/relatorio_anual.md` como fonte unica para prompts de relatorios consultivos.
 - Testes de borda para API, CLI, cliente OpenRouter, parser Domínio, fachada de parser e relatório consultivo anual, elevando a cobertura total automatizada de 83% para 91%.
 
 - Testes direcionados para heurísticas de classificação Domínio, helpers consultivos do relatório local e validações visuais adicionais do dashboard/relatório de impressão via Playwright.
@@ -25,6 +26,7 @@ O formato segue uma versao simplificada de "Keep a Changelog": novas mudancas en
 
 ### Alterado
 
+- `report_ai.py` passou a carregar o prompt trimestral de `prompts/relatorio_trimestral.md`, removendo duplicacao e corrigindo a contradicao de extensao entre 4-6 e 5-7 paginas.
 - Defaults internos de regras, mapa contábil e anexos foram movidos para `config_defaults.py`, deixando `config_loader.py` focado em leitura/cache.
 - Inferência de ano/trimestre foi movida para `periods.py`, deixando `storage.py` mais focado em persistência.
 - Operações de upload da API, respostas HTTP, heurísticas Domínio, helpers consultivos do relatório local e utilitários de achados anuais foram separados em módulos próprios.
